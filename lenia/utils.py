@@ -1,0 +1,139 @@
+import os
+# import datetime
+import jax.numpy as jnp
+from fractions import Fraction
+from PIL import Image
+
+cdir = os.path.dirname(os.path.realpath(__file__))
+save_dir = os.path.join(cdir, 'save')
+image_ext = "png"
+
+
+def st2fracs(st):
+    return [Fraction(st) for st in st.split(',')]
+
+
+def append_stack(list1, list2, count, is_repeat=False):
+    list1.append(list2)
+    if count != '':
+        repeated = list2 if is_repeat else []
+        list1.extend([repeated] * (int(count) - 1))
+
+
+def recur_get_max_lens(dim, list1, max_lens, DIM):
+    max_lens[dim] = max(max_lens[dim], len(list1))
+    if dim < DIM - 1:
+        for list2 in list1:
+            recur_get_max_lens(dim + 1, list2, max_lens, DIM)
+
+
+def recur_cubify(dim, list1, max_lens, DIM):
+    more = max_lens[dim] - len(list1)
+    if dim < DIM - 1:
+        list1.extend([[]] * more)
+        for list2 in list1:
+            recur_cubify(dim + 1, list2, max_lens, DIM)
+    else:
+        list1.extend([0] * more)
+
+
+def ch2val(c):
+    if c in '.b':
+        return 0
+    elif c == 'o':
+        return 255
+    elif len(c) == 1:
+        return ord(c) - ord('A') + 1
+    else:
+        return (ord(c[0]) - ord('p')) * 24 + (ord(c[1]) - ord('A') + 25)
+
+
+def rle2arr(st, DIM, DIM_DELIM):
+    stacks = [[] for dim in range(DIM)]
+    last, count = '', ''
+    delims = list(DIM_DELIM.values())
+    st = st.rstrip('!') + DIM_DELIM[DIM - 1]
+    for ch in st:
+        if ch.isdigit():
+            count += ch
+        elif ch in 'pqrstuvwxy@':
+            last = ch
+        else:
+            if last + ch not in delims:
+                append_stack(stacks[0], ch2val(last + ch) / 255, count, is_repeat=True)
+            else:
+                dim = delims.index(last + ch)
+                for d in range(dim):
+                    append_stack(stacks[d + 1], stacks[d], count, is_repeat=False)
+                    stacks[d] = []
+                # print('{0}[{1}] {2}'.format(last+ch, count, [np.asarray(s).shape for s in stacks]))
+            last, count = '', ''
+    A = stacks[DIM - 1]
+    max_lens = [0 for dim in range(DIM)]
+    recur_get_max_lens(0, A, max_lens, DIM)
+    recur_cubify(0, A, max_lens, DIM)
+
+    return jnp.asarray(A)
+
+
+###
+# IMAGE
+###
+MARKER_COLORS_W = [0x5F, 0x5F, 0x5F, 0x7F, 0x7F, 0x7F, 0xFF, 0xFF, 0xFF]
+MARKER_COLORS_B = [0x9F, 0x9F, 0x9F, 0x7F, 0x7F, 0x7F, 0x0F, 0x0F, 0x0F]
+
+
+def get_image(buffer, PIXEL, PIXEL_BORDER):
+    y, x = buffer.shape
+    buffer = jnp.repeat(buffer, PIXEL, axis=0)
+    buffer = jnp.repeat(buffer, PIXEL, axis=1)
+    # zero = np.uint8(np.clip(normalize(0, vmin, vmax), 0, 1) * 252)
+    zero = 0
+    for i in range(PIXEL_BORDER):
+        buffer[i::PIXEL, :] = zero
+        buffer[:, i::PIXEL] = zero
+    return Image.frombuffer('P', (x * PIXEL, y * PIXEL), buffer, 'raw', 'P', 0, 1)
+
+
+def normalize(v, vmin, vmax, is_square=False, vmin2=0, vmax2=0):
+    if not is_square:
+        return (v - vmin) / (vmax - vmin)
+    else:
+        return (v - vmin) / max(vmax - vmin, vmax2 - vmin2)
+
+
+def save_image(save_dir, cells, vmin, vmax, PIXEL, PIXEL_BORDER, colormap, animal_conf, i, is_fft=True):
+    norm_buffer = jnp.clip(normalize(cells, vmin, vmax), 0, 1)
+    buffer = jnp.uint8(norm_buffer * 252)
+
+    img = get_image(buffer, PIXEL, PIXEL_BORDER)
+    img.putpalette(colormap)
+    img = img.convert('RGB')
+
+    filename = os.path.join(save_dir, str(i).zfill(3) + ('fft' if is_fft else 'real'))
+    # record_id = '{}-{}'.format(animal_conf['code'], datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
+    img_path = f"{filename}.{image_ext}"
+    img.save(img_path)
+
+
+def create_colormap(colors, is_marker_w=True):
+    nval = 253
+    ncol = colors.shape[0]
+    colors = jnp.vstack((colors, jnp.asarray([[0, 0, 0]])))
+    v = jnp.repeat(jnp.arange(nval), 3)  # [0 0 0 1 1 1 ... 252 252 252]
+    i = jnp.asarray(list(jnp.arange(3)) * nval)  # [0 1 2 0 1 2 ... 0 1 2]
+    k = v / (nval - 1) * (ncol - 1)  # interpolate between 0 .. ncol-1
+    k1 = k.astype(int)
+    c1, c2 = colors[k1, i], colors[k1 + 1, i]
+    c = (k - k1) * (c2 - c1) + c1  # interpolate between c1 .. c2
+    return jnp.rint(c / 8 * 255).astype(int).tolist() + (MARKER_COLORS_W if is_marker_w else MARKER_COLORS_B)
+
+
+###
+# Others
+###
+def check_dir(dir: str):
+    if not os.path.exists(dir):
+        os.makedirs(dir)
+    elif not os.path.isdir(dir):
+        raise Exception('The path provided ({}) exist and is not a dir, aborting'.format(dir))

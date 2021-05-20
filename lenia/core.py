@@ -24,27 +24,17 @@ growth_func = {
 }
 
 
-def kernel_shell(r, params):
-    B = len(params['b'])
-    Br = B * r
-    bs = jnp.asarray([float(f) for f in params['b']])
-    b = bs[jnp.minimum(jnp.floor(Br).astype(int), B - 1)]
-    kfunc = kernel_core[params['kn'] - 1]
-    return (r < 1) * kfunc(jnp.minimum(Br % 1, 1)) * b
-
-
-def init(animal_conf, SIZE, DIM, DIM_DELIM, MID):
+def init(animal_conf, world_size, nb_dims):
     # channels = 1
-    cells = jnp.zeros(list(reversed(SIZE)))
-    animal_cells = utils.rle2arr(animal_conf['cells'], DIM, DIM_DELIM)
-    pad_x_start = (cells.shape[1] - animal_cells.shape[1]) // 2
-    pad_x_end = cells.shape[1] - animal_cells.shape[1] - pad_x_start
-    pad_y_start = (cells.shape[0] - animal_cells.shape[0]) // 2
-    pad_y_end = cells.shape[0] - animal_cells.shape[0] - pad_y_start
-    padded_animal_cells = jnp.pad(
-        animal_cells, ((pad_y_start, pad_y_end), (pad_x_start, pad_x_end)), mode='constant', constant_values=(0, 0)
-    )
-    cells += padded_animal_cells
+    height, width = world_size
+    # cells = jnp.zeros([channels, height, width])
+    cells = jnp.zeros([height, width])
+
+    animal_cells = utils.rle2arr(animal_conf['cells'], nb_dims)
+    # if len(animal_cells.shape) == 2:
+    #     animal_cells = animal_cells[jnp.newaxis, :, :]
+
+    cells = utils.add_animal(cells, animal_cells)
 
     params = {
         'R': animal_conf['params']['R'],
@@ -57,8 +47,7 @@ def init(animal_conf, SIZE, DIM, DIM_DELIM, MID):
     }
 
     gfunc = growth_func[params['gn'] - 1]
-
-    kernel = get_kernel(params, SIZE, MID)
+    kernel = get_kernel(params, world_size)
     kernel_FFT = jnp.fft.fftn(kernel)
 
     kernel = kernel[~jnp.all(kernel == 0, axis=1)]  # remove 0 lines
@@ -68,10 +57,11 @@ def init(animal_conf, SIZE, DIM, DIM_DELIM, MID):
     return params, cells, gfunc, kernel, kernel_FFT
 
 
-def get_kernel(params, SIZE, MID):
-    dims = [slice(0, size) for size in SIZE]
-    coords = list(reversed(jnp.mgrid[list(reversed(dims))]))
-    whitened_coords = [(i - mid) / params['R'] for i, mid in zip(coords, MID)]
+def get_kernel(params, world_size):
+    midpoint = jnp.asarray([int(size / 2) for size in world_size])
+    coords = jnp.indices(world_size)
+
+    whitened_coords = [(coords[i] - midpoint[i]) / params['R'] for i in range(coords.shape[0])]
     distances = jnp.sqrt(sum([x**2 for x in whitened_coords]))  # Distances from the center of the grid
 
     kernel = kernel_shell(distances, params)
@@ -79,6 +69,15 @@ def get_kernel(params, SIZE, MID):
     kernel_norm = kernel / kernel_sum
 
     return kernel_norm
+
+
+def kernel_shell(distances, params):
+    B = len(params['b'])
+    B_dist = B * distances
+    bs = jnp.asarray([float(f) for f in params['b']])
+    b = bs[jnp.minimum(jnp.floor(B_dist).astype(int), B - 1)]
+    kernel_func = kernel_core[params['kn'] - 1]
+    return (distances < 1) * kernel_func(jnp.minimum(B_dist % 1, 1)) * b
 
 
 # Potential

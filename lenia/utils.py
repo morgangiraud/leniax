@@ -8,7 +8,12 @@ cdir = os.path.dirname(os.path.realpath(__file__))
 save_dir = os.path.join(cdir, 'save')
 image_ext = "png"
 
+DIM_DELIM = {0: '', 1: '$', 2: '%', 3: '#', 4: '@A', 5: '@B', 6: '@C', 7: '@D', 8: '@E', 9: '@F'}
 
+
+###
+# Loader
+###
 def st2fracs(st):
     return [Fraction(st) for st in st.split(',')]
 
@@ -48,7 +53,7 @@ def ch2val(c):
         return (ord(c[0]) - ord('p')) * 24 + (ord(c[1]) - ord('A') + 25)
 
 
-def rle2arr(st, DIM, DIM_DELIM):
+def rle2arr(st, DIM):
     stacks = [[] for dim in range(DIM)]
     last, count = '', ''
     delims = list(DIM_DELIM.values())
@@ -77,22 +82,46 @@ def rle2arr(st, DIM, DIM_DELIM):
 
 
 ###
+# Animals
+###
+def add_animal(cells, animal_cells, offset=None):
+    assert len(cells.shape) == len(animal_cells.shape)
+    if offset:
+        assert len(cells.shape) == len(offset)
+    else:
+        offset = [0] * len(cells.shape)
+
+    pads = []
+    for i in range(len(cells.shape)):
+        pad_start = (cells.shape[i] - animal_cells.shape[i]) // 2 - offset[i]
+        pad_end = cells.shape[i] - animal_cells.shape[i] - pad_start
+
+        pads.append((pad_start, pad_end))
+
+    padded_animal_cells = jnp.pad(animal_cells, pads, mode='constant', constant_values=(0, 0))
+
+    cells += padded_animal_cells
+
+    return cells
+
+
+###
 # IMAGE
 ###
 MARKER_COLORS_W = [0x5F, 0x5F, 0x5F, 0x7F, 0x7F, 0x7F, 0xFF, 0xFF, 0xFF]
 MARKER_COLORS_B = [0x9F, 0x9F, 0x9F, 0x7F, 0x7F, 0x7F, 0x0F, 0x0F, 0x0F]
 
 
-def get_image(buffer, PIXEL, PIXEL_BORDER):
+def get_image(buffer, pixel_size, pixel_border_size):
     y, x = buffer.shape
-    buffer = jnp.repeat(buffer, PIXEL, axis=0)
-    buffer = jnp.repeat(buffer, PIXEL, axis=1)
+    buffer = jnp.repeat(buffer, pixel_size, axis=0)
+    buffer = jnp.repeat(buffer, pixel_size, axis=1)
     # zero = np.uint8(np.clip(normalize(0, vmin, vmax), 0, 1) * 252)
     zero = 0
-    for i in range(PIXEL_BORDER):
-        buffer[i::PIXEL, :] = zero
-        buffer[:, i::PIXEL] = zero
-    return Image.frombuffer('P', (x * PIXEL, y * PIXEL), buffer, 'raw', 'P', 0, 1)
+    for i in range(pixel_border_size):
+        buffer[i::pixel_size, :] = zero
+        buffer[:, i::pixel_size] = zero
+    return Image.frombuffer('P', (x * pixel_size, y * pixel_size), buffer, 'raw', 'P', 0, 1)
 
 
 def normalize(v, vmin, vmax, is_square=False, vmin2=0, vmax2=0):
@@ -102,11 +131,11 @@ def normalize(v, vmin, vmax, is_square=False, vmin2=0, vmax2=0):
         return (v - vmin) / max(vmax - vmin, vmax2 - vmin2)
 
 
-def save_image(save_dir, cells, vmin, vmax, PIXEL, PIXEL_BORDER, colormap, animal_conf, i, is_fft=True):
+def save_image(save_dir, cells, vmin, vmax, pixel_size, pixel_border_size, colormap, animal_conf, i, is_fft=True):
     norm_buffer = jnp.clip(normalize(cells, vmin, vmax), 0, 1)
     buffer = jnp.uint8(norm_buffer * 252)
 
-    img = get_image(buffer, PIXEL, PIXEL_BORDER)
+    img = get_image(buffer, pixel_size, pixel_border_size)
     img.putpalette(colormap)
     img = img.convert('RGB')
 

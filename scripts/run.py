@@ -53,43 +53,30 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
-    DIM = args.D
-    DIM_DELIM = {0: '', 1: '$', 2: '%', 3: '#', 4: '@A', 5: '@B', 6: '@C', 7: '@D', 8: '@E', 9: '@F'}
-    X_AXIS, Y_AXIS, Z_AXIS = -1, -2, -3
-
-    PIXEL_2 = args.P if args.P is not None else args.D
-    PIXEL_BORDER = args.B
+    nb_dims = args.D
+    pixel_size_power2 = args.P if args.P is not None else args.D
+    pixel_border_size = args.B
     if args.S is not None:
-        SIZE_2 = args.S  # X, Y, Z, S...
+        world_size_power2 = args.S
     else:
-        SIZE_2 = [win_2 - PIXEL_2 for win_2 in args.W]
-    if len(SIZE_2) < DIM:
-        SIZE_2 += [SIZE_2[-1]] * (DIM - len(SIZE_2))
-    # GoL 9,9,3,1   Lenia Lo 9,9,2,0  Hi 9,9,0,0   1<<9=512
+        world_size_power2 = [win_power2 - pixel_size_power2 for win_power2 in args.W]
 
-    SIZE = [1 << size_2 for size_2 in SIZE_2]
-    PIXEL = 1 << PIXEL_2
-    MID = [int(size / 2) for size in SIZE]
-    SIZEX, SIZEY = SIZE[0], SIZE[1]
-    MIDX, MIDY = MID[0], MID[1]
+    if len(world_size_power2) < nb_dims:
+        world_size_power2 += [world_size_power2[-1]] * (nb_dims - len(world_size_power2))
 
-    SIZER, SIZETH, SIZEF = min(MIDX, MIDY), SIZEX, MIDX
-    DEF_R = int(jnp.power(2.0, min(SIZE_2) - 6) * DIM * 5)
-    RAND_R1 = int(jnp.power(2.0, min(SIZE_2) - 7) * DIM * 5)
-    RAND_R2 = int(jnp.power(2.0, min(SIZE_2) - 5) * DIM * 5)
-
-    EPSILON = 1e-10
-    ROUND = 10
+    world_size = [2**size_power2 for size_power2 in world_size_power2]
+    pixel_size = 2**pixel_size_power2
 
     with open(orbium_file) as f:
         animal_conf = json.load(f)
+
     vmin = 0
     vmax = 1
     colormap = lenia.utils.create_colormap(
         jnp.asarray([[0, 0, 4], [0, 0, 8], [0, 4, 8], [0, 8, 8], [4, 8, 4], [8, 8, 0], [8, 4, 0], [8, 0, 0], [4, 0, 0]])
     )
 
-    params, cells, gfunc, kernel, kernel_FFT = lenia.init(animal_conf, SIZE, DIM, DIM_DELIM, MID)
+    params, cells, gfunc, kernel, kernel_FFT = lenia.init(animal_conf, world_size, nb_dims)
 
     cells_fft = jnp.asarray(copy.deepcopy(cells))
     for i in range(240):
@@ -99,8 +86,8 @@ if __name__ == '__main__':
             cells,
             vmin,
             vmax,
-            PIXEL,
-            PIXEL_BORDER,
+            pixel_size,
+            pixel_border_size,
             colormap,
             animal_conf,
             i,
@@ -108,4 +95,6 @@ if __name__ == '__main__':
         )
 
         cells_fft = lenia.update_fft(params, cells_fft, gfunc, kernel_FFT)
-        lenia.utils.save_image(save_dir, cells, vmin, vmax, PIXEL, PIXEL_BORDER, colormap, animal_conf, i, is_fft=True)
+        lenia.utils.save_image(
+            save_dir, cells_fft, vmin, vmax, pixel_size, pixel_border_size, colormap, animal_conf, i, is_fft=True
+        )

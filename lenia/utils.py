@@ -25,19 +25,19 @@ def append_stack(list1, list2, count, is_repeat=False):
         list1.extend([repeated] * (int(count) - 1))
 
 
-def recur_get_max_lens(dim, list1, max_lens, DIM):
+def recur_get_max_lens(dim, list1, max_lens, nb_dims):
     max_lens[dim] = max(max_lens[dim], len(list1))
-    if dim < DIM - 1:
+    if dim < nb_dims - 1:
         for list2 in list1:
-            recur_get_max_lens(dim + 1, list2, max_lens, DIM)
+            recur_get_max_lens(dim + 1, list2, max_lens, nb_dims)
 
 
-def recur_cubify(dim, list1, max_lens, DIM):
+def recur_cubify(dim, list1, max_lens, nb_dims):
     more = max_lens[dim] - len(list1)
-    if dim < DIM - 1:
+    if dim < nb_dims - 1:
         list1.extend([[]] * more)
         for list2 in list1:
-            recur_cubify(dim + 1, list2, max_lens, DIM)
+            recur_cubify(dim + 1, list2, max_lens, nb_dims)
     else:
         list1.extend([0] * more)
 
@@ -53,11 +53,11 @@ def ch2val(c):
         return (ord(c[0]) - ord('p')) * 24 + (ord(c[1]) - ord('A') + 25)
 
 
-def rle2arr(st, DIM):
-    stacks = [[] for dim in range(DIM)]
+def rle2arr(st, nb_dims, nb_channels):
+    stacks = [[] for dim in range(nb_dims)]
     last, count = '', ''
     delims = list(DIM_DELIM.values())
-    st = st.rstrip('!') + DIM_DELIM[DIM - 1]
+    st = st.rstrip('!') + DIM_DELIM[nb_dims - 1]
     for ch in st:
         if ch.isdigit():
             count += ch
@@ -73,19 +73,28 @@ def rle2arr(st, DIM):
                     stacks[d] = []
                 # print('{0}[{1}] {2}'.format(last+ch, count, [np.asarray(s).shape for s in stacks]))
             last, count = '', ''
-    A = stacks[DIM - 1]
-    max_lens = [0 for dim in range(DIM)]
-    recur_get_max_lens(0, A, max_lens, DIM)
-    recur_cubify(0, A, max_lens, DIM)
 
-    return jnp.asarray(A)
+    cells = stacks[nb_dims - 1]
+    max_lens = [0 for dim in range(nb_dims)]
+    recur_get_max_lens(0, cells, max_lens, nb_dims)
+    recur_cubify(0, cells, max_lens, nb_dims)
+
+    cells = jnp.asarray(cells)
+    cells = jnp.repeat(cells[..., jnp.newaxis], nb_channels, axis=0)
+
+    return cells
 
 
 ###
 # Animals
 ###
 def add_animal(cells, animal_cells, offset=None):
+    # We ensure the animal and the world are compatible:
+    # - same number of dims
+    # - same number of channels
     assert len(cells.shape) == len(animal_cells.shape)
+    assert cells.shape[-1] == animal_cells.shape[-1]
+
     if offset:
         assert len(cells.shape) == len(offset)
     else:
@@ -112,16 +121,16 @@ MARKER_COLORS_W = [0x5F, 0x5F, 0x5F, 0x7F, 0x7F, 0x7F, 0xFF, 0xFF, 0xFF]
 MARKER_COLORS_B = [0x9F, 0x9F, 0x9F, 0x7F, 0x7F, 0x7F, 0x0F, 0x0F, 0x0F]
 
 
-def get_image(buffer, pixel_size, pixel_border_size):
-    y, x = buffer.shape
-    buffer = jnp.repeat(buffer, pixel_size, axis=0)
-    buffer = jnp.repeat(buffer, pixel_size, axis=1)
+def get_image(cells_buffer, pixel_size, pixel_border_size):
+    y, x, _ = cells_buffer.shape
+    cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=0)
+    cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=1)
     # zero = np.uint8(np.clip(normalize(0, vmin, vmax), 0, 1) * 252)
     zero = 0
     for i in range(pixel_border_size):
-        buffer[i::pixel_size, :] = zero
-        buffer[:, i::pixel_size] = zero
-    return Image.frombuffer('P', (x * pixel_size, y * pixel_size), buffer, 'raw', 'P', 0, 1)
+        cells_buffer[i::pixel_size, :] = zero
+        cells_buffer[:, i::pixel_size] = zero
+    return Image.frombuffer('P', (x * pixel_size, y * pixel_size), cells_buffer, 'raw', 'P', 0, 1)
 
 
 def normalize(v, vmin, vmax, is_square=False, vmin2=0, vmax2=0):
@@ -132,10 +141,10 @@ def normalize(v, vmin, vmax, is_square=False, vmin2=0, vmax2=0):
 
 
 def save_image(save_dir, cells, vmin, vmax, pixel_size, pixel_border_size, colormap, animal_conf, i, is_fft=True):
-    norm_buffer = jnp.clip(normalize(cells, vmin, vmax), 0, 1)
-    buffer = jnp.uint8(norm_buffer * 252)
+    norm_cells = jnp.clip(normalize(cells, vmin, vmax), 0, 1)
+    cells_buffer = jnp.uint8(norm_cells * 252)
 
-    img = get_image(buffer, pixel_size, pixel_border_size)
+    img = get_image(cells_buffer, pixel_size, pixel_border_size)
     img.putpalette(colormap)
     img = img.convert('RGB')
 

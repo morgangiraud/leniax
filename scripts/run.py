@@ -22,12 +22,28 @@ if __name__ == '__main__':
         recommanded settings: (2D) -d2 -p2, (wide) -d2 -p0 -w 10 9, (3D) -d3 -p3, (4D) -d4 -p4'''
     )
     parser.add_argument(
-        '-d', '--dim', dest='D', default=2, action='store', type=int, help='number of dimensions (default 2D)'
+        '-d',
+        '--dims',
+        dest='dims',
+        default=2,
+        action='store',
+        type=int,
+        help='number of world\' dimensions (default 2D)'
     )
+    parser.add_argument(
+        '-c',
+        '--channels',
+        dest='channels',
+        default=1,
+        action='store',
+        type=int,
+        help='number of world\'s channels (default 1)'
+    )
+
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument(
         '-w',
-        '--win',
+        '--win_size',
         dest='W',
         default=[9],
         action='store',
@@ -43,18 +59,19 @@ if __name__ == '__main__':
         action='store',
         type=int,
         nargs='+',
-        help='array size = 2^S (apply to all sides if only one value, default 2^(W-P) = 128)'
+        help='size of the world (number of pixels) = 2^S (apply to all sides if only one value, default 2^(W-P) = 128)'
     )
     parser.add_argument(
         '-p', '--pixel', dest='P', default=None, action='store', type=int, help='pixel size = 2^P (default 2^D)'
     )
     parser.add_argument(
-        '-b', '--border', dest='B', default=0, action='store', type=int, help='pixel border (default 0)'
+        '-b', '--pixel_border', dest='B', default=0, action='store', type=int, help='pixel border (default 0)'
     )
     args = parser.parse_args()
 
-    nb_dims = args.D
-    pixel_size_power2 = args.P if args.P is not None else args.D
+    nb_dims = args.dims
+    nb_channels = args.channels
+    pixel_size_power2 = args.P if args.P is not None else args.dims
     pixel_border_size = args.B
     if args.S is not None:
         world_size_power2 = args.S
@@ -75,12 +92,12 @@ if __name__ == '__main__':
     colormap = lenia.utils.create_colormap(
         jnp.asarray([[0, 0, 4], [0, 0, 8], [0, 4, 8], [0, 8, 8], [4, 8, 4], [8, 8, 0], [8, 4, 0], [8, 0, 0], [4, 0, 0]])
     )
+    kernel_mode = lenia.kernels.KERNEL_MODE_ONE
 
-    params, cells, gfunc, kernel, kernel_FFT = lenia.init(animal_conf, world_size, nb_dims)
-
+    params, cells, gfunc, kernel, kernels_fft = lenia.init(animal_conf, world_size, nb_channels, kernel_mode)
     cells_fft = jnp.asarray(copy.deepcopy(cells))
     for i in range(240):
-        cells = lenia.update(params, cells, gfunc, kernel)
+        cells = lenia.update(params, cells, gfunc, kernel, kernel_mode)
         lenia.utils.save_image(
             save_dir,
             cells,
@@ -94,7 +111,7 @@ if __name__ == '__main__':
             is_fft=False,
         )
 
-        cells_fft = lenia.update_fft(params, cells_fft, gfunc, kernel_FFT)
+        cells_fft = lenia.update_fft(params, cells_fft, gfunc, kernels_fft)
         lenia.utils.save_image(
             save_dir, cells_fft, vmin, vmax, pixel_size, pixel_border_size, colormap, animal_conf, i, is_fft=True
         )

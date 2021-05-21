@@ -2,7 +2,7 @@ import jax.numpy as jnp
 from jax import lax
 
 from . import utils
-from .kernels import get_kernel, KERNEL_MODE_ONE
+from .kernels import get_kernel, KERNEL_MODE_ONE, KERNEL_MODE_ALL_IN
 from .growth_functions import growth_func
 
 
@@ -28,8 +28,8 @@ def init(animal_conf, world_size, nb_channels, kernel_mode=KERNEL_MODE_ONE):
     cells = utils.add_animal(cells, animal_cells)
 
     # We consider only 2 possible case
-    # - Kernels with input_channels I = C
-    # - Kernels with input_channels I = 1
+    # - Kernels with input_channels I = C: KERNEL_MODE_ALL_IN
+    # - Kernels with input_channels I = 1: KERNEL_MODE_ONE
     if kernel_mode == KERNEL_MODE_ONE:
         # For now we limit ourselves to the following case
         # - same number of kernels and channels
@@ -45,8 +45,10 @@ def init(animal_conf, world_size, nb_channels, kernel_mode=KERNEL_MODE_ONE):
             kernels_fft.append(kernel_fft[..., jnp.newaxis])
 
         kernel = jnp.concatenate(kernels, axis=0)  # [O, I, K_c, K_h, K_w]
-    else:
+    elif kernel_mode == KERNEL_MODE_ALL_IN:
         raise Exception("kernel_mode KERNEL_MODE_ALL_IN not supported yet")
+    else:
+        raise Exception(f"kernel_mode {kernel_mode} not supported yet")
 
     return params, cells, gfunc, kernel, kernels_fft
 
@@ -102,11 +104,15 @@ def update_fft(params, cells, gfunc, kernel_fft):
 # Potential
 def get_potential_fft(cells, kernels_fft):
     assert cells.shape[-1] == 1  # We limit ourselves to one channel for now
-    assert len(kernels_fft) == 1  # We limit ourselves to one kernel for now
+
     # Cells: [H, W, C]
     world_fft = jnp.fft.fftn(cells)
-    potential_fft = kernels_fft[0] * world_fft
-    potential = jnp.fft.fftshift(jnp.real(jnp.fft.ifftn(potential_fft)))
+    potentials = []
+    for kernel_fft in kernels_fft:
+        potential_fft = kernel_fft * world_fft
+        potential = jnp.fft.fftshift(jnp.real(jnp.fft.ifftn(potential_fft)))
+        potentials.append(potential)
+    potential = jnp.mean(jnp.asarray(potentials), axis=0)
 
     return potential
 

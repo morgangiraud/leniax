@@ -14,8 +14,8 @@ DIM_DELIM = {0: '', 1: '$', 2: '%', 3: '#', 4: '@A', 5: '@B', 6: '@C', 7: '@D', 
 ###
 # Loader
 ###
-def st2fracs(st):
-    return [Fraction(st) for st in st.split(',')]
+def st2fracs2float(st):
+    return [float(Fraction(st)) for st in st.split(',')]
 
 
 def append_stack(list1, list2, count, is_repeat=False):
@@ -80,7 +80,7 @@ def rle2arr(st, nb_dims, nb_channels):
     recur_cubify(0, cells, max_lens, nb_dims)
 
     cells = jnp.asarray(cells)
-    cells = jnp.repeat(cells[..., jnp.newaxis], nb_channels, axis=0)
+    cells = jnp.repeat(cells[jnp.newaxis, ...], nb_channels, axis=0)
 
     return cells
 
@@ -93,7 +93,7 @@ def add_animal(cells, animal_cells, offset=None):
     # - same number of dims
     # - same number of channels
     assert len(cells.shape) == len(animal_cells.shape)
-    assert cells.shape[-1] == animal_cells.shape[-1]
+    assert cells.shape[0] == animal_cells.shape[0]
 
     if offset:
         assert len(cells.shape) == len(offset)
@@ -122,7 +122,7 @@ MARKER_COLORS_B = [0x9F, 0x9F, 0x9F, 0x7F, 0x7F, 0x7F, 0x0F, 0x0F, 0x0F]
 
 
 def get_image(cells_buffer, pixel_size, pixel_border_size):
-    y, x, _ = cells_buffer.shape
+    y, x = cells_buffer.shape
     cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=0)
     cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=1)
     # zero = np.uint8(np.clip(normalize(0, vmin, vmax), 0, 1) * 252)
@@ -141,7 +141,10 @@ def normalize(v, vmin, vmax, is_square=False, vmin2=0, vmax2=0):
 
 
 def save_image(save_dir, cells, vmin, vmax, pixel_size, pixel_border_size, colormap, animal_conf, i, is_fft=True):
-    norm_cells = jnp.clip(normalize(cells, vmin, vmax), 0, 1)
+    assert len(cells.shape) == 3, 'we only handle images under the format [C, H, W]'
+    assert cells.shape[0] == 1, 'we only handle images with i channels'
+
+    norm_cells = jnp.clip(normalize(cells[0], vmin, vmax), 0, 1)
     cells_buffer = jnp.uint8(norm_cells * 252)
 
     img = get_image(cells_buffer, pixel_size, pixel_border_size)

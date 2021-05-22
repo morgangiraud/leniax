@@ -11,6 +11,13 @@ def poly_quad4(x):
     return x
 
 
+def poly_quad2(x):
+    x = 2 * x * (1 - x)
+    x = x**2
+
+    return x
+
+
 def gauss_bump4(x):
     x = 4 - 1 / (x * (1 - x))
     x = jnp.exp(x)
@@ -26,10 +33,10 @@ def staircase(x, q=1 / 4):
     (x >= q) * (x <= 1 - q) + (x < q) * 0.5
 
 
-kernel_core = {0: poly_quad4, 1: gauss_bump4, 2: step4, 3: staircase}
+kernel_core = {0: poly_quad4, 1: poly_quad2, 2: gauss_bump4, 3: step4, 4: staircase}
 
 
-def get_kernel(params, world_size: list):
+def get_kernel(params, world_size: list, K_c: int):
     midpoint = jnp.asarray([size // 2 for size in world_size])
     coords = jnp.indices(world_size)
 
@@ -44,6 +51,9 @@ def get_kernel(params, world_size: list):
     kernel = kernel[~jnp.all(kernel == 0, axis=1)]  # remove 0 lines
     kernel = kernel[:, ~jnp.all(kernel == 0, axis=0)]  # remove 0 columns
 
+    kernel = jnp.repeat(kernel[jnp.newaxis, ...], K_c, axis=0)
+    kernel_fft = jnp.repeat(kernel_fft[jnp.newaxis, ...], K_c, axis=0)
+
     return kernel, kernel_fft
 
 
@@ -51,7 +61,7 @@ def kernel_shell(distances: jnp.array, params: list) -> jnp.array:
     kernel_func = kernel_core[params['kn'] - 1]
 
     nb_b = len(params['b'])
-    bs = jnp.asarray([float(f) for f in params['b']])
+    bs = jnp.asarray(params['b'])
 
     B_dist = nb_b * distances  # scale distances by the number of modes
     bs_mat = bs[jnp.minimum(jnp.floor(B_dist).astype(int), nb_b - 1)]  # Define postions for each mode

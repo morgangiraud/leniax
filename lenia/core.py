@@ -6,14 +6,14 @@ from .kernels import get_kernel, KERNEL_MODE_ONE, KERNEL_MODE_ALL_IN
 from .growth_functions import growth_func
 
 
-def init(animal_conf, world_size, nb_channels, kernel_mode=KERNEL_MODE_ONE):
+def init(animal_conf, world_size: list, nb_channels: int, kernel_mode: int = KERNEL_MODE_ONE):
     assert len(world_size) == 2  # We linit ourselves to 2d worlds
     assert nb_channels > 0
 
     params = {
         'R': animal_conf['params']['R'],  # Ratio
         'T': animal_conf['params']['T'],  # ∆T
-        'b': utils.st2fracs(animal_conf['params']['b']),  # Array of modes amplitude (tells the number of modes)
+        'b': utils.st2fracs2float(animal_conf['params']['b']),  # Array of modes amplitude (tells the number of modes)
         'm': animal_conf['params']['m'],  # mean
         's': animal_conf['params']['s'],  # std
         'kn': animal_conf['params']['kn'],  # kernel id
@@ -22,7 +22,7 @@ def init(animal_conf, world_size, nb_channels, kernel_mode=KERNEL_MODE_ONE):
     gfunc = growth_func[params['gn'] - 1]
 
     nb_dims = len(world_size)
-    world_shape = world_size + [nb_channels]  # HWC
+    world_shape = [nb_channels] + world_size  # CHW
     cells = jnp.zeros(world_shape)
     animal_cells = utils.rle2arr(animal_conf['cells'], nb_dims, nb_channels)
     cells = utils.add_animal(cells, animal_cells)
@@ -31,42 +31,47 @@ def init(animal_conf, world_size, nb_channels, kernel_mode=KERNEL_MODE_ONE):
     # - Kernels with input_channels I = C: KERNEL_MODE_ALL_IN
     # - Kernels with input_channels I = 1: KERNEL_MODE_ONE
     if kernel_mode == KERNEL_MODE_ONE:
-        # For now we limit ourselves to the following case
-        # - same number of kernels and channels
-        nb_kernels = nb_channels
+        nb_kernels = 2
+        K_c = 1
+
         kernels = []
         kernels_fft = []
         for i in range(nb_kernels):
-            kernel, kernel_fft = get_kernel(params, world_size)  # HW kernels
+            kernel, kernel_fft = get_kernel(params, world_size, K_c)  # generate [K_c, K_h, K_w] kernels
 
-            kernel = kernel[jnp.newaxis, jnp.newaxis, ...]  # [I, K_c, K_h, K_w] kernels (I = 1, K_c = 1)
-            kernels.append(kernel[jnp.newaxis, ...])
+            kernels.append(kernel[jnp.newaxis, ...])  # [1, K_c, K_h, K_w]
+            kernels_fft.append(kernel_fft[jnp.newaxis, ...])
+        kernel = jnp.concatenate(kernels, axis=0)  # [O, K_c, K_h, K_w]
+        kernel_fft = jnp.concatenate(kernels_fft, axis=0)  # [O, K_c, K_h, K_w]
 
-            kernels_fft.append(kernel_fft[..., jnp.newaxis])
-
-        kernel = jnp.concatenate(kernels, axis=0)  # [O, I, K_c, K_h, K_w]
     elif kernel_mode == KERNEL_MODE_ALL_IN:
+        # For now we limit ourselves to the following case
+        # - same number of kernels and channels
+        nb_kernels = nb_channels
+        K_c = nb_channels
         raise Exception("kernel_mode KERNEL_MODE_ALL_IN not supported yet")
     else:
         raise Exception(f"kernel_mode {kernel_mode} not supported yet")
 
-    return params, cells, gfunc, kernel, kernels_fft
+    return params, cells, gfunc, kernel, kernel_fft
 
 
-def get_potential(cells, kernel, kernel_mode):
+def get_potential(cells, kernel, kernel_mode, weights=None):
     if kernel_mode == KERNEL_MODE_ONE:
-        # Cells: [H, W, C]
-        # Kernel: [O, I = 1, K_c = 1, K_h, K_w]
+        # Cells: [C, H, W]
+        # Kernel: [O, K_c = 1, K_h, K_w]
         assert kernel.shape[1] == 1
-        assert kernel.shape[2] == 1
+        if weights:
+            assert len(weights) == kernel.shape[0]
 
-        A = cells.transpose(2, 0, 1)[jnp.newaxis, jnp.newaxis, ...]  # [1, 1, C, H, W]
+        A = cells[jnp.newaxis, jnp.newaxis, ...]  # [1, 1, C, H, W]
+        K = kernel[:, jnp.newaxis, :, :, :]  # [O, 1, K_c = 1, K_h, K_w]
         pad_w = kernel.shape[-1] // 2
         pad_h = kernel.shape[-2] // 2
         padded_A = jnp.pad(A, [(0, 0), (0, 0), (0, 0), (pad_h, pad_h), (pad_w, pad_w)], mode='wrap')
-        A_out = lax.conv(padded_A, kernel, (1, 1, 1), 'VALID')
-        A_out = A_out.mean(axis=1)  # [1, C, H, W]
-        potential = A_out[0].transpose(1, 2, 0)  # [H, W, C]
+        A_out = lax.conv(padded_A, K, (1, 1, 1), 'VALID')  # [1, O, C, H, W]
+        A_out = jnp.average(A_out, axis=1, weights=weights)  # [1, C, H, W]
+        potential = A_out[0]  # [C, H, W]
 
     else:
         raise Exception("kernel_mode KERNEL_MODE_ALL_IN not supported yet")
@@ -93,7 +98,7 @@ def update_cells(cells, field, T):
     return cells
 
 
-def update_fft(params, cells, gfunc, kernel_fft):
+def update_fft(params, cells: jnp.array, gfunc, kernel_fft: jnp.array):
     potential = get_potential_fft(cells, kernel_fft)
     field = get_field(gfunc, params['m'], params['s'], potential)
     cells = update_cells(cells, field, params['T'])
@@ -102,14 +107,15 @@ def update_fft(params, cells, gfunc, kernel_fft):
 
 
 # Potential
-def get_potential_fft(cells, kernels_fft):
-    assert cells.shape[-1] == 1  # We limit ourselves to one channel for now
+def get_potential_fft(cells: jnp.array, kernel_fft: jnp.array):
+    # Cells: [C, H, W]
+    # Kernel: [O, K_c = 1, K_h, K_w]
+    assert cells.shape[0] == 1  # We limit ourselves to one channel for now
 
-    # Cells: [H, W, C]
     world_fft = jnp.fft.fftn(cells)
     potentials = []
-    for kernel_fft in kernels_fft:
-        potential_fft = kernel_fft * world_fft
+    for k_idx in range(kernel_fft.shape[0]):
+        potential_fft = kernel_fft[k_idx] * world_fft
         potential = jnp.fft.fftshift(jnp.real(jnp.fft.ifftn(potential_fft)))
         potentials.append(potential)
     potential = jnp.mean(jnp.asarray(potentials), axis=0)
@@ -118,7 +124,7 @@ def get_potential_fft(cells, kernels_fft):
 
 
 # Field
-def get_field(gfunc, m, s, potential):
+def get_field(gfunc, m: float, s: float, potential: jnp.array):
     field = gfunc(potential, m, s)
 
     return field

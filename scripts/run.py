@@ -1,3 +1,4 @@
+import time
 import os
 import copy
 import argparse
@@ -96,6 +97,8 @@ if __name__ == '__main__':
 
     params, cells, gfunc, kernel, kernels_fft = lenia.init(animal_conf, world_size, nb_channels, kernel_mode)
     cells_fft = jnp.asarray(copy.deepcopy(cells))
+
+    start_time = time.time()
     for i in range(240):
         cells = lenia.update(params, cells, gfunc, kernel, kernel_mode)
         lenia.utils.save_image(
@@ -115,3 +118,4 @@ if __name__ == '__main__':
         lenia.utils.save_image(
             save_dir, cells_fft, vmin, vmax, pixel_size, pixel_border_size, colormap, animal_conf, i, is_fft=True
         )
+    print("--- %s seconds ---" % (time.time() - start_time))

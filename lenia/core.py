@@ -2,7 +2,8 @@ import jax.numpy as jnp
 from jax import lax
 
 from . import utils
-from .kernels import get_kernel, KERNEL_MODE_ONE, KERNEL_MODE_ALL_IN
+from .kernels import get_kernel
+from .kernels import KERNEL_MODE_ALL_IN, KERNEL_MODE_ONE, KERNEL_MODE_ALL_IN_FFT, KERNEL_MODE_ONE_FFT
 from .growth_functions import growth_func
 
 
@@ -56,58 +57,52 @@ def init(animal_conf, world_size: list, nb_channels: int, kernel_mode: int = KER
     return params, cells, gfunc, kernel, kernel_fft
 
 
-def get_potential(cells, kernel, kernel_mode, weights=None):
+def build_update_fn(params, growth_fn, kernel, kernel_mode=KERNEL_MODE_ONE, weights=None):
+    T = params['T']
+    m = params['m']
+    s = params['s']
+
     if kernel_mode == KERNEL_MODE_ONE:
-        # Cells: [C, H, W]
-        # Kernel: [O, K_c = 1, K_h, K_w]
-        assert kernel.shape[1] == 1
-        if weights:
-            assert len(weights) == kernel.shape[0]
-
-        A = cells[jnp.newaxis, jnp.newaxis, ...]  # [1, 1, C, H, W]
-        K = kernel[:, jnp.newaxis, :, :, :]  # [O, 1, K_c = 1, K_h, K_w]
-        pad_w = kernel.shape[-1] // 2
-        pad_h = kernel.shape[-2] // 2
-        padded_A = jnp.pad(A, [(0, 0), (0, 0), (0, 0), (pad_h, pad_h), (pad_w, pad_w)], mode='wrap')
-        A_out = lax.conv(padded_A, K, (1, 1, 1), 'VALID')  # [1, O, C, H, W]
-        A_out = jnp.average(A_out, axis=1, weights=weights)  # [1, C, H, W]
-        potential = A_out[0]  # [C, H, W]
-
+        get_potential_fn = get_potential_mode_one
+    elif kernel_mode == KERNEL_MODE_ALL_IN:
+        raise Exception('KERNEL_MODE_ALL_IN not supported yet')
+    elif kernel_mode == KERNEL_MODE_ALL_IN_FFT:
+        raise Exception('KERNEL_MODE_ALL_IN_FFT not supported yet')
+    elif kernel_mode == KERNEL_MODE_ONE_FFT:
+        get_potential_fn = get_potential_fft
     else:
-        raise Exception("kernel_mode KERNEL_MODE_ALL_IN not supported yet")
+        raise Exception(f"kernel mode {kernel_mode} not supported")
+
+    def update(cells: jnp.array):
+        potential = get_potential_fn(cells, kernel, weights)
+        field = growth_fn(potential, m, s)
+        cells = update_cells(cells, field, T)
+
+        return cells
+
+    return update
+
+
+def get_potential_mode_one(cells: jnp.array, kernel: jnp.array, weights=None):
+    # Cells: [C, H, W]
+    # Kernel: [O, K_c = 1, K_h, K_w]
+    assert kernel.shape[1] == 1
+    if weights:
+        assert len(weights) == kernel.shape[0]
+
+    A = cells[jnp.newaxis, jnp.newaxis, ...]  # [1, 1, C, H, W]
+    K = kernel[:, jnp.newaxis, :, :, :]  # [O, 1, K_c = 1, K_h, K_w]
+    pad_w = kernel.shape[-1] // 2
+    pad_h = kernel.shape[-2] // 2
+    padded_A = jnp.pad(A, [(0, 0), (0, 0), (0, 0), (pad_h, pad_h), (pad_w, pad_w)], mode='wrap')
+    A_out = lax.conv(padded_A, K, (1, 1, 1), 'VALID')  # [1, O, C, H, W]
+    A_out = jnp.average(A_out, axis=1, weights=weights)  # [1, C, H, W]
+    potential = A_out[0]  # [C, H, W]
 
     return potential
 
 
-def update(params, cells, gfunc, kernel, kernel_mode):
-    potential = get_potential(cells, kernel, kernel_mode)
-    field = get_field(gfunc, params['m'], params['s'], potential)
-    cells = update_cells(cells, field, params['T'])
-
-    return cells
-
-
-def update_cells(cells, field, T):
-    dt = 1 / T
-
-    cells_new = cells + dt * field
-    cells_new = jnp.clip(cells_new, 0, 1)
-
-    cells = cells_new
-
-    return cells
-
-
-def update_fft(params, cells: jnp.array, gfunc, kernel_fft: jnp.array):
-    potential = get_potential_fft(cells, kernel_fft)
-    field = get_field(gfunc, params['m'], params['s'], potential)
-    cells = update_cells(cells, field, params['T'])
-
-    return cells
-
-
-# Potential
-def get_potential_fft(cells: jnp.array, kernel_fft: jnp.array):
+def get_potential_fft(cells: jnp.array, kernel_fft: jnp.array, weights=None):
     # Cells: [C, H, W]
     # Kernel: [O, K_c = 1, K_h, K_w]
     assert cells.shape[0] == 1  # We limit ourselves to one channel for now
@@ -123,8 +118,10 @@ def get_potential_fft(cells: jnp.array, kernel_fft: jnp.array):
     return potential
 
 
-# Field
-def get_field(gfunc, m: float, s: float, potential: jnp.array):
-    field = gfunc(potential, m, s)
+def update_cells(cells, field, T):
+    dt = 1 / T
 
-    return field
+    cells_new = cells + dt * field
+    cells_new = jnp.clip(cells_new, 0, 1)
+
+    return cells_new

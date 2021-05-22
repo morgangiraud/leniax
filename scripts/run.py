@@ -3,6 +3,7 @@ import os
 import copy
 import argparse
 import json
+from jax import jit
 import jax.numpy as jnp
 
 import lenia
@@ -85,6 +86,8 @@ if __name__ == '__main__':
     world_size = [2**size_power2 for size_power2 in world_size_power2]
     pixel_size = 2**pixel_size_power2
 
+    print("World_size: ", world_size)
+
     with open(orbium_file) as f:
         animal_conf = json.load(f)
 
@@ -95,12 +98,15 @@ if __name__ == '__main__':
     )
     kernel_mode = lenia.kernels.KERNEL_MODE_ONE
 
-    params, cells, gfunc, kernel, kernels_fft = lenia.init(animal_conf, world_size, nb_channels, kernel_mode)
-    cells_fft = jnp.asarray(copy.deepcopy(cells))
+    params, cells, growth_fn, kernel, kernels_fft = lenia.init(animal_conf, world_size, nb_channels, kernel_mode)
+    update_fn = jit(lenia.build_update_fn(params, growth_fn, kernel, lenia.kernels.KERNEL_MODE_ONE))
+    fft_update_fn = jit(lenia.build_update_fn(params, growth_fn, kernels_fft, lenia.kernels.KERNEL_MODE_ONE_FFT))
 
+    cells_fft = jnp.asarray(copy.deepcopy(cells))
     start_time = time.time()
-    for i in range(240):
-        cells = lenia.update(params, cells, gfunc, kernel, kernel_mode)
+    nb_frames = 240
+    for i in range(nb_frames):
+        cells = update_fn(cells)
         lenia.utils.save_image(
             save_dir,
             cells,
@@ -114,8 +120,10 @@ if __name__ == '__main__':
             is_fft=False,
         )
 
-        cells_fft = lenia.update_fft(params, cells_fft, gfunc, kernels_fft)
+        cells_fft = fft_update_fn(cells_fft)
         lenia.utils.save_image(
             save_dir, cells_fft, vmin, vmax, pixel_size, pixel_border_size, colormap, animal_conf, i, is_fft=True
         )
-    print("--- %s seconds ---" % (time.time() - start_time))
+
+    total_time = time.time() - start_time
+    print(f"{nb_frames} frames made in {total_time} seconds: {nb_frames / total_time} fps" )

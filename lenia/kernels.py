@@ -2,6 +2,8 @@ import jax.numpy as jnp
 
 KERNEL_MODE_ALL_IN = 0
 KERNEL_MODE_ONE = 1
+KERNEL_MODE_ALL_IN_FFT = 2
+KERNEL_MODE_ONE_FFT = 3
 
 
 def poly_quad4(x):

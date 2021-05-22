@@ -1,7 +1,6 @@
-from .core import init, update, update_fft
+from .core import init, build_update_fn
 
 __all__ = [
     'init',
-    'update',
-    'update_fft',
+    'build_update_fn',
 ]

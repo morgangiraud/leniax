@@ -25,6 +25,7 @@ def init(animal_conf, world_size: list, nb_channels: int, kernel_mode: int = KER
     nb_dims = len(world_size)
     world_shape = [nb_channels] + world_size  # CHW
     cells = jnp.zeros(world_shape)
+
     animal_cells = utils.rle2arr(animal_conf['cells'], nb_dims, nb_channels)
     cells = utils.add_animal(cells, animal_cells)
 
@@ -78,7 +79,7 @@ def build_update_fn(params, growth_fn, kernel, kernel_mode=KERNEL_MODE_ONE, weig
         field = growth_fn(potential, m, s)
         cells = update_cells(cells, field, T)
 
-        return cells
+        return cells, field, potential
 
     return update
 

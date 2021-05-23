@@ -4,7 +4,7 @@ import jax.numpy as jnp
 def poly_quad4(X: jnp.array, m: float, s: float):
     X = 1 - (X - m)**2 / (9 * s**2)
     X = jnp.maximum(0, X)
-    X = X**4 * 2 - 1
+    X = X**4 * 2 - 0.1
 
     return X
 

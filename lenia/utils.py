@@ -121,7 +121,22 @@ MARKER_COLORS_W = [0x5F, 0x5F, 0x5F, 0x7F, 0x7F, 0x7F, 0xFF, 0xFF, 0xFF]
 MARKER_COLORS_B = [0x9F, 0x9F, 0x9F, 0x7F, 0x7F, 0x7F, 0x0F, 0x0F, 0x0F]
 
 
-def get_image(cells_buffer, pixel_size, pixel_border_size):
+def save_image(save_dir, cells, vmin, vmax, pixel_size, pixel_border_size, colormap, animal_conf, idx, suffix=""):
+    assert len(cells.shape) == 3, 'we only handle images under the format [C, H, W]'
+    assert cells.shape[0] == 1, 'we only handle images with i channels'
+
+    norm_cells = jnp.clip(normalize(cells[0], vmin, vmax), 0, 1)
+    img = get_image(norm_cells, pixel_size, pixel_border_size, colormap)
+
+    filename = f"{str(idx).zfill(3)}{suffix}.{image_ext}"
+    # record_id = '{}-{}'.format(animal_conf['code'], datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
+
+    fullpath = os.path.join(save_dir, filename)
+
+    img.save(fullpath)
+
+
+def get_image(cells_buffer, pixel_size, pixel_border_size, colormap):
     y, x = cells_buffer.shape
     cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=0)
     cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=1)
@@ -130,7 +145,9 @@ def get_image(cells_buffer, pixel_size, pixel_border_size):
     for i in range(pixel_border_size):
         cells_buffer[i::pixel_size, :] = zero
         cells_buffer[:, i::pixel_size] = zero
-    return Image.frombuffer('P', (x * pixel_size, y * pixel_size), cells_buffer, 'raw', 'P', 0, 1)
+
+    img = colormap(cells_buffer)
+    return Image.fromarray((img[:, :, :3] * 255).astype(jnp.uint8))
 
 
 def normalize(v, vmin, vmax, is_square=False, vmin2=0, vmax2=0):
@@ -138,36 +155,6 @@ def normalize(v, vmin, vmax, is_square=False, vmin2=0, vmax2=0):
         return (v - vmin) / (vmax - vmin)
     else:
         return (v - vmin) / max(vmax - vmin, vmax2 - vmin2)
-
-
-def save_image(save_dir, cells, vmin, vmax, pixel_size, pixel_border_size, colormap, animal_conf, i, is_fft=True):
-    assert len(cells.shape) == 3, 'we only handle images under the format [C, H, W]'
-    assert cells.shape[0] == 1, 'we only handle images with i channels'
-
-    norm_cells = jnp.clip(normalize(cells[0], vmin, vmax), 0, 1)
-    cells_buffer = jnp.uint8(norm_cells * 252)
-
-    img = get_image(cells_buffer, pixel_size, pixel_border_size)
-    img.putpalette(colormap)
-    img = img.convert('RGB')
-
-    filename = os.path.join(save_dir, str(i).zfill(3) + ('fft' if is_fft else 'real'))
-    # record_id = '{}-{}'.format(animal_conf['code'], datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
-    img_path = f"{filename}.{image_ext}"
-    img.save(img_path)
-
-
-def create_colormap(colors, is_marker_w=True):
-    nval = 253
-    ncol = colors.shape[0]
-    colors = jnp.vstack((colors, jnp.asarray([[0, 0, 0]])))
-    v = jnp.repeat(jnp.arange(nval), 3)  # [0 0 0 1 1 1 ... 252 252 252]
-    i = jnp.asarray(list(jnp.arange(3)) * nval)  # [0 1 2 0 1 2 ... 0 1 2]
-    k = v / (nval - 1) * (ncol - 1)  # interpolate between 0 .. ncol-1
-    k1 = k.astype(int)
-    c1, c2 = colors[k1, i], colors[k1 + 1, i]
-    c = (k - k1) * (c2 - c1) + c1  # interpolate between c1 .. c2
-    return jnp.rint(c / 8 * 255).astype(int).tolist() + (MARKER_COLORS_W if is_marker_w else MARKER_COLORS_B)
 
 
 ###

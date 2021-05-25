@@ -11,7 +11,7 @@ from lenia.growth_functions import growth_fns
 cdir = os.path.dirname(os.path.realpath(__file__))
 save_dir = os.path.join(cdir, 'save')
 
-orbium_file = os.path.join(cdir, 'orbium.json')
+animal_file = os.path.join(cdir, 'orbium.json')
 
 if __name__ == '__main__':
     lenia.utils.check_dir(save_dir)
@@ -36,7 +36,9 @@ if __name__ == '__main__':
     print("World_size: ", world_size)
 
     # Load an animal
-    with open(orbium_file) as f:
+    if args.animal_filename:
+        animal_file = os.path.join(cdir, args.animal_filename)
+    with open(animal_file) as f:
         animal_conf = json.load(f)
 
     world_params = animal_conf['world_params']
@@ -55,8 +57,20 @@ if __name__ == '__main__':
     update_fn = jit(lenia.build_update_fn(world_params, K, mapping))
     # update_fn = lenia.build_update_fn(world_params, K, mapping)
 
+    lenia.utils.save_image(
+        save_dir,
+        cells[:, 0, 0, ...],
+        vmin,
+        vmax,
+        pixel_size,
+        pixel_border_size,
+        colormap,
+        animal_conf,
+        0,
+        "cells",
+    )
     start_time = time.time()
-    for i in range(nb_frames):
+    for i in range(1, nb_frames + 1):
         cells, field, potential = update_fn(cells)
 
         lenia.utils.save_image(

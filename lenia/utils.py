@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import jax.numpy as jnp
 from fractions import Fraction
 from PIL import Image
+import numpy as np
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 save_dir = os.path.join(cdir, 'save')
@@ -54,36 +55,51 @@ def ch2val(c):
         return (ord(c[0]) - ord('p')) * 24 + (ord(c[1]) - ord('A') + 25)
 
 
-def rle2arr(st, nb_dims, nb_channels):
-    stacks = [[] for dim in range(nb_dims)]
-    last, count = '', ''
-    delims = list(DIM_DELIM.values())
-    st = st.rstrip('!') + DIM_DELIM[nb_dims - 1]
-    for ch in st:
-        if ch.isdigit():
-            count += ch
-        elif ch in 'pqrstuvwxy@':
-            last = ch
-        else:
-            if last + ch not in delims:
-                append_stack(stacks[0], ch2val(last + ch) / 255, count, is_repeat=True)
+def rle2arr(init_cells_code, nb_dims, nb_channels):
+    assert nb_channels == len(init_cells_code)
+
+    all_cells = []
+    all_max_lens = []
+    for st in init_cells_code:
+        stacks = [[] for dim in range(nb_dims)]
+        last, count = '', ''
+        delims = list(DIM_DELIM.values())
+        st = st.rstrip('!') + DIM_DELIM[nb_dims - 1]
+        for ch in st:
+            if ch.isdigit():
+                count += ch
+            elif ch in 'pqrstuvwxy@':
+                last = ch
             else:
-                dim = delims.index(last + ch)
-                for d in range(dim):
-                    append_stack(stacks[d + 1], stacks[d], count, is_repeat=False)
-                    stacks[d] = []
-                # print('{0}[{1}] {2}'.format(last+ch, count, [np.asarray(s).shape for s in stacks]))
-            last, count = '', ''
+                if last + ch not in delims:
+                    append_stack(stacks[0], ch2val(last + ch) / 255, count, is_repeat=True)
+                else:
+                    dim = delims.index(last + ch)
+                    for d in range(dim):
+                        append_stack(stacks[d + 1], stacks[d], count, is_repeat=False)
+                        stacks[d] = []
+                    # print('{0}[{1}] {2}'.format(last+ch, count, [np.asarray(s).shape for s in stacks]))
+                last, count = '', ''
 
-    cells = stacks[nb_dims - 1]
-    max_lens = [0 for dim in range(nb_dims)]
-    recur_get_max_lens(0, cells, max_lens, nb_dims)
-    recur_cubify(0, cells, max_lens, nb_dims)
+        cells = stacks[nb_dims - 1]
+        max_lens = [0 for dim in range(nb_dims)]
+        recur_get_max_lens(0, cells, max_lens, nb_dims)
+        recur_cubify(0, cells, max_lens, nb_dims)
 
-    cells = jnp.asarray(cells)
-    cells = jnp.repeat(cells[jnp.newaxis, ...], nb_channels, axis=0)
+        if len(all_max_lens) == 0:
+            all_max_lens = max_lens
+        else:
+            all_max_lens = np.max([all_max_lens, max_lens], axis=0)
 
-    return cells
+        cells = cells
+        all_cells.append(cells)
+
+    for i, cells in enumerate(all_cells):
+        recur_cubify(0, cells, all_max_lens, nb_dims)
+        all_cells[i] = jnp.array(cells)
+    animal_cells = jnp.asarray(all_cells)
+
+    return animal_cells
 
 
 ###
@@ -124,9 +140,9 @@ MARKER_COLORS_B = [0x9F, 0x9F, 0x9F, 0x7F, 0x7F, 0x7F, 0x0F, 0x0F, 0x0F]
 
 def save_image(save_dir, cells, vmin, vmax, pixel_size, pixel_border_size, colormap, animal_conf, idx, suffix=""):
     assert len(cells.shape) == 3, 'we only handle images under the format [C, H, W]'
-    assert cells.shape[0] == 1, 'we only handle images with i channels'
+    assert cells.shape[0] < 4, 'we only handle images with less than 3 channels'
 
-    norm_cells = jnp.clip(normalize(cells[0], vmin, vmax), 0, 1)
+    norm_cells = jnp.clip(normalize(cells, vmin, vmax), 0, 1)
     img = get_image(norm_cells, pixel_size, pixel_border_size, colormap)
 
     filename = f"{str(idx).zfill(3)}{suffix}.{image_ext}"
@@ -138,17 +154,23 @@ def save_image(save_dir, cells, vmin, vmax, pixel_size, pixel_border_size, color
 
 
 def get_image(cells_buffer, pixel_size, pixel_border_size, colormap):
-    y, x = cells_buffer.shape
-    cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=0)
+    _, y, x = cells_buffer.shape
     cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=1)
+    cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=2)
     # zero = np.uint8(np.clip(normalize(0, vmin, vmax), 0, 1) * 252)
     zero = 0
     for i in range(pixel_border_size):
-        cells_buffer[i::pixel_size, :] = zero
-        cells_buffer[:, i::pixel_size] = zero
+        cells_buffer[:, i::pixel_size, :] = zero
+        cells_buffer[:, :, i::pixel_size] = zero
 
-    img = colormap(cells_buffer)
-    return Image.fromarray((img[:, :, :3] * 255).astype(jnp.uint8))
+    img = colormap(cells_buffer)  # the colormap is applied to each channel, we just merge them
+    blank_img = np.zeros_like(img[0, :, :, :3]).astype(jnp.uint8)
+    blank_img = Image.fromarray(blank_img)
+    for i in range(img.shape[0]):
+        other_img = Image.fromarray((img[i, :, :, :3] * 255).astype(jnp.uint8))
+        blank_img = Image.blend(blank_img, other_img, alpha=0.5)
+
+    return blank_img
 
 
 def normalize(v, vmin, vmax, is_square=False, vmin2=0, vmax2=0):

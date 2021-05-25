@@ -55,4 +55,13 @@ def get_default_parser():
         '-b', '--pixel_border', dest='B', default=0, action='store', type=int, help='pixel border (default 0)'
     )
 
+    parser.add_argument(
+        '-l',
+        '--load',
+        dest='animal_filename',
+        default=None,
+        action='store',
+        type=str,
+    )
+
     return parser

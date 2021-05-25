@@ -1,5 +1,6 @@
 import os
 # import datetime
+import matplotlib.pyplot as plt
 import jax.numpy as jnp
 from fractions import Fraction
 from PIL import Image
@@ -155,6 +156,31 @@ def normalize(v, vmin, vmax, is_square=False, vmin2=0, vmax2=0):
         return (v - vmin) / (vmax - vmin)
     else:
         return (v - vmin) / max(vmax - vmin, vmax2 - vmin2)
+
+
+def plot_function(save_dir, id, fn, m, s):
+    x = jnp.linspace(-0.5, 1.5, 500)
+
+    y = fn(x, m, s)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+    ax.grid(True, which='both')
+    ax.axhline(y=0, color='k')
+    ax.axvline(x=0, color='k')
+    # ax.spines['left'].set_position('center')
+    # ax.spines['bottom'].set_position('center')
+    # ax.spines['right'].set_color('none')
+    # ax.spines['top'].set_color('none')
+    # ax.xaxis.set_ticks_position('bottom')
+    # ax.yaxis.set_ticks_position('left')
+
+    plt.plot(x, y, 'r', label='Growth function')
+
+    plt.legend(loc='upper left')
+
+    fullpath = os.path.join(save_dir, f"growth_function{str(id).zfill(2)}.{image_ext}")
+    plt.savefig(fullpath)
 
 
 ###

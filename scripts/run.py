@@ -1,13 +1,12 @@
 import time
 import os
-import copy
 import json
 import matplotlib.pyplot as plt
 from jax import jit
-import jax.numpy as jnp
 
 import lenia
 from lenia.parser import get_default_parser
+from lenia.growth_functions import growth_fns
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 save_dir = os.path.join(cdir, 'save')
@@ -40,24 +39,29 @@ if __name__ == '__main__':
     with open(orbium_file) as f:
         animal_conf = json.load(f)
 
+    world_params = animal_conf['world_params']
     nb_frames = 150
     vmin = 0
     vmax = 1
     colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
-    kernel_mode = lenia.kernels.KERNEL_MODE_ONE
 
-    params, cells, growth_fn, kernel, kernels_fft = lenia.init(animal_conf, world_size, nb_channels, kernel_mode)
-    cells_fft = jnp.asarray(copy.deepcopy(cells))
+    cells, K, mapping = lenia.init(animal_conf, world_size, nb_channels)
 
-    update_fn = jit(lenia.build_update_fn(params, growth_fn, kernel, lenia.kernels.KERNEL_MODE_ONE))
-    # fft_update_fn = jit(lenia.build_update_fn(params, growth_fn, kernels_fft, lenia.kernels.KERNEL_MODE_ONE_FFT))
+    for idx, gf_id in enumerate(mapping['cin_growth_fns']['gf_id']):
+        lenia.utils.plot_function(
+            save_dir, idx, growth_fns[gf_id], mapping['cin_growth_fns']['m'][idx], mapping['cin_growth_fns']['s'][idx]
+        )
+
+    update_fn = jit(lenia.build_update_fn(world_params, K, mapping))
+    # update_fn = lenia.build_update_fn(world_params, K, mapping)
 
     start_time = time.time()
     for i in range(nb_frames):
         cells, field, potential = update_fn(cells)
+
         lenia.utils.save_image(
             save_dir,
-            cells,
+            cells[:, 0, 0, ...],
             vmin,
             vmax,
             pixel_size,
@@ -69,7 +73,7 @@ if __name__ == '__main__':
         )
         lenia.utils.save_image(
             save_dir,
-            field,
+            field[:, 0, 0, ...],
             vmin,
             vmax,
             pixel_size,
@@ -91,11 +95,6 @@ if __name__ == '__main__':
             i,
             "potential",
         )
-
-        # cells_fft, field_fft, potential_fft = fft_update_fn(cells_fft)
-        # lenia.utils.save_image(
-        #     save_dir, cells_fft, vmin, vmax, pixel_size, pixel_border_size, colormap, animal_conf, i, "fft"
-        # )
 
     total_time = time.time() - start_time
     print(f"{nb_frames} frames made in {total_time} seconds: {nb_frames / total_time} fps")

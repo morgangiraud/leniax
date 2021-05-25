@@ -1,82 +1,49 @@
 import jax.numpy as jnp
-from jax import lax
+from jax import vmap, lax
+from typing import Callable, List, Tuple
 
 from . import utils
-from .kernels import get_kernel
-from .kernels import KERNEL_MODE_ALL_IN, KERNEL_MODE_ONE, KERNEL_MODE_ALL_IN_FFT, KERNEL_MODE_ONE_FFT
-from .growth_functions import growth_func
+from .kernels import get_kernels_and_mapping
+from .growth_functions import growth_fns
 
 
-def init(animal_conf, world_size: list, nb_channels: int, kernel_mode: int = KERNEL_MODE_ONE):
+def init(animal_conf: object, world_size: List[int], nb_channels: int) -> Tuple[jnp.array, jnp.array, object]:
     assert len(world_size) == 2  # We linit ourselves to 2d worlds
     assert nb_channels > 0
 
-    params = {
-        'R': animal_conf['params']['R'],  # Ratio
-        'T': animal_conf['params']['T'],  # ∆T
-        'b': utils.st2fracs2float(animal_conf['params']['b']),  # Array of modes amplitude (tells the number of modes)
-        'm': animal_conf['params']['m'],  # mean
-        's': animal_conf['params']['s'],  # std
-        'kn': animal_conf['params']['kn'],  # kernel id
-        'gn': animal_conf['params']['gn'],  # growth function id
-    }
-    gfunc = growth_func[params['gn'] - 1]
+    world_params = animal_conf['world_params']
+    assert nb_channels == world_params['N_c'], 'The animal and the world are not coming from the same world'
 
     nb_dims = len(world_size)
-    world_shape = [nb_channels] + world_size  # CHW
+    assert nb_dims == world_params['N_d'], 'The animal and the world are not coming from the same world'
+
+    world_shape = [nb_channels] + world_size  # [C, H, W]
     cells = jnp.zeros(world_shape)
-
-    animal_cells = utils.rle2arr(animal_conf['cells'], nb_dims, nb_channels)
+    init_cells_code = animal_conf['cells']
+    animal_cells = utils.rle2arr(init_cells_code, nb_dims, nb_channels)
     cells = utils.add_animal(cells, animal_cells)
+    # 2D convolutions needs an input with shape [N, C, H, W]
+    # And we are going to map over first dimension with vmap so we need th following shape
+    # [C, N=1, c=1, H, W]
+    cells = cells[:, jnp.newaxis, jnp.newaxis]
+    assert len(cells.shape) == 5
 
-    # We consider only 2 possible case
-    # - Kernels with input_channels I = C: KERNEL_MODE_ALL_IN
-    # - Kernels with input_channels I = 1: KERNEL_MODE_ONE
-    if kernel_mode == KERNEL_MODE_ONE:
-        nb_kernels = 2
-        K_c = 1
+    kernels_params = animal_conf['kernels_params']
 
-        kernels = []
-        kernels_fft = []
-        for i in range(nb_kernels):
-            kernel, kernel_fft = get_kernel(params, world_size, K_c)  # generate [K_c, K_h, K_w] kernels
+    K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, world_params["R"])
 
-            kernels.append(kernel[jnp.newaxis, ...])  # [1, K_c, K_h, K_w]
-            kernels_fft.append(kernel_fft[jnp.newaxis, ...])
-        kernel = jnp.concatenate(kernels, axis=0)  # [O, K_c, K_h, K_w]
-        kernel_fft = jnp.concatenate(kernels_fft, axis=0)  # [O, K_c, K_h, K_w]
-
-    elif kernel_mode == KERNEL_MODE_ALL_IN:
-        # For now we limit ourselves to the following case
-        # - same number of kernels and channels
-        nb_kernels = nb_channels
-        K_c = nb_channels
-        raise Exception("kernel_mode KERNEL_MODE_ALL_IN not supported yet")
-    else:
-        raise Exception(f"kernel_mode {kernel_mode} not supported yet")
-
-    return params, cells, gfunc, kernel, kernel_fft
+    return cells, K, mapping
 
 
-def build_update_fn(params, growth_fn, kernel, kernel_mode=KERNEL_MODE_ONE, weights=None):
-    T = params['T']
-    m = params['m']
-    s = params['s']
+def build_update_fn(world_params: List[int], K: jnp.array, mapping: object):
+    T = world_params['T']
 
-    if kernel_mode == KERNEL_MODE_ONE:
-        get_potential_fn = get_potential_mode_one
-    elif kernel_mode == KERNEL_MODE_ALL_IN:
-        raise Exception('KERNEL_MODE_ALL_IN not supported yet')
-    elif kernel_mode == KERNEL_MODE_ALL_IN_FFT:
-        raise Exception('KERNEL_MODE_ALL_IN_FFT not supported yet')
-    elif kernel_mode == KERNEL_MODE_ONE_FFT:
-        get_potential_fn = get_potential_fft
-    else:
-        raise Exception(f"kernel mode {kernel_mode} not supported")
+    get_potential_fn = build_get_potential_generic(K.shape, mapping["true_channels"])
+    get_field_fn = build_get_field_generic(mapping)
 
-    def update(cells: jnp.array):
-        potential = get_potential_fn(cells, kernel, weights)
-        field = growth_fn(potential, m, s)
+    def update(cells: jnp.array) -> Tuple[jnp.array, jnp.array, jnp.array]:
+        potential = get_potential_fn(cells, K)
+        field = get_field_fn(potential)
         cells = update_cells(cells, field, T)
 
         return cells, field, potential
@@ -84,42 +51,59 @@ def build_update_fn(params, growth_fn, kernel, kernel_mode=KERNEL_MODE_ONE, weig
     return update
 
 
-def get_potential_mode_one(cells: jnp.array, kernel: jnp.array, weights=None):
-    # Cells: [C, H, W]
-    # Kernel: [O, K_c = 1, K_h, K_w]
-    assert kernel.shape[1] == 1
-    if weights:
-        assert len(weights) == kernel.shape[0]
+def build_get_potential_generic(kernel_shape: List[int], true_channels: List[bool]) -> Callable:
+    vconv = vmap(lax.conv, (0, 0, None, None), 0)
+    nb_channels = kernel_shape[0]
+    depth = kernel_shape[1]
+    pad_w = kernel_shape[-1] // 2
+    pad_h = kernel_shape[-2] // 2
 
-    A = cells[jnp.newaxis, jnp.newaxis, ...]  # [1, 1, C, H, W]
-    K = kernel[:, jnp.newaxis, :, :, :]  # [O, 1, K_c = 1, K_h, K_w]
-    pad_w = kernel.shape[-1] // 2
-    pad_h = kernel.shape[-2] // 2
-    padded_A = jnp.pad(A, [(0, 0), (0, 0), (0, 0), (pad_h, pad_h), (pad_w, pad_w)], mode='wrap')
-    A_out = lax.conv(padded_A, K, (1, 1, 1), 'VALID')  # [1, O, C, H, W]
-    A_out = jnp.average(A_out, axis=1, weights=weights)  # [1, C, H, W]
-    potential = A_out[0]  # [C, H, W]
+    def get_potential_generic(cells: jnp.array, K: jnp.array) -> jnp.array:
+        H, W = cells.shape[-2:]
 
-    return potential
+        padded_cells = jnp.pad(cells, [(0, 0), (0, 0), (0, 0), (pad_h, pad_h), (pad_w, pad_w)], mode='wrap')
+        conv_out = vconv(padded_cells, K, (1, 1), 'VALID')  # [C, N=1, c=O, H, W]
 
+        conv_out_reshaped = conv_out.reshape(nb_channels * depth, H, W)
+        potential = conv_out_reshaped[true_channels]  # [nb_kernels, H, W]
 
-def get_potential_fft(cells: jnp.array, kernel_fft: jnp.array, weights=None):
-    # Cells: [C, H, W]
-    # Kernel: [O, K_c = 1, K_h, K_w]
-    assert cells.shape[0] == 1  # We limit ourselves to one channel for now
+        return potential
 
-    world_fft = jnp.fft.fftn(cells)
-    potentials = []
-    for k_idx in range(kernel_fft.shape[0]):
-        potential_fft = kernel_fft[k_idx] * world_fft
-        potential = jnp.fft.fftshift(jnp.real(jnp.fft.ifftn(potential_fft)))
-        potentials.append(potential)
-    potential = jnp.mean(jnp.asarray(potentials), axis=0)
-
-    return potential
+    return get_potential_generic
 
 
-def update_cells(cells, field, T):
+def build_get_field_generic(mapping: object) -> Callable:
+    cin_growth_fns = mapping["cin_growth_fns"]
+    cout_kernels = mapping["cout_kernels"]
+    cout_kernels_h = mapping["cout_kernels_h"]
+
+    def average_per_channel(field, channel_list, weights):
+        out = jnp.average(field[channel_list], axis=0, weights=weights)
+
+        return out
+
+    vaverage = vmap(average_per_channel, (None, 0, 0))
+
+    def get_field_generic(potential: jnp.array) -> jnp.array:
+        fields = []
+        for i in range(len(cin_growth_fns['gf_id'])):
+            sub_potential = potential[i]
+            gf_id = cin_growth_fns['gf_id'][i]
+            m = cin_growth_fns['m'][i]
+            s = cin_growth_fns['s'][i]
+
+            fields.append(growth_fns[gf_id](sub_potential, m, s))
+        field = jnp.stack(fields)
+
+        field = vaverage(field, cout_kernels, cout_kernels_h)  # [C, H, W]
+        field = field[:, jnp.newaxis, jnp.newaxis]
+
+        return field
+
+    return get_field_generic
+
+
+def update_cells(cells: jnp.array, field: jnp.array, T: float) -> jnp.array:
     dt = 1 / T
 
     cells_new = cells + dt * field

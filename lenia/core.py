@@ -1,5 +1,5 @@
 import jax.numpy as jnp
-from jax import vmap, lax
+from jax import vmap, lax, jit
 from typing import Callable, List, Tuple
 
 from . import utils
@@ -17,22 +17,30 @@ def init(animal_conf: object, world_size: List[int], nb_channels: int) -> Tuple[
     nb_dims = len(world_size)
     assert nb_dims == world_params['N_d'], 'The animal and the world are not coming from the same world'
 
+    animal_cells_code = animal_conf['cells']
+    animal_cells = utils.rle2arr(animal_cells_code, nb_dims, nb_channels)
+    cells = init_cells(world_size, nb_channels, [animal_cells])
+
+    kernels_params = animal_conf['kernels_params']
+    K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, world_params["R"])
+
+    return cells, K, mapping
+
+
+def init_cells(world_size: List[int], nb_channels: int, other_cells: List[jnp.array] = None) -> jnp.array:
     world_shape = [nb_channels] + world_size  # [C, H, W]
     cells = jnp.zeros(world_shape)
-    init_cells_code = animal_conf['cells']
-    animal_cells = utils.rle2arr(init_cells_code, nb_dims, nb_channels)
-    cells = utils.add_animal(cells, animal_cells)
+    if other_cells is not None:
+        for c in other_cells:
+            cells = utils.merge_cells(cells, c)
+
     # 2D convolutions needs an input with shape [N, C, H, W]
     # And we are going to map over first dimension with vmap so we need th following shape
     # [C, N=1, c=1, H, W]
     cells = cells[:, jnp.newaxis, jnp.newaxis]
     assert len(cells.shape) == 5
 
-    kernels_params = animal_conf['kernels_params']
-
-    K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, world_params["R"])
-
-    return cells, K, mapping
+    return cells
 
 
 def build_update_fn(world_params: List[int], K: jnp.array, mapping: object):
@@ -110,3 +118,32 @@ def update_cells(cells: jnp.array, field: jnp.array, T: float) -> jnp.array:
     cells_new = jnp.clip(cells_new, 0, 1)
 
     return cells_new
+
+
+def init_and_run(world_params: object, world_size: List[int], animal_conf: object,
+                 max_iter: int) -> Tuple[jnp.array, jnp.array, jnp.array]:
+    nb_channels = world_params['N_c']
+    cells, K, mapping = init(animal_conf, world_size, nb_channels)
+
+    update_fn = jit(build_update_fn(world_params, K, mapping))
+
+    return run(cells, update_fn, max_iter)
+
+
+def run(cells: jnp.array, update_fn: Callable, max_iter: int) -> Tuple[jnp.array, jnp.array, jnp.array]:
+    all_cells = []
+    all_field = []
+    all_potential = []
+    for i in range(max_iter):
+        cells, field, potential = update_fn(cells)
+
+        all_cells.append(cells)
+        all_field.append(field)
+        all_potential.append(potential)
+
+        if cells.sum() == 0:
+            break
+        if cells.sum() > 2**11:  # heuristic to detect explosive behaviour
+            break
+
+    return all_cells, all_field, all_potential

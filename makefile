@@ -69,3 +69,6 @@ zip:
 	python setup.py sdist --format zip
 
 .PHONY: zip
+
+
+# ffmpeg -r 13 -i %03dcells.png -c:v libx264 -vf fps=26 -pix_fmt yuv420p beast.mp4

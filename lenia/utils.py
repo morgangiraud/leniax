@@ -105,12 +105,12 @@ def rle2arr(init_cells_code, nb_dims, nb_channels):
 ###
 # Animals
 ###
-def add_animal(cells, animal_cells, offset=None):
+def merge_cells(cells, other_cells, offset=None):
     # We ensure the animal and the world are compatible:
     # - same number of dims
     # - same number of channels
-    assert len(cells.shape) == len(animal_cells.shape)
-    assert cells.shape[0] == animal_cells.shape[0]
+    assert len(cells.shape) == len(other_cells.shape)
+    assert cells.shape[0] == other_cells.shape[0]
 
     if offset:
         assert len(cells.shape) == len(offset)
@@ -119,14 +119,14 @@ def add_animal(cells, animal_cells, offset=None):
 
     pads = []
     for i in range(len(cells.shape)):
-        pad_start = (cells.shape[i] - animal_cells.shape[i]) // 2 - offset[i]
-        pad_end = cells.shape[i] - animal_cells.shape[i] - pad_start
+        pad_start = (cells.shape[i] - other_cells.shape[i]) // 2 - offset[i]
+        pad_end = cells.shape[i] - other_cells.shape[i] - pad_start
 
         pads.append((pad_start, pad_end))
 
-    padded_animal_cells = jnp.pad(animal_cells, pads, mode='constant', constant_values=(0, 0))
+    padded_other_cells = jnp.pad(other_cells, pads, mode='constant', constant_values=(0, 0))
 
-    cells += padded_animal_cells
+    cells += padded_other_cells
 
     return cells
 
@@ -168,7 +168,10 @@ def get_image(cells_buffer, pixel_size, pixel_border_size, colormap):
     blank_img = Image.fromarray(blank_img)
     for i in range(img.shape[0]):
         other_img = Image.fromarray((img[i, :, :, :3] * 255).astype(jnp.uint8))
-        blank_img = Image.blend(blank_img, other_img, alpha=0.5)
+        if i == 0:
+            blank_img = Image.blend(blank_img, other_img, alpha=1.)
+        else:
+            blank_img = Image.blend(blank_img, other_img, alpha=0.5)
 
     return blank_img
 

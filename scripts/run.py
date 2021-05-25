@@ -42,7 +42,7 @@ if __name__ == '__main__':
         animal_conf = json.load(f)
 
     world_params = animal_conf['world_params']
-    nb_frames = 150
+    nb_frames = 256
     vmin = 0
     vmax = 1
     colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html

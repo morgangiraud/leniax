@@ -36,7 +36,7 @@ def staircase(x, q=1 / 4):
 kernel_core = {0: poly_quad4, 1: poly_quad2, 2: gauss_bump4, 3: step4, 4: staircase}
 
 
-def get_kernels_and_mapping(kernels_params: object, world_size: List[int], nb_channels: int, R: float):
+def get_kernels_and_mapping(kernels_params: dict, world_size: List[int], nb_channels: int, R: float):
     kernels_list = []
     mapping = {
         "cin_kernels": [[] for i in range(nb_channels)],

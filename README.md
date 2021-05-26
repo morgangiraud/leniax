@@ -33,3 +33,6 @@ For the kernels
 - We have the kernel function
 - We have the number of kernels
 - We have the growth function
+
+For fields:
+- Fields outputs should be between 1 and -1, it decreases/increases value in the cells.

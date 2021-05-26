@@ -10,7 +10,7 @@ fixture_dir = os.path.join(cfd, 'fixtures')
 
 
 class TestCore(unittest.TestCase):
-    def test_get_potential_generic(self):
+    def test_get_potential(self):
 
         H = 2
         W = 2
@@ -33,8 +33,8 @@ class TestCore(unittest.TestCase):
 
         true_channels = jnp.array([True, True, True, False])
 
-        get_potential_generic = lenia_core.build_get_potential_generic(K.shape, true_channels)
-        potential = get_potential_generic(cells, K)
+        get_potential = lenia_core.build_get_potential(K.shape, true_channels)
+        potential = get_potential(cells, K)
 
         assert len(potential.shape) == 3
         assert potential.shape[0] == nb_kernels

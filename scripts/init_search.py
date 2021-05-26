@@ -1,6 +1,7 @@
 import time
 import os
-import json
+import uuid
+import logging
 import matplotlib.pyplot as plt
 import jax
 from jax import jit, random
@@ -14,39 +15,66 @@ from lenia.kernels import get_kernels_and_mapping
 cdir = os.path.dirname(os.path.realpath(__file__))
 save_dir = os.path.join(cdir, 'save_init_search')
 
-animal_file = os.path.join(cdir, 'orbium.json')
-
 if __name__ == '__main__':
-    lenia.utils.check_dir(save_dir)
-    rng = jax.random.PRNGKey(0)
-
     parser = get_default_parser()
     args = parser.parse_args()
-    nb_dims = args.dims
-    nb_channels = args.channels
-    pixel_size_power2 = args.P if args.P is not None else args.dims
+
+    # World params
+    nb_dims = args.nb_dims
+    nb_channels = args.nb_channels
+    R = args.R
+    T = args.T
+
+    world_params = {
+        'nb_dims': nb_dims,
+        'nb_channels': nb_channels,
+        'R': R,
+        'T': T,
+    }
+
+    # Render params
+    pixel_size_power2 = args.P if args.P is not None else args.nb_dims
     pixel_border_size = args.B
     if args.S is not None:
         world_size_power2 = args.S
     else:
         world_size_power2 = [win_power2 - pixel_size_power2 for win_power2 in args.W]
 
-    if len(world_size_power2) < nb_dims:
-        world_size_power2 += [world_size_power2[-1]] * (nb_dims - len(world_size_power2))
+    if len(world_size_power2) < args.nb_dims:
+        world_size_power2 += [world_size_power2[-1]] * (args.nb_dims - len(world_size_power2))
 
     world_size = [2**size_power2 for size_power2 in world_size_power2]
     pixel_size = 2**pixel_size_power2
 
-    world_params = {"R": 13, "T": 10, "N_d": len(world_size), "N_c": nb_channels}
-    kernels_params = [{
-        "r": 1, "b": "1,1/2", "m": 0.15, "s": 0.015, "h": 1, "k_id": 0, "gf_id": 0, "c_in": 0, "c_out": 0
-    }]
+    render_params = {
+        'world_size': world_size,
+        'pixel_size': pixel_size,
+        'pixel_border_size': pixel_border_size,
+    }
 
-    K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, world_params["R"])
+    # Kernel params
+    kernels_params = [{"r": 1, "b": "1", "m": 0.17, "s": 0.015, "h": 1, "k_id": 0, "gf_id": 0, "c_in": 0, "c_out": 0}]
+
+    # Other
+    seed = args.seed
+    rng = jax.random.PRNGKey(args.seed)
+
+    max_run_iter = args.max_run_iter
+    nb_init_search = 2**8
+    config = {
+        'code': str(uuid.uuid4()),
+        'world_params': world_params,
+        'render_params': render_params,
+        'kernels_params': kernels_params,
+        'max_run_iter': max_run_iter,
+        'nb_init_search': nb_init_search,
+        'seed': seed
+    }
+
+    K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
     update_fn = jit(build_update_fn(world_params, K, mapping))
 
-    nb_init_search = 2**8
-    max_run_iter = 2**9  # heuristics for an enough running duration
+    logging.info("config:", config)
 
     # For loop for init
     runs = []
@@ -62,33 +90,33 @@ if __name__ == '__main__':
         noise = random.uniform(subkey, noise_size[i], minval=0, maxval=1.)
         cells_0 = init_cells(world_size, nb_channels, [noise])
 
-        all_cells, all_field, all_potential = run(cells_0, update_fn, max_run_iter)
+        all_cells, all_fields, all_potentials = run(cells_0, update_fn, max_run_iter)
         nb_iter_done = len(all_cells)
 
+        jnp.vstack([cells_0] + all_cells)
         if nb_iter_done > 30:
-            runs.append({"N": nb_iter_done, "all_cells": all_cells, "cells_0": cells_0})
+            runs.append({"N": nb_iter_done, "all_cells": all_cells})
 
         total_time = time.time() - start_time
         print(f"{nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
 
     runs.sort(key=lambda run: run["N"], reverse=True)
     best = runs[0]
-    print(best["N"])
 
+    all_cells = best['all_cells']
+    config['cells'] = all_cells[0]
+    lenia.utils.check_dir(save_dir)
+    lenia.utils.save_config(save_dir, config)
     colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
-    for i, cells in enumerate(best["all_cells"]):
+    for i in range(len(all_cells)):
         lenia.utils.save_image(
             save_dir,
-            cells[:, 0, 0, ...],
+            all_cells[i][:, 0, 0, ...],
             0,
             1,
             pixel_size,
             pixel_border_size,
             colormap,
-            None,
             i,
-            "cells",
+            "cell",
         )
-    with open(os.path.join(save_dir, 'beast.json'), 'w') as outfile:
-        data = {"world_params": world_params, "kernels_params": kernels_params, "cells": cells_0.tolist()}
-        json.dump(data, outfile)

@@ -8,10 +8,12 @@ def get_default_parser():
 
         recommanded settings: (2D) -d2 -p2, (wide) -d2 -p0 -w 10 9, (3D) -d3 -p3, (4D) -d4 -p4'''
     )
+
+    # World params
     parser.add_argument(
         '-d',
         '--dims',
-        dest='dims',
+        dest='nb_dims',
         default=2,
         action='store',
         type=int,
@@ -20,13 +22,24 @@ def get_default_parser():
     parser.add_argument(
         '-c',
         '--channels',
-        dest='channels',
+        dest='nb_channels',
         default=1,
         action='store',
         type=int,
         help='number of world\'s channels (default 1)'
     )
+    parser.add_argument('-R', '--ratio', dest='R', default=13, action='store', type=int, help='Ratio')
+    parser.add_argument(
+        '-T',
+        '--timestep',
+        dest='T',
+        default=10,
+        action='store',
+        type=int,
+        help='number of world\'s channels (default 1)'
+    )
 
+    # Rendering params
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument(
         '-w',
@@ -55,13 +68,28 @@ def get_default_parser():
         '-b', '--pixel_border', dest='B', default=0, action='store', type=int, help='pixel border (default 0)'
     )
 
+    # Configuration params
     parser.add_argument(
-        '-l',
-        '--load',
-        dest='animal_filename',
+        '--seed',
+        dest='seed',
+        default=0,
+        action='store',
+        type=str,
+    )
+    parser.add_argument(
+        '--config',
+        dest='config',
         default=None,
         action='store',
         type=str,
+    )
+
+    parser.add_argument(
+        '--max_run_iter',
+        dest='max_run_iter',
+        default=512,
+        action='store',
+        type=int,
     )
 
     return parser

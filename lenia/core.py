@@ -1,28 +1,27 @@
 import jax.numpy as jnp
 from jax import vmap, lax, jit
-from typing import Callable, List, Tuple
+from typing import Callable, List
 
 from . import utils
 from .kernels import get_kernels_and_mapping
 from .growth_functions import growth_fns
 
 
-def init(animal_conf: object, world_size: List[int], nb_channels: int) -> Tuple[jnp.array, jnp.array, object]:
-    assert len(world_size) == 2  # We linit ourselves to 2d worlds
+def init(config: dict) -> tuple[jnp.array, jnp.array, dict]:
+    nb_dims = config['world_params']['nb_dims']
+    nb_channels = config['world_params']['nb_channels']
+    world_size = config['render_params']['world_size']
+    assert len(world_size) == nb_dims
     assert nb_channels > 0
 
-    world_params = animal_conf['world_params']
-    assert nb_channels == world_params['N_c'], 'The animal and the world are not coming from the same world'
+    cells = config['cells']
+    if type(cells) is list:
+        cells = utils.rle2arr(cells, nb_dims, nb_channels)
+    cells = init_cells(world_size, nb_channels, [cells])
 
-    nb_dims = len(world_size)
-    assert nb_dims == world_params['N_d'], 'The animal and the world are not coming from the same world'
-
-    animal_cells_code = animal_conf['cells']
-    animal_cells = utils.rle2arr(animal_cells_code, nb_dims, nb_channels)
-    cells = init_cells(world_size, nb_channels, [animal_cells])
-
-    kernels_params = animal_conf['kernels_params']
-    K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, world_params["R"])
+    kernels_params = config['kernels_params']
+    R = config['world_params']['R']
+    K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
 
     return cells, K, mapping
 
@@ -38,18 +37,52 @@ def init_cells(world_size: List[int], nb_channels: int, other_cells: List[jnp.ar
     # And we are going to map over first dimension with vmap so we need th following shape
     # [C, N=1, c=1, H, W]
     cells = cells[:, jnp.newaxis, jnp.newaxis]
-    assert len(cells.shape) == 5
 
     return cells
 
 
-def build_update_fn(world_params: List[int], K: jnp.array, mapping: object):
+def init_and_run(config: dict) -> tuple[jnp.array, jnp.array, jnp.array]:
+    cells, K, mapping = init(config)
+    update_fn = jit(build_update_fn(config['world_params'], K, mapping))
+
+    outputs = run(cells, update_fn, config['max_run_iter'])
+
+    return outputs
+
+
+def run(cells: jnp.array, update_fn: Callable, max_run_iter: int) -> tuple[jnp.array, jnp.array, jnp.array]:
+    assert max_run_iter > 0, f"max_run_iter must be positive, value given: {max_run_iter} "
+
+    all_cells = [cells]
+    all_fields = []
+    all_potentials = []
+    for i in range(max_run_iter):
+        cells, field, potential = update_fn(cells)
+
+        all_cells.append(cells)
+        all_fields.append(field)
+        all_potentials.append(potential)
+
+        if cells.sum() == 0:
+            break
+        if cells.sum() > 2**11:  # heuristic to detect explosive behaviour
+            break
+
+    # To keep the same number of elements per array
+    _, field, potential = update_fn(cells)
+    all_fields.append(field)
+    all_potentials.append(potential)
+
+    return all_cells, all_fields, all_potentials
+
+
+def build_update_fn(world_params: List[int], K: jnp.array, mapping: dict) -> Callable:
     T = world_params['T']
 
-    get_potential_fn = build_get_potential_generic(K.shape, mapping["true_channels"])
-    get_field_fn = build_get_field_generic(mapping)
+    get_potential_fn = build_get_potential(K.shape, mapping["true_channels"])
+    get_field_fn = build_get_field(mapping)
 
-    def update(cells: jnp.array) -> Tuple[jnp.array, jnp.array, jnp.array]:
+    def update(cells: jnp.array) -> tuple[jnp.array, jnp.array, jnp.array]:
         potential = get_potential_fn(cells, K)
         field = get_field_fn(potential)
         cells = update_cells(cells, field, T)
@@ -59,14 +92,14 @@ def build_update_fn(world_params: List[int], K: jnp.array, mapping: object):
     return update
 
 
-def build_get_potential_generic(kernel_shape: List[int], true_channels: List[bool]) -> Callable:
+def build_get_potential(kernel_shape: List[int], true_channels: List[bool]) -> Callable:
     vconv = vmap(lax.conv, (0, 0, None, None), 0)
     nb_channels = kernel_shape[0]
     depth = kernel_shape[1]
     pad_w = kernel_shape[-1] // 2
     pad_h = kernel_shape[-2] // 2
 
-    def get_potential_generic(cells: jnp.array, K: jnp.array) -> jnp.array:
+    def get_potential(cells: jnp.array, K: jnp.array) -> jnp.array:
         H, W = cells.shape[-2:]
 
         padded_cells = jnp.pad(cells, [(0, 0), (0, 0), (0, 0), (pad_h, pad_h), (pad_w, pad_w)], mode='wrap')
@@ -77,10 +110,10 @@ def build_get_potential_generic(kernel_shape: List[int], true_channels: List[boo
 
         return potential
 
-    return get_potential_generic
+    return get_potential
 
 
-def build_get_field_generic(mapping: object) -> Callable:
+def build_get_field(mapping: dict) -> Callable:
     cin_growth_fns = mapping["cin_growth_fns"]
     cout_kernels = mapping["cout_kernels"]
     cout_kernels_h = mapping["cout_kernels_h"]
@@ -92,7 +125,7 @@ def build_get_field_generic(mapping: object) -> Callable:
 
     vaverage = vmap(average_per_channel, (None, 0, 0))
 
-    def get_field_generic(potential: jnp.array) -> jnp.array:
+    def get_field(potential: jnp.array) -> jnp.array:
         fields = []
         for i in range(len(cin_growth_fns['gf_id'])):
             sub_potential = potential[i]
@@ -108,7 +141,7 @@ def build_get_field_generic(mapping: object) -> Callable:
 
         return field
 
-    return get_field_generic
+    return get_field
 
 
 def update_cells(cells: jnp.array, field: jnp.array, T: float) -> jnp.array:
@@ -118,32 +151,3 @@ def update_cells(cells: jnp.array, field: jnp.array, T: float) -> jnp.array:
     cells_new = jnp.clip(cells_new, 0, 1)
 
     return cells_new
-
-
-def init_and_run(world_params: object, world_size: List[int], animal_conf: object,
-                 max_iter: int) -> Tuple[jnp.array, jnp.array, jnp.array]:
-    nb_channels = world_params['N_c']
-    cells, K, mapping = init(animal_conf, world_size, nb_channels)
-
-    update_fn = jit(build_update_fn(world_params, K, mapping))
-
-    return run(cells, update_fn, max_iter)
-
-
-def run(cells: jnp.array, update_fn: Callable, max_iter: int) -> Tuple[jnp.array, jnp.array, jnp.array]:
-    all_cells = []
-    all_field = []
-    all_potential = []
-    for i in range(max_iter):
-        cells, field, potential = update_fn(cells)
-
-        all_cells.append(cells)
-        all_field.append(field)
-        all_potential.append(potential)
-
-        if cells.sum() == 0:
-            break
-        if cells.sum() > 2**11:  # heuristic to detect explosive behaviour
-            break
-
-    return all_cells, all_field, all_potential

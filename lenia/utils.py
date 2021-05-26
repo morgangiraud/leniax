@@ -1,10 +1,11 @@
 import os
-# import datetime
+import json
 import matplotlib.pyplot as plt
 import jax.numpy as jnp
 from fractions import Fraction
 from PIL import Image
 import numpy as np
+from typing import List, Callable
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 save_dir = os.path.join(cdir, 'save')
@@ -16,25 +17,25 @@ DIM_DELIM = {0: '', 1: '$', 2: '%', 3: '#', 4: '@A', 5: '@B', 6: '@C', 7: '@D', 
 ###
 # Loader
 ###
-def st2fracs2float(st):
+def st2fracs2float(st: str) -> List[float]:
     return [float(Fraction(st)) for st in st.split(',')]
 
 
-def append_stack(list1, list2, count, is_repeat=False):
+def append_stack(list1: List, list2: List, count, is_repeat=False):
     list1.append(list2)
     if count != '':
         repeated = list2 if is_repeat else []
         list1.extend([repeated] * (int(count) - 1))
 
 
-def recur_get_max_lens(dim, list1, max_lens, nb_dims):
+def recur_get_max_lens(dim, list1, max_lens, nb_dims: int):
     max_lens[dim] = max(max_lens[dim], len(list1))
     if dim < nb_dims - 1:
         for list2 in list1:
             recur_get_max_lens(dim + 1, list2, max_lens, nb_dims)
 
 
-def recur_cubify(dim, list1, max_lens, nb_dims):
+def recur_cubify(dim, list1, max_lens, nb_dims: int):
     more = max_lens[dim] - len(list1)
     if dim < nb_dims - 1:
         list1.extend([[]] * more)
@@ -44,7 +45,7 @@ def recur_cubify(dim, list1, max_lens, nb_dims):
         list1.extend([0] * more)
 
 
-def ch2val(c):
+def ch2val(c: str) -> int:
     if c in '.b':
         return 0
     elif c == 'o':
@@ -55,7 +56,7 @@ def ch2val(c):
         return (ord(c[0]) - ord('p')) * 24 + (ord(c[1]) - ord('A') + 25)
 
 
-def rle2arr(init_cells_code, nb_dims, nb_channels):
+def rle2arr(init_cells_code: List[str], nb_dims: int, nb_channels: int) -> jnp.array:
     assert nb_channels == len(init_cells_code)
 
     all_cells = []
@@ -105,7 +106,7 @@ def rle2arr(init_cells_code, nb_dims, nb_channels):
 ###
 # Animals
 ###
-def merge_cells(cells, other_cells, offset=None):
+def merge_cells(cells: jnp.array, other_cells: jnp.array, offset: List[int] = None) -> jnp.array:
     # We ensure the animal and the world are compatible:
     # - same number of dims
     # - same number of channels
@@ -138,22 +139,30 @@ MARKER_COLORS_W = [0x5F, 0x5F, 0x5F, 0x7F, 0x7F, 0x7F, 0xFF, 0xFF, 0xFF]
 MARKER_COLORS_B = [0x9F, 0x9F, 0x9F, 0x7F, 0x7F, 0x7F, 0x0F, 0x0F, 0x0F]
 
 
-def save_image(save_dir, cells, vmin, vmax, pixel_size, pixel_border_size, colormap, animal_conf, idx, suffix=""):
+def save_image(
+    save_dir: str,
+    cells: jnp.array,
+    vmin: float,
+    vmax: float,
+    pixel_size: int,
+    pixel_border_size: int,
+    colormap,
+    idx: int,
+    suffix: str = ""
+):
     assert len(cells.shape) == 3, 'we only handle images under the format [C, H, W]'
     assert cells.shape[0] < 4, 'we only handle images with less than 3 channels'
 
     norm_cells = jnp.clip(normalize(cells, vmin, vmax), 0, 1)
     img = get_image(norm_cells, pixel_size, pixel_border_size, colormap)
 
-    filename = f"{str(idx).zfill(3)}{suffix}.{image_ext}"
-    # record_id = '{}-{}'.format(animal_conf['code'], datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
-
+    filename = f"{str(idx).zfill(5)}{suffix}.{image_ext}"
     fullpath = os.path.join(save_dir, filename)
 
     img.save(fullpath)
 
 
-def get_image(cells_buffer, pixel_size, pixel_border_size, colormap):
+def get_image(cells_buffer: jnp.array, pixel_size: int, pixel_border_size: int, colormap):
     _, y, x = cells_buffer.shape
     cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=1)
     cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=2)
@@ -176,14 +185,16 @@ def get_image(cells_buffer, pixel_size, pixel_border_size, colormap):
     return blank_img
 
 
-def normalize(v, vmin, vmax, is_square=False, vmin2=0, vmax2=0):
+def normalize(
+    v: jnp.array, vmin: float, vmax: float, is_square: bool = False, vmin2: float = 0, vmax2: float = 0
+) -> jnp.array:
     if not is_square:
         return (v - vmin) / (vmax - vmin)
     else:
         return (v - vmin) / max(vmax - vmin, vmax2 - vmin2)
 
 
-def plot_function(save_dir, id, fn, m, s):
+def plot_function(save_di: str, id: int, fn: Callable, m: float, s: float):
     x = jnp.linspace(-0.5, 1.5, 500)
 
     y = fn(x, m, s)
@@ -216,3 +227,12 @@ def check_dir(dir: str):
         os.makedirs(dir)
     elif not os.path.isdir(dir):
         raise Exception('The path provided ({}) exist and is not a dir, aborting'.format(dir))
+
+
+def save_config(save_dir: str, config: dict):
+    check_dir(save_dir)
+
+    if type(config['cells']) is not list:
+        config['cells'] = config['cells'].tolist()
+    with open(os.path.join(save_dir, 'config.json'), 'w') as outfile:
+        json.dump(config, outfile)

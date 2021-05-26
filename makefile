@@ -49,16 +49,19 @@ endif
 ##
 # CI
 ###
+yapf:
+	yapf --style tox.ini -r -i lenia/. tests/. scripts/.
+
 lint:
 	flake8 lenia/. tests/. scripts/.
 
-yapf:
-	yapf --style tox.ini -r -i lenia/. tests/. scripts/.
+typecheck:
+	mypy $(CURRENT_DIR)/lenia $(CURRENT_DIR)/scripts
 
 test:
 	pytest .
 
-ci: lint typecheck test
+ci: lint test
 
 .PHONY: typecheck yapf lint test ci
 

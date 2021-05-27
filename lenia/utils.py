@@ -233,8 +233,8 @@ def check_dir(dir: str):
 def save_config(save_dir: str, config: dict):
     check_dir(save_dir)
 
-    if type(config['cells']) is not list:
-        config['cells'] = config['cells'].tolist()
+    if type(config['run_params']['cells']) is not list:
+        config['run_params']['cells'] = config['run_params']['cells'].tolist()
     with open(os.path.join(save_dir, 'config.json'), 'w') as outfile:
         json.dump(config, outfile)
 

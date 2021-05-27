@@ -15,12 +15,12 @@ def init(config: dict) -> tuple[jnp.array, jnp.array, dict]:
     assert len(world_size) == nb_dims
     assert nb_channels > 0
 
-    cells = config['cells']
+    cells = config['run_params']['cells']
     if type(cells) is list:
         cells = utils.rle2arr(cells, nb_dims, nb_channels)
     cells = init_cells(world_size, nb_channels, [cells])
 
-    kernels_params = config['kernels_params']
+    kernels_params = config['kernels_params']['k']
     R = config['world_params']['R']
     K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
 
@@ -46,7 +46,7 @@ def init_and_run(config: dict) -> tuple[jnp.array, jnp.array, jnp.array]:
     cells, K, mapping = init(config)
     update_fn = jit(build_update_fn(config['world_params'], K, mapping))
 
-    outputs = run(cells, update_fn, config['max_run_iter'])
+    outputs = run(cells, update_fn, config['run_params']['max_run_iter'])
 
     return outputs
 
@@ -85,9 +85,11 @@ def run_init_search(rng_key, config):
     render_params = config['render_params']
     world_size = render_params['world_size']
 
-    kernels_params = config['kernels_params']
-    nb_init_search = config['nb_init_search']
-    max_run_iter = config['max_run_iter']
+    kernels_params = config['kernels_params']['k']
+
+    run_params = config['run_params']
+    nb_init_search = run_params['nb_init_search']
+    max_run_iter = run_params['max_run_iter']
 
     K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
     update_fn = jit(build_update_fn(world_params, K, mapping))
@@ -101,8 +103,7 @@ def run_init_search(rng_key, config):
         all_cells, all_fields, all_potentials = run(cells_0, update_fn, max_run_iter)
         nb_iter_done = len(all_cells)
 
-        if nb_iter_done > 30:
-            runs.append({"N": nb_iter_done, "all_cells": all_cells})
+        runs.append({"N": nb_iter_done, "all_cells": all_cells})
 
     return rng_key, runs
 

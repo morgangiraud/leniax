@@ -1,0 +1,5 @@
+defaults:
+  - world_params: default
+  - render_params: default
+  - kernels_params: default
+  - run_params: init_search

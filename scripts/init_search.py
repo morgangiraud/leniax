@@ -1,21 +1,22 @@
-import time
+# import time
+import json
 import os
 import uuid
 import logging
 import matplotlib.pyplot as plt
 import jax
-from jax import jit, random
-import jax.numpy as jnp
+import numpy as np
 
 import lenia
 from lenia.parser import get_default_parser
-from lenia.core import run, init_cells, build_update_fn
-from lenia.kernels import get_kernels_and_mapping
+from lenia.core import run_init_search
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 save_dir = os.path.join(cdir, 'save_init_search')
 
 if __name__ == '__main__':
+    logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
+
     parser = get_default_parser()
     args = parser.parse_args()
 
@@ -57,10 +58,9 @@ if __name__ == '__main__':
 
     # Other
     seed = args.seed
-    rng = jax.random.PRNGKey(args.seed)
-
     max_run_iter = args.max_run_iter
-    nb_init_search = 2**8
+    nb_init_search = 2**9
+
     config = {
         'code': str(uuid.uuid4()),
         'world_params': world_params,
@@ -70,53 +70,33 @@ if __name__ == '__main__':
         'nb_init_search': nb_init_search,
         'seed': seed
     }
+    logging.info("config:", json.dumps(config))
 
-    K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
-    update_fn = jit(build_update_fn(world_params, K, mapping))
+    rng_key = jax.random.PRNGKey(seed)
+    np.random.seed(seed)
 
-    logging.info("config:", config)
+    rng_key, runs = run_init_search(rng_key, config)
 
-    # For loop for init
-    runs = []
-    noise_size = jnp.hstack([
-        jnp.array([nb_channels] * nb_init_search)[:, jnp.newaxis], random.randint(rng, [nb_init_search, 2], 2**3, 2**6)
-    ])
-    for i in range(nb_init_search):
-        start_time = time.time()
+    if len(runs) > 0:
+        runs.sort(key=lambda run: run["N"], reverse=True)
+        best = runs[0]
 
-        # Init cells randomly,
-        # This is hell slow, we need to generate all the noise before launching the loop
-        rng, subkey = random.split(rng)
-        noise = random.uniform(subkey, noise_size[i], minval=0, maxval=1.)
-        cells_0 = init_cells(world_size, nb_channels, [noise])
+        print(f"best run length: {best['N']}")
 
-        all_cells, all_fields, all_potentials = run(cells_0, update_fn, max_run_iter)
-        nb_iter_done = len(all_cells)
-
-        jnp.vstack([cells_0] + all_cells)
-        if nb_iter_done > 30:
-            runs.append({"N": nb_iter_done, "all_cells": all_cells})
-
-        total_time = time.time() - start_time
-        print(f"{nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
-
-    runs.sort(key=lambda run: run["N"], reverse=True)
-    best = runs[0]
-
-    all_cells = best['all_cells']
-    config['cells'] = all_cells[0]
-    lenia.utils.check_dir(save_dir)
-    lenia.utils.save_config(save_dir, config)
-    colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
-    for i in range(len(all_cells)):
-        lenia.utils.save_image(
-            save_dir,
-            all_cells[i][:, 0, 0, ...],
-            0,
-            1,
-            pixel_size,
-            pixel_border_size,
-            colormap,
-            i,
-            "cell",
-        )
+        all_cells = best['all_cells']
+        config['cells'] = all_cells[0]
+        lenia.utils.check_dir(save_dir)
+        lenia.utils.save_config(save_dir, config)
+        colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
+        for i in range(len(all_cells)):
+            lenia.utils.save_image(
+                save_dir,
+                all_cells[i][:, 0, 0, ...],
+                0,
+                1,
+                pixel_size,
+                pixel_border_size,
+                colormap,
+                i,
+                "cell",
+            )

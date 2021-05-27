@@ -1,5 +1,6 @@
-import jax.numpy as jnp
 from jax import vmap, lax, jit
+import jax.numpy as jnp
+# import numpy as np
 from typing import Callable, List
 
 from . import utils
@@ -76,6 +77,36 @@ def run(cells: jnp.array, update_fn: Callable, max_run_iter: int) -> tuple[jnp.a
     return all_cells, all_fields, all_potentials
 
 
+def run_init_search(rng_key, config):
+    world_params = config['world_params']
+    nb_channels = world_params['nb_channels']
+    R = world_params['R']
+
+    render_params = config['render_params']
+    world_size = render_params['world_size']
+
+    kernels_params = config['kernels_params']
+    nb_init_search = config['nb_init_search']
+    max_run_iter = config['max_run_iter']
+
+    K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
+    update_fn = jit(build_update_fn(world_params, K, mapping))
+
+    rng_key, noises = utils.generate_noise_using_numpy(nb_init_search, nb_channels, rng_key)
+
+    runs = []
+    for i in range(nb_init_search):
+        cells_0 = init_cells(world_size, nb_channels, [noises[i]])
+
+        all_cells, all_fields, all_potentials = run(cells_0, update_fn, max_run_iter)
+        nb_iter_done = len(all_cells)
+
+        if nb_iter_done > 30:
+            runs.append({"N": nb_iter_done, "all_cells": all_cells})
+
+    return rng_key, runs
+
+
 def build_update_fn(world_params: List[int], K: jnp.array, mapping: dict) -> Callable:
     T = world_params['T']
 
@@ -134,7 +165,7 @@ def build_get_field(mapping: dict) -> Callable:
             s = cin_growth_fns['s'][i]
 
             fields.append(growth_fns[gf_id](sub_potential, m, s))
-        field = jnp.stack(fields)
+        field = jnp.stack(fields)  # Add a dimension
 
         field = vaverage(field, cout_kernels, cout_kernels_h)  # [C, H, W]
         field = field[:, jnp.newaxis, jnp.newaxis]

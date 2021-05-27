@@ -1,10 +1,11 @@
 import os
 import json
 import matplotlib.pyplot as plt
+import jax
 import jax.numpy as jnp
+import numpy as np
 from fractions import Fraction
 from PIL import Image
-import numpy as np
 from typing import List, Callable
 
 cdir = os.path.dirname(os.path.realpath(__file__))
@@ -236,3 +237,41 @@ def save_config(save_dir: str, config: dict):
         config['cells'] = config['cells'].tolist()
     with open(os.path.join(save_dir, 'config.json'), 'w') as outfile:
         json.dump(config, outfile)
+
+
+###
+# noise
+###
+def generate_noise_using_numpy(nb_noise: int, nb_channels: int, rng_key):
+    sizes_np = np.hstack([
+        np.array([nb_channels] * nb_noise)[:, np.newaxis], np.random.randint(2**3, 2**6, [nb_noise, 2])
+    ])
+    max_h_np = np.max(sizes_np[:, 1])
+    max_w_np = np.max(sizes_np[:, 2])
+
+    all_masks = []
+    for i in range(nb_noise):
+        shape = sizes_np[i]
+        mask = generate_mask(shape, max_h_np, max_w_np)
+        all_masks.append(mask)
+    masks = jnp.array(np.vstack(mask))
+
+    key, subkey = jax.random.split(rng_key)
+    noise = jax.random.uniform(subkey, (nb_noise, 1, max_h_np, max_w_np), minval=0, maxval=1.)
+
+    noises = noise * masks
+
+    return key, noises
+
+
+def generate_mask(shape, max_h, max_w):
+    mask = np.ones(shape)
+
+    pad_h_before = (max_h - mask.shape[1]) // 2
+    pad_h_after = max_h - mask.shape[1] - pad_h_before
+    pad_w_before = (max_w - mask.shape[2]) // 2
+    pad_w_after = max_w - mask.shape[2] - pad_w_before
+    padding = [(0, 0), (pad_h_before, pad_h_after), (pad_w_before, pad_w_after)]
+    mask = np.pad(mask, padding, mode='constant')
+
+    return mask

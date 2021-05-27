@@ -74,7 +74,7 @@ def get_default_parser():
         dest='seed',
         default=0,
         action='store',
-        type=str,
+        type=int,
     )
     parser.add_argument(
         '--config',

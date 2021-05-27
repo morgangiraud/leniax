@@ -66,7 +66,7 @@ def run(cells: jnp.array, update_fn: Callable, max_run_iter: int) -> tuple[jnp.a
 
         if cells.sum() == 0:
             break
-        if cells.sum() > 2**11:  # heuristic to detect explosive behaviour
+        if cells.sum() > 2**10:  # heuristic to detect explosive behaviour
             break
 
     # To keep the same number of elements per array

@@ -3,10 +3,11 @@ channels:
   - conda-forge
   - defaults
 dependencies:
+  - absl-py=0.12.0=pyhd8ed1ab_0
   - attrs=21.2.0=pyhd3eb1b0_0
   - blas=1.0=mkl
-  - ca-certificates=2021.4.13=hecd8cb5_1
-  - certifi=2020.12.5=py39hecd8cb5_0
+  - ca-certificates=2020.12.5=h033912b_0
+  - certifi=2020.12.5=py39h6e9494a_1
   - cycler=0.10.0=py39hecd8cb5_0
   - flake8=3.9.2=pyhd3eb1b0_0
   - freetype=2.10.4=ha233b18_0
@@ -14,11 +15,14 @@ dependencies:
   - importlib-metadata=3.10.0=py39hecd8cb5_0
   - iniconfig=1.1.1=pyhd3eb1b0_0
   - intel-openmp=2021.2.0=hecd8cb5_564
+  - jax=0.2.13=pyhd8ed1ab_0
+  - jaxlib=0.1.67=py39h6e9494a_0
   - jpeg=9b=he5867d9_2
   - kiwisolver=1.3.1=py39h23ab428_0
   - lcms2=2.12=hf1fd2bf_0
   - libcxx=10.0.0=1
   - libffi=3.3=hb1e8313_2
+  - libgfortran=3.0.1=0
   - libpng=1.6.37=ha441bb4_0
   - libtiff=4.1.0=hcb84e12_1
   - lz4-c=1.9.3=h23ab428_0
@@ -38,7 +42,8 @@ dependencies:
   - numpy=1.20.2=py39h4b4dc7a_0
   - numpy-base=1.20.2=py39he0bd621_0
   - olefile=0.46=py_0
-  - openssl=1.1.1k=h9ed2024_0
+  - openssl=1.1.1k=h0d85af4_0
+  - opt_einsum=3.3.0=pyhd8ed1ab_1
   - packaging=20.9=pyhd3eb1b0_0
   - pillow=8.2.0=py39h5270095_0
   - pip=21.1.1=py39hecd8cb5_0
@@ -51,8 +56,11 @@ dependencies:
   - pytest=6.2.3=py39hecd8cb5_2
   - python=3.9.5=h88f2d9e_3
   - python-dateutil=2.8.1=pyhd3eb1b0_0
+  - python-flatbuffers=2.0=pyhd8ed1ab_0
+  - python_abi=3.9=1_cp39
   - readline=8.1=h9ed2024_0
   - reikna=0.7.5=pyh44b312d_1
+  - scipy=1.6.2=py39hd5f7400_1
   - setuptools=52.0.0=py39hecd8cb5_0
   - six=1.15.0=py39hecd8cb5_0
   - sqlite=3.35.4=hce871da_0
@@ -68,4 +76,11 @@ dependencies:
   - zipp=3.4.1=pyhd3eb1b0_0
   - zlib=1.2.11=h1de35cc_3
   - zstd=1.4.9=h322a384_0
+  - pip:
+    - antlr4-python3-runtime==4.8
+    - hydra-core==1.1.0rc1
+    - hydra-joblib-launcher==1.1.5.dev2
+    - joblib==1.0.1
+    - omegaconf==2.1.0rc1
+    - pyyaml==5.4.1
 

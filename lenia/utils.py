@@ -1,5 +1,6 @@
 import os
-import json
+import yaml
+import itertools
 import matplotlib.pyplot as plt
 import jax
 import jax.numpy as jnp
@@ -46,62 +47,85 @@ def recur_cubify(dim, list1, max_lens, nb_dims: int):
         list1.extend([0] * more)
 
 
-def ch2val(c: str) -> int:
-    if c in '.b':
+def char2val(ch: str) -> int:
+    if ch in '.b':
         return 0
-    elif c == 'o':
+    elif ch == 'o':
         return 255
-    elif len(c) == 1:
-        return ord(c) - ord('A') + 1
+    elif len(ch) == 1:
+        return ord(ch) - ord('A') + 1
     else:
-        return (ord(c[0]) - ord('p')) * 24 + (ord(c[1]) - ord('A') + 25)
+        return (ord(ch[0]) - ord('p')) * 24 + (ord(ch[1]) - ord('A') + 25)
 
 
-def rle2arr(init_cells_code: List[str], nb_dims: int, nb_channels: int) -> jnp.array:
-    assert nb_channels == len(init_cells_code)
+def val2char(v):
+    if v == 0:
+        return '.'
+    elif v < 25:
+        return chr(ord('A') + v - 1)
+    else:
+        return chr(ord('p') + (v - 25) // 24) + chr(ord('A') + (v - 25) % 24)
 
-    all_cells = []
-    all_max_lens = []
-    for st in init_cells_code:
-        stacks = [[] for dim in range(nb_dims)]
-        last, count = '', ''
-        delims = list(DIM_DELIM.values())
-        st = st.rstrip('!') + DIM_DELIM[nb_dims - 1]
-        for ch in st:
-            if ch.isdigit():
-                count += ch
-            elif ch in 'pqrstuvwxy@':
-                last = ch
-            else:
-                if last + ch not in delims:
-                    append_stack(stacks[0], ch2val(last + ch) / 255, count, is_repeat=True)
-                else:
-                    dim = delims.index(last + ch)
-                    for d in range(dim):
-                        append_stack(stacks[d + 1], stacks[d], count, is_repeat=False)
-                        stacks[d] = []
-                    # print('{0}[{1}] {2}'.format(last+ch, count, [np.asarray(s).shape for s in stacks]))
-                last, count = '', ''
 
-        cells = stacks[nb_dims - 1]
-        max_lens = [0 for dim in range(nb_dims)]
-        recur_get_max_lens(0, cells, max_lens, nb_dims)
-        recur_cubify(0, cells, max_lens, nb_dims)
+def _recur_drill_list(dim, lists, row_func, nb_dims: int):
+    if dim < nb_dims - 1:
+        return [_recur_drill_list(dim + 1, e, row_func, nb_dims) for e in lists]
+    else:
+        return row_func(lists)
 
-        if len(all_max_lens) == 0:
-            all_max_lens = max_lens
+
+def _recur_join_st(dim, lists, row_func, nb_dims: int):
+    if dim < nb_dims - 1:
+        return DIM_DELIM[nb_dims - 1 - dim].join(_recur_join_st(dim + 1, e, row_func, nb_dims) for e in lists)
+    else:
+        return DIM_DELIM[nb_dims - 1 - dim].join(row_func(lists))
+
+
+def compress_array(cells):
+    def drill_row(row):
+        return [(len(list(g)), val2char(v).strip()) for v, g in itertools.groupby(row)]
+
+    def join_row_shorten(row):
+        return [(str(n) if n > 1 else '') + c for n, c in row]
+
+    nb_dims = len(cells.shape)
+    cells_int_l = np.rint(cells * 255).astype(int).tolist()  # [[255 255] [255 0]]
+
+    rle_groups = _recur_drill_list(0, cells_int_l, drill_row, nb_dims)
+    st = _recur_join_st(0, rle_groups, join_row_shorten, nb_dims)  # "2 yO $ 1 yO"
+
+    return st + '!'
+
+
+def decompress_array(cells_code: str, nb_dims: int) -> jnp.array:
+    stacks = [[] for dim in range(nb_dims)]
+    last, count = '', ''
+    delims = list(DIM_DELIM.values())
+    st = cells_code.rstrip('!') + DIM_DELIM[nb_dims - 1]
+    for ch in st:
+        if ch.isdigit():
+            count += ch
+        elif ch in 'pqrstuvwxy@':
+            last = ch
         else:
-            all_max_lens = np.max([all_max_lens, max_lens], axis=0)
+            if last + ch not in delims:
+                append_stack(stacks[0], char2val(last + ch) / 255, count, is_repeat=True)
+            else:
+                dim = delims.index(last + ch)
+                for d in range(dim):
+                    append_stack(stacks[d + 1], stacks[d], count, is_repeat=False)
+                    stacks[d] = []
+                # print('{0}[{1}] {2}'.format(last+ch, count, [np.asarray(s).shape for s in stacks]))
+            last, count = '', ''
 
-        cells = cells
-        all_cells.append(cells)
+    cells = stacks[nb_dims - 1]
+    max_lens = [0 for dim in range(nb_dims)]
+    recur_get_max_lens(0, cells, max_lens, nb_dims)
+    recur_cubify(0, cells, max_lens, nb_dims)
 
-    for i, cells in enumerate(all_cells):
-        recur_cubify(0, cells, all_max_lens, nb_dims)
-        all_cells[i] = jnp.array(cells)
-    animal_cells = jnp.asarray(all_cells)
+    cells = jnp.asarray(cells)
 
-    return animal_cells
+    return cells
 
 
 ###
@@ -233,10 +257,8 @@ def check_dir(dir: str):
 def save_config(save_dir: str, config: Dict):
     check_dir(save_dir)
 
-    if type(config['run_params']['cells']) is not list:
-        config['run_params']['cells'] = config['run_params']['cells'].tolist()
-    with open(os.path.join(save_dir, 'config.json'), 'w') as outfile:
-        json.dump(config, outfile)
+    with open(os.path.join(save_dir, 'config.yaml'), 'w') as outfile:
+        yaml.dump(config, outfile)
 
 
 ###

@@ -32,8 +32,10 @@ def search_for_init(omegaConf: DictConfig) -> None:
         media_dir = os.path.join(save_dir, 'media')
         lenia_utils.check_dir(media_dir)
 
-        config['run_params']['cells'] = all_cells[0]
+        first_cells = all_cells[0][:, 0, 0, ...]
+        config['run_params']['cells'] = lenia_utils.compress_array(first_cells)
         lenia_utils.save_config(save_dir, config)
+
         colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
         for i in range(len(all_cells)):
             lenia_utils.save_image(
@@ -51,6 +53,7 @@ def search_for_init(omegaConf: DictConfig) -> None:
 
 def get_container(omegaConf: DictConfig):
 
+    # Need to check if missing first
     omegaConf.run_params.code = str(uuid.uuid4())
 
     world_params = omegaConf.world_params

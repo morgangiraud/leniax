@@ -16,8 +16,8 @@ def init(config: Dict) -> Tuple[jnp.array, jnp.array, Dict]:
     assert nb_channels > 0
 
     cells = config['run_params']['cells']
-    if type(cells) is list:
-        cells = utils.rle2arr(cells, nb_dims, nb_channels)
+    if type(cells) is str:
+        cells = utils.decompress_array(cells, nb_dims + 1)
     cells = init_cells(world_size, nb_channels, [cells])
 
     kernels_params = config['kernels_params']['k']

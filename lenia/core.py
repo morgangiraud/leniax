@@ -1,14 +1,14 @@
 from jax import vmap, lax, jit
 import jax.numpy as jnp
 # import numpy as np
-from typing import Callable, List
+from typing import Callable, List, Dict, Tuple
 
 from . import utils
 from .kernels import get_kernels_and_mapping
 from .growth_functions import growth_fns
 
 
-def init(config: dict) -> tuple[jnp.array, jnp.array, dict]:
+def init(config: Dict) -> Tuple[jnp.array, jnp.array, Dict]:
     nb_dims = config['world_params']['nb_dims']
     nb_channels = config['world_params']['nb_channels']
     world_size = config['render_params']['world_size']
@@ -42,7 +42,7 @@ def init_cells(world_size: List[int], nb_channels: int, other_cells: List[jnp.ar
     return cells
 
 
-def init_and_run(config: dict) -> tuple[jnp.array, jnp.array, jnp.array]:
+def init_and_run(config: Dict) -> Tuple[jnp.array, jnp.array, jnp.array]:
     cells, K, mapping = init(config)
     update_fn = jit(build_update_fn(config['world_params'], K, mapping))
 
@@ -51,7 +51,7 @@ def init_and_run(config: dict) -> tuple[jnp.array, jnp.array, jnp.array]:
     return outputs
 
 
-def run(cells: jnp.array, update_fn: Callable, max_run_iter: int) -> tuple[jnp.array, jnp.array, jnp.array]:
+def run(cells: jnp.array, update_fn: Callable, max_run_iter: int) -> Tuple[jnp.array, jnp.array, jnp.array]:
     assert max_run_iter > 0, f"max_run_iter must be positive, value given: {max_run_iter} "
 
     all_cells = [cells]
@@ -108,13 +108,13 @@ def run_init_search(rng_key, config):
     return rng_key, runs
 
 
-def build_update_fn(world_params: List[int], K: jnp.array, mapping: dict) -> Callable:
+def build_update_fn(world_params: List[int], K: jnp.array, mapping: Dict) -> Callable:
     T = world_params['T']
 
     get_potential_fn = build_get_potential(K.shape, mapping["true_channels"])
     get_field_fn = build_get_field(mapping)
 
-    def update(cells: jnp.array) -> tuple[jnp.array, jnp.array, jnp.array]:
+    def update(cells: jnp.array) -> Tuple[jnp.array, jnp.array, jnp.array]:
         potential = get_potential_fn(cells, K)
         field = get_field_fn(potential)
         cells = update_cells(cells, field, T)
@@ -145,7 +145,7 @@ def build_get_potential(kernel_shape: List[int], true_channels: List[bool]) -> C
     return get_potential
 
 
-def build_get_field(mapping: dict) -> Callable:
+def build_get_field(mapping: Dict) -> Callable:
     cin_growth_fns = mapping["cin_growth_fns"]
     cout_kernels = mapping["cout_kernels"]
     cout_kernels_h = mapping["cout_kernels_h"]

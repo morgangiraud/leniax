@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 from fractions import Fraction
 from PIL import Image
-from typing import List, Callable
+from typing import List, Callable, Dict
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 save_dir = os.path.join(cdir, 'save')
@@ -230,7 +230,7 @@ def check_dir(dir: str):
         raise Exception('The path provided ({}) exist and is not a dir, aborting'.format(dir))
 
 
-def save_config(save_dir: str, config: dict):
+def save_config(save_dir: str, config: Dict):
     check_dir(save_dir)
 
     if type(config['run_params']['cells']) is not list:
@@ -240,8 +240,15 @@ def save_config(save_dir: str, config: dict):
 
 
 ###
-# noise
+# Random
 ###
+def seed_everything(seed: int) -> int:
+    rng_key = jax.random.PRNGKey(seed)
+    np.random.seed(seed)
+
+    return rng_key
+
+
 def generate_noise_using_numpy(nb_noise: int, nb_channels: int, rng_key):
     sizes_np = np.hstack([
         np.array([nb_channels] * nb_noise)[:, np.newaxis], np.random.randint(2**3, 2**6, [nb_noise, 2])

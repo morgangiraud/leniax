@@ -94,7 +94,7 @@ def get_kernels_and_mapping(kernels_params: Dict, world_size: List[int], nb_chan
     return K, mapping
 
 
-def get_kernel(kernel_params, world_size: list, R: int) -> jnp.array:
+def get_kernel(kernel_params: List, world_size: list, R: int) -> jnp.array:
     midpoint = jnp.asarray([size // 2 for size in world_size])
     coords = jnp.indices(world_size)
 

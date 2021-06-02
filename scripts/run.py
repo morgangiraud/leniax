@@ -22,7 +22,7 @@ def run(omegaConf: DictConfig) -> None:
     render_params = config['render_params']
 
     start_time = time.time()
-    all_cells, all_fields, all_potentials = init_and_run(config)
+    all_cells, all_fields, all_potentials, all_stats = init_and_run(config)
     total_time = time.time() - start_time
 
     nb_iter_done = len(all_cells) - 1  # all_cells contains cell_0
@@ -35,6 +35,8 @@ def run(omegaConf: DictConfig) -> None:
     first_cells = all_cells[0][:, 0, 0, ...]
     config['run_params']['cells'] = lenia_utils.compress_array(first_cells)
     lenia_utils.save_config(save_dir, config)
+
+    lenia_utils.plot_stats(media_dir, all_stats)
 
     colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
     for i in range(len(all_cells)):

@@ -1,11 +1,13 @@
 from jax import vmap, lax, jit
 import jax.numpy as jnp
 # import numpy as np
-from typing import Callable, List, Dict, Tuple
+from typing import Callable, List, Dict, Tuple, Optional
 
 from . import utils
 from .kernels import get_kernels_and_mapping
 from .growth_functions import growth_fns
+from .statistics import build_compute_stats_fn
+from .constant import EPSILON
 
 
 def init(config: Dict) -> Tuple[jnp.array, jnp.array, Dict]:
@@ -45,26 +47,49 @@ def init_cells(world_size: List[int], nb_channels: int, other_cells: List[jnp.ar
 def init_and_run(config: Dict) -> Tuple[jnp.array, jnp.array, jnp.array]:
     cells, K, mapping = init(config)
     update_fn = jit(build_update_fn(config['world_params'], K, mapping))
+    compute_stats_fn = jit(build_compute_stats_fn(config['world_params'], config['render_params']))
 
-    outputs = run(cells, update_fn, config['run_params']['max_run_iter'])
+    max_run_iter = config['run_params']['max_run_iter']
+    outputs = run(cells, max_run_iter, update_fn, compute_stats_fn)
 
     return outputs
 
 
-def run(cells: jnp.array, update_fn: Callable, max_run_iter: int) -> Tuple[jnp.array, jnp.array, jnp.array]:
+def run(cells: jnp.array,
+        max_run_iter: int,
+        update_fn: Callable,
+        compute_stats_fn: Optional[Callable] = None) -> Tuple[jnp.array, ...]:
     assert max_run_iter > 0, f"max_run_iter must be positive, value given: {max_run_iter} "
+
+    nb_dims = len(cells.shape) - 3
+    axes = tuple(reversed(range(-1, -nb_dims - 1, -1)))
 
     all_cells = [cells]
     all_fields = []
     all_potentials = []
-    for i in range(max_run_iter):
+    all_stats = []
+    total_shift_idx = None
+    for _ in range(max_run_iter):
         cells, field, potential = update_fn(cells)
+        # To compute stats, the world has to be centered
+        if compute_stats_fn:
+            cells, field, potential, shift_idx, stats = compute_stats_fn(cells, field, potential)
+            if total_shift_idx is None:
+                total_shift_idx = shift_idx
+            else:
+                total_shift_idx += shift_idx
+            all_stats.append(stats)
 
-        all_cells.append(cells)
-        all_fields.append(field)
-        all_potentials.append(potential)
+            # To have a nice viz, it's much nicer to NOT have the world centered
+            all_cells.append(jnp.roll(cells, total_shift_idx, axes))
+            all_fields.append(jnp.roll(field, total_shift_idx, axes))
+            all_potentials.append(jnp.roll(potential, total_shift_idx, axes))
+        else:
+            all_cells.append(cells)
+            all_fields.append(field)
+            all_potentials.append(potential)
 
-        if cells.sum() == 0:
+        if cells.sum() <= EPSILON:
             break
         if cells.sum() > 2**10:  # heuristic to detect explosive behaviour
             break
@@ -74,7 +99,7 @@ def run(cells: jnp.array, update_fn: Callable, max_run_iter: int) -> Tuple[jnp.a
     all_fields.append(field)
     all_potentials.append(potential)
 
-    return all_cells, all_fields, all_potentials
+    return all_cells, all_fields, all_potentials, all_stats
 
 
 def run_init_search(rng_key, config):
@@ -100,7 +125,7 @@ def run_init_search(rng_key, config):
     for i in range(nb_init_search):
         cells_0 = init_cells(world_size, nb_channels, [noises[i]])
 
-        all_cells, all_fields, all_potentials = run(cells_0, update_fn, max_run_iter)
+        all_cells, _, _, _ = run(cells_0, max_run_iter, update_fn)
         nb_iter_done = len(all_cells)
 
         runs.append({"N": nb_iter_done, "all_cells": all_cells})

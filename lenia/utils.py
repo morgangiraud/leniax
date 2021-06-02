@@ -219,7 +219,7 @@ def normalize(
         return (v - vmin) / max(vmax - vmin, vmax2 - vmin2)
 
 
-def plot_function(save_di: str, id: int, fn: Callable, m: float, s: float):
+def plot_function(save_dir: str, id: int, fn: Callable, m: float, s: float):
     x = jnp.linspace(-0.5, 1.5, 500)
 
     y = fn(x, m, s)
@@ -242,6 +242,29 @@ def plot_function(save_di: str, id: int, fn: Callable, m: float, s: float):
 
     fullpath = os.path.join(save_dir, f"growth_function{str(id).zfill(2)}.{image_ext}")
     plt.savefig(fullpath)
+
+
+def plot_stats(save_dir: str, all_stats: List[Dict]):
+    if len(all_stats) == 0:
+        return
+
+    all_stats_2 = {}
+    all_keys = list(all_stats[0].keys())
+    for k in all_keys:
+        all_stats_2[k] = []
+    for stat in all_stats:
+        for k, v in stat.items():
+            all_stats_2[k].append(v)
+    for k in all_keys:
+        all_stats_2[k] = jnp.array(all_stats_2[k])
+
+    nb_steps = all_stats_2[all_keys[0]].shape[0]
+    X = jnp.linspace(0, nb_steps, num=nb_steps)
+    fig, axs = plt.subplots(len(all_keys))
+    for i, k in enumerate(all_keys):
+        axs[i].set_title(k.capitalize())
+        axs[i].plot(X, all_stats_2[k])
+    fig.savefig(os.path.join(save_dir, 'stats.png'))
 
 
 ###

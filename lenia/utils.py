@@ -1,3 +1,4 @@
+# import time
 import os
 import yaml
 import itertools
@@ -8,6 +9,8 @@ import numpy as np
 from fractions import Fraction
 from PIL import Image
 from typing import List, Callable, Dict
+
+from .statistics import stats_list_to_dict
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 save_dir = os.path.join(cdir, 'save')
@@ -164,9 +167,9 @@ MARKER_COLORS_W = [0x5F, 0x5F, 0x5F, 0x7F, 0x7F, 0x7F, 0xFF, 0xFF, 0xFF]
 MARKER_COLORS_B = [0x9F, 0x9F, 0x9F, 0x7F, 0x7F, 0x7F, 0x0F, 0x0F, 0x0F]
 
 
-def save_image(
+def save_images(
     save_dir: str,
-    cells: jnp.array,
+    cells_l: List[jnp.array],
     vmin: float,
     vmax: float,
     pixel_size: int,
@@ -175,16 +178,56 @@ def save_image(
     idx: int,
     suffix: str = ""
 ):
-    assert len(cells.shape) == 3, 'we only handle images under the format [C, H, W]'
-    assert cells.shape[0] < 4, 'we only handle images with less than 3 channels'
+    # print("------")
+    # t0 = time.time()
+    if len(cells_l) % 2 == 0:
+        nrows = len(cells_l) // 2
+    else:
+        nrows = len(cells_l) // 2 + 1
+    ncols = nrows
 
-    norm_cells = jnp.clip(normalize(cells, vmin, vmax), 0, 1)
-    img = get_image(norm_cells, pixel_size, pixel_border_size, colormap)
-
+    fig, axs = plt.subplots(nrows, ncols, sharex=True, sharey=True)
+    if len(cells_l) == 1:
+        axs.axis('off')
+    else:
+        for i in range(nrows):
+            for j in range(ncols):
+                axs[i][j].axis('off')
     filename = f"{str(idx).zfill(5)}{suffix}.{image_ext}"
     fullpath = os.path.join(save_dir, filename)
 
-    img.save(fullpath)
+    # t1 = time.time()
+    # print(f"init time: {t1 - t0}")
+
+    for i, cells in enumerate(cells_l):
+        assert len(cells.shape) == 3, 'we only handle images under the format [C, H, W]'
+        assert cells.shape[0] < 4, 'we only handle images with less than 3 channels'
+
+        # sub_t0 = time.time()
+        norm_cells = jnp.clip(normalize(cells, vmin, vmax), 0, 1)
+        # sub_t1 = time.time()
+        img = get_image(norm_cells, pixel_size, pixel_border_size, colormap)
+        # sub_t2 = time.time()
+
+        if len(cells_l) == 1:
+            axs.imshow(img)
+        else:
+            y = i // nrows
+            x = i % nrows
+            axs[y][x].imshow(img)
+
+        # print(f"norm time: {sub_t1 - sub_t0}")
+        # print(f"get_image time: {sub_t2 - sub_t1}")
+
+    # t2 = time.time()
+    plt.tight_layout()
+    fig.savefig(fullpath)
+    plt.close(fig)
+
+    # t3 = time.time()
+
+    # print(f"total gen time: {t2 - t1}")
+    # print(f"save time: {t3 - t2}")
 
 
 def get_image(cells_buffer: jnp.array, pixel_size: int, pixel_border_size: int, colormap):
@@ -220,6 +263,8 @@ def normalize(
 
 
 def plot_function(save_dir: str, id: int, fn: Callable, m: float, s: float):
+    fullpath = os.path.join(save_dir, f"growth_function{str(id).zfill(2)}.{image_ext}")
+
     x = jnp.linspace(-0.5, 1.5, 500)
 
     y = fn(x, m, s)
@@ -237,34 +282,27 @@ def plot_function(save_dir: str, id: int, fn: Callable, m: float, s: float):
     # ax.yaxis.set_ticks_position('left')
 
     plt.plot(x, y, 'r', label='Growth function')
-
     plt.legend(loc='upper left')
 
-    fullpath = os.path.join(save_dir, f"growth_function{str(id).zfill(2)}.{image_ext}")
+    plt.tight_layout()
     plt.savefig(fullpath)
+    plt.close(fig)
 
 
 def plot_stats(save_dir: str, all_stats: List[Dict]):
-    if len(all_stats) == 0:
-        return
+    stats_dict = stats_list_to_dict(all_stats)
+    all_keys = list(stats_dict.keys())
 
-    all_stats_2 = {}
-    all_keys = list(all_stats[0].keys())
-    for k in all_keys:
-        all_stats_2[k] = []
-    for stat in all_stats:
-        for k, v in stat.items():
-            all_stats_2[k].append(v)
-    for k in all_keys:
-        all_stats_2[k] = jnp.array(all_stats_2[k])
-
-    nb_steps = all_stats_2[all_keys[0]].shape[0]
+    nb_steps = stats_dict[all_keys[0]].shape[0]
     X = jnp.linspace(0, nb_steps, num=nb_steps)
-    fig, axs = plt.subplots(len(all_keys))
+    fig, axs = plt.subplots(len(all_keys), sharex=True)
     for i, k in enumerate(all_keys):
         axs[i].set_title(k.capitalize())
-        axs[i].plot(X, all_stats_2[k])
+        axs[i].plot(X, stats_dict[k])
+
+    plt.tight_layout()
     fig.savefig(os.path.join(save_dir, 'stats.png'))
+    plt.close(fig)
 
 
 ###
@@ -295,8 +333,9 @@ def seed_everything(seed: int) -> int:
 
 
 def generate_noise_using_numpy(nb_noise: int, nb_channels: int, rng_key):
+    # TODO: improve heuristics
     sizes_np = np.hstack([
-        np.array([nb_channels] * nb_noise)[:, np.newaxis], np.random.randint(2**3, 2**6, [nb_noise, 2])
+        np.array([nb_channels] * nb_noise)[:, np.newaxis], np.random.randint(2**3, 2**5, [nb_noise, 2])
     ])
     max_h_np = np.max(sizes_np[:, 1])
     max_w_np = np.max(sizes_np[:, 2])

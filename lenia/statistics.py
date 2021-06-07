@@ -1,5 +1,5 @@
 import jax.numpy as jnp
-from typing import Dict, Callable
+from typing import Dict, Callable, List
 
 
 def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
@@ -45,3 +45,20 @@ def center_world(cells, field, potential, center_of_mass, R, nb_dims):
     potential = jnp.roll(potential, -shift_idx, axes)
 
     return cells, field, potential, shift_idx
+
+
+def stats_list_to_dict(all_stats: List[Dict]) -> Dict:
+    if len(all_stats) == 0:
+        return {}
+
+    stats_dict = {}
+    all_keys = list(all_stats[0].keys())
+    for k in all_keys:
+        stats_dict[k] = []
+    for stat in all_stats:
+        for k, v in stat.items():
+            stats_dict[k].append(v)
+    for k in all_keys:
+        stats_dict[k] = jnp.array(stats_dict[k])
+
+    return stats_dict

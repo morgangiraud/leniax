@@ -1,59 +1,29 @@
-import os
 import logging
 import uuid
-import matplotlib.pyplot as plt
+from typing import Dict
 from omegaconf import DictConfig, OmegaConf
 
 from lenia import utils as lenia_utils
 from .core import run_init_search
 
 
-def search_for_init(omegaConf: DictConfig) -> None:
+def search_for_init(config: Dict) -> None:
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
-    config = get_container(omegaConf)
-    print(OmegaConf.to_yaml(config))
-
     run_params = config['run_params']
-    render_params = config['render_params']
+    # render_params = config['render_params']
 
     rng_key = lenia_utils.seed_everything(run_params['seed'])
-
     rng_key, runs = run_init_search(rng_key, config)
 
     if len(runs) > 0:
         runs.sort(key=lambda run: run["N"], reverse=True)
-        best = runs[0]
-        all_cells = best['all_cells']
 
-        print(f"best run length: {best['N']}")
-
-        save_dir = os.getcwd()  # changed by hydra
-        media_dir = os.path.join(save_dir, 'media')
-        lenia_utils.check_dir(media_dir)
-
-        first_cells = all_cells[0][:, 0, 0, ...]
-        config['run_params']['cells'] = lenia_utils.compress_array(first_cells)
-        lenia_utils.save_config(save_dir, config)
-
-        colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
-        for i in range(len(all_cells)):
-            lenia_utils.save_image(
-                media_dir,
-                all_cells[i][:, 0, 0, ...],
-                0,
-                1,
-                render_params['pixel_size'],
-                render_params['pixel_border_size'],
-                colormap,
-                i,
-                "cell",
-            )
+    return rng_key, runs
 
 
 def get_container(omegaConf: DictConfig):
-
-    # Need to check if missing first
+    # TODO: Need to check if missing first
     omegaConf.run_params.code = str(uuid.uuid4())
 
     world_params = omegaConf.world_params

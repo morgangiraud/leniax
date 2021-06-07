@@ -7,6 +7,7 @@ tmp
 
 # OSX
 .DS_Store
+.vscode
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

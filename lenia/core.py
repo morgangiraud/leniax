@@ -91,13 +91,24 @@ def run(cells: jnp.array,
 
         if cells.sum() <= EPSILON:
             break
-        if cells.sum() > 2**10:  # heuristic to detect explosive behaviour
+        # TODO: improve heuristics
+        if cells.sum() > 2**11:  # heuristic to detect explosive behaviour
             break
 
     # To keep the same number of elements per array
     _, field, potential = update_fn(cells)
-    all_fields.append(field)
-    all_potentials.append(potential)
+    if compute_stats_fn:
+        _, field, potential, shift_idx, stats = compute_stats_fn(cells, field, potential)
+        if total_shift_idx is None:
+            total_shift_idx = shift_idx
+        else:
+            total_shift_idx += shift_idx
+        all_stats.append(stats)
+        all_fields.append(jnp.roll(field, total_shift_idx, axes))
+        all_potentials.append(jnp.roll(potential, total_shift_idx, axes))
+    else:
+        all_fields.append(field)
+        all_potentials.append(potential)
 
     return all_cells, all_fields, all_potentials, all_stats
 
@@ -118,6 +129,7 @@ def run_init_search(rng_key, config):
 
     K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
     update_fn = jit(build_update_fn(world_params, K, mapping))
+    compute_stats_fn = jit(build_compute_stats_fn(config['world_params'], config['render_params']))
 
     rng_key, noises = utils.generate_noise_using_numpy(nb_init_search, nb_channels, rng_key)
 
@@ -125,10 +137,13 @@ def run_init_search(rng_key, config):
     for i in range(nb_init_search):
         cells_0 = init_cells(world_size, nb_channels, [noises[i]])
 
-        all_cells, _, _, _ = run(cells_0, max_run_iter, update_fn)
+        all_cells, _, _, all_stats = run(cells_0, max_run_iter, update_fn, compute_stats_fn)
         nb_iter_done = len(all_cells)
 
-        runs.append({"N": nb_iter_done, "all_cells": all_cells})
+        runs.append({"N": nb_iter_done, "all_cells": all_cells, "all_stats": all_stats})
+
+        if nb_iter_done == max_run_iter:
+            break
 
     return rng_key, runs
 

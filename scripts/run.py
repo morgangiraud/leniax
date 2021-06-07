@@ -4,6 +4,7 @@ import logging
 import matplotlib.pyplot as plt
 from omegaconf import DictConfig
 import hydra
+import numpy as np
 
 from lenia.api import get_container
 from lenia import utils as lenia_utils
@@ -36,43 +37,27 @@ def run(omegaConf: DictConfig) -> None:
     config['run_params']['cells'] = lenia_utils.compress_array(first_cells)
     lenia_utils.save_config(save_dir, config)
 
-    lenia_utils.plot_stats(media_dir, all_stats)
+    lenia_utils.plot_stats(save_dir, all_stats)
 
     colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
+    all_times = []
     for i in range(len(all_cells)):
-        lenia_utils.save_image(
+        start_time = time.time()
+        lenia_utils.save_images(
             media_dir,
-            all_cells[i][:, 0, 0, ...],
+            [all_cells[i][:, 0, 0, ...], all_fields[i][:, 0, 0, ...], all_potentials[i]],
             0,
             1,
             render_params['pixel_size'],
             render_params['pixel_border_size'],
             colormap,
             i,
-            "cell",
+            "",
         )
-        lenia_utils.save_image(
-            media_dir,
-            all_fields[i][:, 0, 0, ...],
-            0,
-            1,
-            render_params['pixel_size'],
-            render_params['pixel_border_size'],
-            colormap,
-            i,
-            "field",
-        )
-        lenia_utils.save_image(
-            media_dir,
-            all_potentials[i],
-            0,
-            1,
-            render_params['pixel_size'],
-            render_params['pixel_border_size'],
-            colormap,
-            i,
-            "potential",
-        )
+        all_times.append(time.time() - start_time)
+    total_time = np.sum(all_times)
+    mean_time = np.mean(all_times)
+    print(f"{len(all_times)} images dumped in {total_time} seconds: {mean_time} fps")
 
 
 if __name__ == '__main__':

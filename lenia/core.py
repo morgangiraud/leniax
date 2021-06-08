@@ -102,7 +102,7 @@ def run(cells: jnp.ndarray,
     return all_cells, all_fields, all_potentials, all_stats
 
 
-def run_init_search(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, List]:
+def run_init_search(rng_key: jnp.ndarray, config: Dict, with_stats: bool = True) -> Tuple[jnp.ndarray, List]:
     world_params = config['world_params']
     nb_channels = world_params['nb_channels']
     R = world_params['R']
@@ -118,7 +118,11 @@ def run_init_search(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Li
 
     K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
     update_fn = jit(build_update_fn(world_params, K, mapping))
-    compute_stats_fn = jit(build_compute_stats_fn(config['world_params'], config['render_params']))
+    compute_stats_fn: Optional[Callable]
+    if with_stats:
+        compute_stats_fn = jit(build_compute_stats_fn(config['world_params'], config['render_params']))
+    else:
+        compute_stats_fn = None
 
     rng_key, noises = utils.generate_noise_using_numpy(nb_init_search, nb_channels, rng_key)
 

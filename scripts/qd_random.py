@@ -3,7 +3,8 @@ import random
 import logging
 from omegaconf import DictConfig
 import hydra
-from qdpy import containers, algorithms
+from qdpy import algorithms, containers
+from qdpy import plots as qdpy_plots
 from qdpy.base import ParallelismManager
 
 from lenia.api import get_container
@@ -20,18 +21,30 @@ def run(omegaConf: DictConfig) -> None:
     config = get_container(omegaConf)
 
     # TODO: clean those seeds machinery
-    random.seed(1)
+    random.seed(config['run_params']['seed'])
+    save_dir = os.getcwd()  # changed by hydra
+    # media_dir = os.path.join(save_dir, 'media')
 
     generator_builder = genBaseIndividual(config)
     lenia_generator = generator_builder()
     fitness_domain = [(0, config['run_params']['max_run_iter'])]
-    features_domain = [(0., 20000), (0., 20000), (0., 20000), (0., 20000)]
-    grid_shape = [5] * len(features_domain)
+    # features_domain = [(0., 20000), (0., 20000), (0., 20000), (0., 20000)]
+    features_domain = [(0., 1.), (0., 1.)]
+    grid_shape = [20, 100]
 
     grid = containers.Grid(
         shape=grid_shape, max_items_per_bin=1, fitness_domain=fitness_domain, features_domain=features_domain
     )
 
+    # GOAL: for the simple case where we need to fill 20 * 100 niches
+    # We would like to be able to check at lease 20k individuals
+    # currently:
+    # - a run takes <2.5 seconds
+    # => search for init < 1280 seconds
+    # => look for 20k individuals < 25M seconds (300 jours...)
+    #
+    # TODO: vmap and jit the search for init (hopefully winning a 10 time here)
+    # TODO: Batch and parrallel
     algo = LeniaRandomUniform(
         container=grid,
         budget=10,  # Nb of generated individuals
@@ -45,10 +58,16 @@ def run(omegaConf: DictConfig) -> None:
         name="lenia-random",
     )
 
-    _ = algorithms.TQDMAlgorithmLogger(algo)
+    logger = algorithms.TQDMAlgorithmLogger(algo)
 
     with ParallelismManager("none") as pMgr:
         _ = algo.optimise(eval_fn, executor=pMgr.executor, batch_mode=False)
+
+    # Print results info
+    print("\n" + algo.summary())
+
+    # Plot the results
+    qdpy_plots.default_plots_grid(logger, output_dir=save_dir)
 
     print(f"Number of species found: {len(grid)}")
     breakpoint()

@@ -9,13 +9,13 @@ from lenia import utils as lenia_utils
 from .core import run_init_search, init, run, build_update_fn, build_compute_stats_fn
 
 
-def search_for_init(config: Dict) -> Tuple[jnp.ndarray, List[Dict]]:
+def search_for_init(config: Dict, with_stats: bool = True) -> Tuple[jnp.ndarray, List[Dict]]:
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
     run_params = config['run_params']
     rng_key = lenia_utils.seed_everything(run_params['seed'])
 
-    rng_key, runs = run_init_search(rng_key, config)
+    rng_key, runs = run_init_search(rng_key, config, with_stats)
 
     if len(runs) > 0:
         runs.sort(key=lambda run: run["N"], reverse=True)

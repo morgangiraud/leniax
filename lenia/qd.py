@@ -1,7 +1,7 @@
 import random
 import copy
 from functools import partial
-from typing import Dict
+from typing import Dict, Any
 import jax.numpy as jnp
 
 from qdpy.base import DomainLike
@@ -11,10 +11,11 @@ from qdpy.algorithms import Evolution, QDAlgorithm
 from qdpy import tools
 
 from .api import search_for_init
-from .statistics import stats_list_to_dict
+from . import utils as lenia_utils
+# from .statistics import stats_list_to_dict
 
 
-def update_dict(dic, key_string, value):
+def update_dict(dic: Dict, key_string: str, value: Any):
     keys = key_string.split('.')
     for i, key in enumerate(keys[:-1]):
         if key.isdigit():
@@ -61,6 +62,9 @@ class LeniaIndividual(Individual):
 
     def get_config(self) -> Dict:
         return self.config
+
+    def set_init_cells(self, init_cells: jnp.ndarray):
+        self.config['run_params']['cells'] = init_cells
 
     def get_params_and_domains(self):
         return self.config['params_and_domains']
@@ -177,16 +181,25 @@ class LeniaEvo(Evolution):
 
 def eval_fn(ind: LeniaIndividual) -> LeniaIndividual:
     conf = ind.get_config()
-    _, runs = search_for_init(conf)
+    _, runs = search_for_init(conf, with_stats=False)
 
     best = runs[0]
-    all_stats = best['all_stats']
+    nb_steps = best['N']
+    init_cells = best['all_cells'][0][:, 0, 0, ...]
+    # all_stats = best['all_stats']
 
-    stats_dict = stats_list_to_dict(all_stats)
-    all_keys = list(stats_dict.keys())
-    nb_steps = stats_dict[all_keys[0]].shape[0]
-    # TODO: Add cells_o to ind
+    ind.set_init_cells(lenia_utils.compress_array(init_cells))
+
     ind.fitness.values = [nb_steps]
-    ind.features.values = [jnp.mean(stats_dict[k]) for k in all_keys]
+
+    ind.features.values = [
+        conf['kernels_params']['k'][0]['m'],
+        conf['kernels_params']['k'][0]['s'],
+    ]
+    # stats_dict = stats_list_to_dict(all_stats)
+    # all_keys = list(stats_dict.keys())
+    # ind.features.values = [jnp.mean(stats_dict[k]) for k in all_keys]
+
+    print(ind.fitness.values, ind.features.values)
 
     return ind

@@ -1,4 +1,5 @@
 # import time
+import random
 import os
 import yaml
 import itertools
@@ -8,7 +9,7 @@ import jax.numpy as jnp
 import numpy as np
 from fractions import Fraction
 from PIL import Image
-from typing import List, Callable, Dict
+from typing import List, Callable, Dict, Any
 
 from .statistics import stats_list_to_dict
 
@@ -26,10 +27,10 @@ def st2fracs2float(st: str) -> List[float]:
     return [float(Fraction(st)) for st in st.split(',')]
 
 
-def append_stack(list1: List, list2: List, count, is_repeat=False):
-    list1.append(list2)
+def append_stack(list1: List, elem: Any, count, is_repeat=False):
+    list1.append(elem)
     if count != '':
-        repeated = list2 if is_repeat else []
+        repeated = elem if is_repeat else []
         list1.extend([repeated] * (int(count) - 1))
 
 
@@ -61,7 +62,7 @@ def char2val(ch: str) -> int:
         return (ord(ch[0]) - ord('p')) * 24 + (ord(ch[1]) - ord('A') + 25)
 
 
-def val2char(v):
+def val2char(v: int) -> str:
     if v == 0:
         return '.'
     elif v < 25:
@@ -100,8 +101,8 @@ def compress_array(cells):
     return st + '!'
 
 
-def decompress_array(cells_code: str, nb_dims: int) -> jnp.array:
-    stacks = [[] for dim in range(nb_dims)]
+def decompress_array(cells_code: str, nb_dims: int) -> jnp.ndarray:
+    stacks: List[List] = [[] for dim in range(nb_dims)]
     last, count = '', ''
     delims = list(DIM_DELIM.values())
     st = cells_code.rstrip('!') + DIM_DELIM[nb_dims - 1]
@@ -121,12 +122,12 @@ def decompress_array(cells_code: str, nb_dims: int) -> jnp.array:
                 # print('{0}[{1}] {2}'.format(last+ch, count, [np.asarray(s).shape for s in stacks]))
             last, count = '', ''
 
-    cells = stacks[nb_dims - 1]
+    cells_l = stacks[nb_dims - 1]
     max_lens = [0 for dim in range(nb_dims)]
-    recur_get_max_lens(0, cells, max_lens, nb_dims)
-    recur_cubify(0, cells, max_lens, nb_dims)
+    recur_get_max_lens(0, cells_l, max_lens, nb_dims)
+    recur_cubify(0, cells_l, max_lens, nb_dims)
 
-    cells = jnp.asarray(cells)
+    cells = jnp.array(cells_l)
 
     return cells
 
@@ -134,7 +135,7 @@ def decompress_array(cells_code: str, nb_dims: int) -> jnp.array:
 ###
 # Animals
 ###
-def merge_cells(cells: jnp.array, other_cells: jnp.array, offset: List[int] = None) -> jnp.array:
+def merge_cells(cells: jnp.ndarray, other_cells: jnp.ndarray, offset: List[int] = None) -> jnp.ndarray:
     # We ensure the animal and the world are compatible:
     # - same number of dims
     # - same number of channels
@@ -169,7 +170,7 @@ MARKER_COLORS_B = [0x9F, 0x9F, 0x9F, 0x7F, 0x7F, 0x7F, 0x0F, 0x0F, 0x0F]
 
 def save_images(
     save_dir: str,
-    cells_l: List[jnp.array],
+    cells_l: List[jnp.ndarray],
     vmin: float,
     vmax: float,
     pixel_size: int,
@@ -230,7 +231,7 @@ def save_images(
     # print(f"save time: {t3 - t2}")
 
 
-def get_image(cells_buffer: jnp.array, pixel_size: int, pixel_border_size: int, colormap):
+def get_image(cells_buffer: jnp.ndarray, pixel_size: int, pixel_border_size: int, colormap):
     _, y, x = cells_buffer.shape
     cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=1)
     cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=2)
@@ -254,8 +255,13 @@ def get_image(cells_buffer: jnp.array, pixel_size: int, pixel_border_size: int, 
 
 
 def normalize(
-    v: jnp.array, vmin: float, vmax: float, is_square: bool = False, vmin2: float = 0, vmax2: float = 0
-) -> jnp.array:
+    v: jnp.ndarray,
+    vmin: float,
+    vmax: float,
+    is_square: bool = False,
+    vmin2: float = 0,
+    vmax2: float = 0
+) -> jnp.ndarray:
     if not is_square:
         return (v - vmin) / (vmax - vmin)
     else:
@@ -325,9 +331,10 @@ def save_config(save_dir: str, config: Dict):
 ###
 # Random
 ###
-def seed_everything(seed: int) -> int:
+def seed_everything(seed: int) -> jnp.ndarray:
     rng_key = jax.random.PRNGKey(seed)
     np.random.seed(seed)
+    random.seed(seed)
 
     return rng_key
 

@@ -8,7 +8,7 @@ import numpy as np
 
 from lenia.api import get_container
 from lenia import utils as lenia_utils
-from lenia.core import init_and_run
+from lenia.api import init_and_run
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf', 'species')

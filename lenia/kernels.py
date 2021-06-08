@@ -1,36 +1,36 @@
 import jax.numpy as jnp
-from typing import List, Dict
+from typing import List, Dict, Any
 
 from .utils import st2fracs2float
 
 
-def poly_quad4(x):
+def poly_quad4(x: jnp.ndarray) -> jnp.ndarray:
     x = 4 * x * (1 - x)
     x = x**4
 
     return x
 
 
-def poly_quad2(x):
+def poly_quad2(x: jnp.ndarray) -> jnp.ndarray:
     x = 2 * x * (1 - x)
     x = x**2
 
     return x
 
 
-def gauss_bump4(x):
+def gauss_bump4(x: jnp.ndarray) -> jnp.ndarray:
     x = 4 - 1 / (x * (1 - x))
     x = jnp.exp(x)
 
     return x
 
 
-def step4(x, q=1 / 4):
+def step4(x: jnp.ndarray, q: float = 1 / 4) -> jnp.ndarray:
     return (x >= q) * (x <= 1 - q)
 
 
-def staircase(x, q=1 / 4):
-    (x >= q) * (x <= 1 - q) + (x < q) * 0.5
+def staircase(x: jnp.ndarray, q: float = 1 / 4) -> jnp.ndarray:
+    return (x >= q) * (x <= 1 - q) + (x < q) * 0.5
 
 
 kernel_core = {0: poly_quad4, 1: poly_quad2, 2: gauss_bump4, 3: step4, 4: staircase}
@@ -38,7 +38,7 @@ kernel_core = {0: poly_quad4, 1: poly_quad2, 2: gauss_bump4, 3: step4, 4: stairc
 
 def get_kernels_and_mapping(kernels_params: Dict, world_size: List[int], nb_channels: int, R: float):
     kernels_list = []
-    mapping = {
+    mapping: Dict[str, Any] = {
         "cin_kernels": [[] for i in range(nb_channels)],
         "cout_kernels": [[] for i in range(nb_channels)],
         "cout_kernels_h": [[] for i in range(nb_channels)],
@@ -94,7 +94,7 @@ def get_kernels_and_mapping(kernels_params: Dict, world_size: List[int], nb_chan
     return K, mapping
 
 
-def get_kernel(kernel_params: List, world_size: list, R: int) -> jnp.array:
+def get_kernel(kernel_params: Dict, world_size: list, R: float) -> jnp.ndarray:
     midpoint = jnp.asarray([size // 2 for size in world_size])
     coords = jnp.indices(world_size)
 
@@ -108,7 +108,7 @@ def get_kernel(kernel_params: List, world_size: list, R: int) -> jnp.array:
     return kernel
 
 
-def kernel_shell(distances: jnp.array, kernel_params: list) -> jnp.array:
+def kernel_shell(distances: jnp.ndarray, kernel_params: Dict) -> jnp.ndarray:
     kernel_func = kernel_core[kernel_params['k_id']]
 
     bs = jnp.asarray(st2fracs2float(kernel_params['b']))
@@ -118,12 +118,12 @@ def kernel_shell(distances: jnp.array, kernel_params: list) -> jnp.array:
     bs_mat = bs[jnp.minimum(jnp.floor(B_dist).astype(int), nb_b - 1)]  # Define postions for each mode
 
     # All kernel functions are defined in [0, 1] so we keep only value with distance under 1
-    kernel = (distances < 1) * kernel_func(jnp.minimum(B_dist % 1, 1)) * bs_mat
+    kernel = (distances < 1) * kernel_func(jnp.minimum(B_dist % 1, 1)) * bs_mat  # type: ignore
 
     return kernel
 
 
-def remove_zeros(kernels: jnp.array) -> jnp.array:
+def remove_zeros(kernels: jnp.ndarray) -> jnp.ndarray:
     assert len(kernels.shape) == 3  # nb_dims == 2
 
     kernels = kernels[:, ~jnp.all(kernels == 0, axis=(0, 2))]  # remove 0 columns

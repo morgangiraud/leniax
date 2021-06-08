@@ -47,18 +47,17 @@ def center_world(cells, field, potential, center_of_mass, R, nb_dims):
     return cells, field, potential, shift_idx
 
 
-def stats_list_to_dict(all_stats: List[Dict]) -> Dict:
+def stats_list_to_dict(all_stats: List[Dict]) -> Dict[str, jnp.ndarray]:
     if len(all_stats) == 0:
         return {}
 
-    stats_dict = {}
+    stats_dict_list: Dict[str, List[float]] = {}
     all_keys = list(all_stats[0].keys())
     for k in all_keys:
-        stats_dict[k] = []
+        stats_dict_list[k] = []
     for stat in all_stats:
         for k, v in stat.items():
-            stats_dict[k].append(v)
-    for k in all_keys:
-        stats_dict[k] = jnp.array(stats_dict[k])
+            stats_dict_list[k].append(v)
+    stats_dict = {k: jnp.array(stats_dict_list[k]) for k in all_keys}
 
     return stats_dict

@@ -10,7 +10,7 @@ from .statistics import build_compute_stats_fn
 from .constant import EPSILON
 
 
-def init(config: Dict) -> Tuple[jnp.array, jnp.array, Dict]:
+def init(config: Dict) -> Tuple[jnp.ndarray, jnp.ndarray, Dict]:
     nb_dims = config['world_params']['nb_dims']
     nb_channels = config['world_params']['nb_channels']
     world_size = config['render_params']['world_size']
@@ -29,7 +29,7 @@ def init(config: Dict) -> Tuple[jnp.array, jnp.array, Dict]:
     return cells, K, mapping
 
 
-def init_cells(world_size: List[int], nb_channels: int, other_cells: List[jnp.array] = None) -> jnp.array:
+def init_cells(world_size: List[int], nb_channels: int, other_cells: List[jnp.ndarray] = None) -> jnp.ndarray:
     world_shape = [nb_channels] + world_size  # [C, H, W]
     cells = jnp.zeros(world_shape)
     if other_cells is not None:
@@ -44,21 +44,10 @@ def init_cells(world_size: List[int], nb_channels: int, other_cells: List[jnp.ar
     return cells
 
 
-def init_and_run(config: Dict) -> Tuple[jnp.array, jnp.array, jnp.array]:
-    cells, K, mapping = init(config)
-    update_fn = jit(build_update_fn(config['world_params'], K, mapping))
-    compute_stats_fn = jit(build_compute_stats_fn(config['world_params'], config['render_params']))
-
-    max_run_iter = config['run_params']['max_run_iter']
-    outputs = run(cells, max_run_iter, update_fn, compute_stats_fn)
-
-    return outputs
-
-
-def run(cells: jnp.array,
+def run(cells: jnp.ndarray,
         max_run_iter: int,
         update_fn: Callable,
-        compute_stats_fn: Optional[Callable] = None) -> Tuple[jnp.array, ...]:
+        compute_stats_fn: Optional[Callable] = None) -> Tuple[List, List, List, List]:
     assert max_run_iter > 0, f"max_run_iter must be positive, value given: {max_run_iter} "
 
     nb_dims = len(cells.shape) - 3
@@ -113,7 +102,7 @@ def run(cells: jnp.array,
     return all_cells, all_fields, all_potentials, all_stats
 
 
-def run_init_search(rng_key, config):
+def run_init_search(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, List]:
     world_params = config['world_params']
     nb_channels = world_params['nb_channels']
     R = world_params['R']
@@ -148,13 +137,13 @@ def run_init_search(rng_key, config):
     return rng_key, runs
 
 
-def build_update_fn(world_params: List[int], K: jnp.array, mapping: Dict) -> Callable:
+def build_update_fn(world_params: Dict, K: jnp.ndarray, mapping: Dict) -> Callable:
     T = world_params['T']
 
     get_potential_fn = build_get_potential(K.shape, mapping["true_channels"])
     get_field_fn = build_get_field(mapping)
 
-    def update(cells: jnp.array) -> Tuple[jnp.array, jnp.array, jnp.array]:
+    def update(cells: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         potential = get_potential_fn(cells, K)
         field = get_field_fn(potential)
         cells = update_cells(cells, field, T)
@@ -164,14 +153,14 @@ def build_update_fn(world_params: List[int], K: jnp.array, mapping: Dict) -> Cal
     return update
 
 
-def build_get_potential(kernel_shape: List[int], true_channels: List[bool]) -> Callable:
+def build_get_potential(kernel_shape: Tuple[int, ...], true_channels: List[bool]) -> Callable:
     vconv = vmap(lax.conv, (0, 0, None, None), 0)
     nb_channels = kernel_shape[0]
     depth = kernel_shape[1]
     pad_w = kernel_shape[-1] // 2
     pad_h = kernel_shape[-2] // 2
 
-    def get_potential(cells: jnp.array, K: jnp.array) -> jnp.array:
+    def get_potential(cells: jnp.ndarray, K: jnp.ndarray) -> jnp.ndarray:
         H, W = cells.shape[-2:]
 
         padded_cells = jnp.pad(cells, [(0, 0), (0, 0), (0, 0), (pad_h, pad_h), (pad_w, pad_w)], mode='wrap')
@@ -197,7 +186,7 @@ def build_get_field(mapping: Dict) -> Callable:
 
     vaverage = vmap(average_per_channel, (None, 0, 0))
 
-    def get_field(potential: jnp.array) -> jnp.array:
+    def get_field(potential: jnp.ndarray) -> jnp.ndarray:
         fields = []
         for i in range(len(cin_growth_fns['gf_id'])):
             sub_potential = potential[i]
@@ -216,7 +205,7 @@ def build_get_field(mapping: Dict) -> Callable:
     return get_field
 
 
-def update_cells(cells: jnp.array, field: jnp.array, T: float) -> jnp.array:
+def update_cells(cells: jnp.ndarray, field: jnp.ndarray, T: float) -> jnp.ndarray:
     dt = 1 / T
 
     cells_new = cells + dt * field

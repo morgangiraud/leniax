@@ -70,7 +70,7 @@ class LeniaIndividual(Individual):
 
 
 def get_update_config(params_and_domains: Dict) -> Dict:
-    to_update = {}
+    to_update: Dict = {}
     for p_and_d in params_and_domains:
         key_str = p_and_d['key']
         domain = p_and_d['domain']
@@ -123,7 +123,7 @@ def random_ind(base_ind: LeniaIndividual) -> LeniaIndividual:
 def vary_ind(ind: LeniaIndividual) -> LeniaIndividual:
     params_and_domains = ind.get_params_and_domains()
 
-    to_update = {}
+    to_update: Dict = {}
     for p_and_d in params_and_domains:
         key_str = p_and_d['key']
         domain = p_and_d['domain']

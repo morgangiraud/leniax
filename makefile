@@ -61,7 +61,7 @@ typecheck:
 test:
 	pytest .
 
-ci: lint test
+ci: lint typecheck test
 
 .PHONY: typecheck yapf lint test ci
 

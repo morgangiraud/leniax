@@ -181,6 +181,7 @@ class LeniaEvo(Evolution):
 
 def eval_fn(ind: LeniaIndividual) -> LeniaIndividual:
     conf = ind.get_config()
+
     _, runs = search_for_init(conf, with_stats=False)
 
     best = runs[0]

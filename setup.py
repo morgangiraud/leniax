@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 
 def load_long_description():
-    text = open('README.md', encoding='utf-8').read()
+    text = open('README.md').read()
     return text
 
 setup(
@@ -23,6 +23,7 @@ setup(
     long_description_content_type='text/markdown',
     packages=find_packages(exclude=['tests', 'tests/*']),
     install_requires=[
-        'hydra-core >= 1.1.0rc1',
+        'hydra-core==1.1.0rc1',
+        'qdpy==0.1.2.1',
     ]
 )

@@ -41,14 +41,19 @@ def run(omegaConf: DictConfig) -> None:
     # currently:
     # - a run takes <2.5 seconds
     # => search for init < 1280 seconds
-    # => look for 20k individuals < 25M seconds (300 jours...)
+    # I can efficiently parallelise up to <= nb_cores // 2, on my mac, it means 8
+    # => look for 20k individuals < 40 jours...
     #
     # TODO: vmap and jit the search for init (hopefully winning a 10 time here)
-    # TODO: Batch and parrallel
+    cpu_count = os.cpu_count()
+    if isinstance(cpu_count, int):
+        batch_size = cpu_count // 2
+    else:
+        batch_size = 1
     algo = LeniaRandomUniform(
         container=grid,
-        budget=10,  # Nb of generated individuals
-        batch_size=1,  # how many to batch together
+        budget=256,  # Nb of generated individuals
+        batch_size=batch_size,  # how many to batch together
         # dimension=3,  # Number of parameters that can be updated, we don't use it
         nb_objectives=None,  # With None, use the container fitness domain
         optimisation_task="max",
@@ -60,7 +65,8 @@ def run(omegaConf: DictConfig) -> None:
 
     logger = algorithms.TQDMAlgorithmLogger(algo)
 
-    with ParallelismManager("none") as pMgr:
+    # with ParallelismManager("none") as pMgr:
+    with ParallelismManager("multiprocessing", max_workers=batch_size) as pMgr:
         _ = algo.optimise(eval_fn, executor=pMgr.executor, batch_mode=False)
 
     # Print results info
@@ -68,9 +74,7 @@ def run(omegaConf: DictConfig) -> None:
 
     # Plot the results
     qdpy_plots.default_plots_grid(logger, output_dir=save_dir)
-
-    print(f"Number of species found: {len(grid)}")
-    breakpoint()
+    # breakpoint()
 
 
 if __name__ == '__main__':

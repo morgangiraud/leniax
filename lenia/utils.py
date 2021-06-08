@@ -1,4 +1,5 @@
 # import time
+import random
 import os
 import yaml
 import itertools
@@ -178,6 +179,7 @@ def save_images(
     idx: int,
     suffix: str = ""
 ):
+    # TODO: optimize
     # print("------")
     # t0 = time.time()
     if len(cells_l) % 2 == 0:
@@ -333,8 +335,7 @@ def save_config(save_dir: str, config: Dict):
 def seed_everything(seed: int) -> jnp.ndarray:
     rng_key = jax.random.PRNGKey(seed)
     np.random.seed(seed)
-    # TODO: Fix this one
-    # random.seed(seed)
+    random.seed(seed)
 
     return rng_key
 

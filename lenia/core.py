@@ -58,6 +58,7 @@ def run(cells: jnp.ndarray,
     all_potentials = []
     all_stats = []
     total_shift_idx = None
+    init_mass = cells.sum()
     for _ in range(max_run_iter):
         cells, field, potential = update_fn(cells)
         # To compute stats, the world has to be centered
@@ -78,10 +79,11 @@ def run(cells: jnp.ndarray,
             all_fields.append(field)
             all_potentials.append(potential)
 
-        if cells.sum() <= EPSILON:
-            break
         # TODO: improve heuristics
-        if cells.sum() > 2**11:  # heuristic to detect explosive behaviour
+        current_mass = cells.sum()
+        if current_mass <= EPSILON:
+            break
+        if current_mass > 5 * init_mass:  # heuristic to detect explosive behaviour
             break
 
     # To keep the same number of elements per array

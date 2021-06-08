@@ -7,7 +7,7 @@ from qdpy import plots as qdpy_plots
 from qdpy.base import ParallelismManager
 
 from lenia.api import get_container
-from lenia.qd import genBaseIndividual, LeniaRandomUniform, eval_fn
+from lenia.qd import genBaseIndividual, LeniaEvolution, eval_fn
 from lenia import utils as lenia_utils
 
 cdir = os.path.dirname(os.path.realpath(__file__))
@@ -52,10 +52,14 @@ def run(omegaConf: DictConfig) -> None:
         max_workers = cpu_count // 2
     else:
         max_workers = 1
-    algo = LeniaRandomUniform(
+    algo = LeniaEvolution(
         container=grid,
         budget=2**12,  # Nb of generated individuals
         batch_size=batch_size,  # how many to batch together
+        sel_pb=0.5,
+        init_pb=0.5,
+        mut_pb=0.2,
+        eta=20.,
         # dimension=3,  # Number of parameters that can be updated, we don't use it
         nb_objectives=None,  # With None, use the container fitness domain
         optimisation_task="max",

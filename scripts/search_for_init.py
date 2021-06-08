@@ -56,7 +56,9 @@ def launch(omegaConf: DictConfig) -> None:
         }]
     }
 
-    _, runs = search_for_init(config)
+    rng_key = lenia_utils.seed_everything(config['run_params']['seed'])
+
+    _, runs = search_for_init(rng_key, config)
 
     if len(runs) > 0:
         best = runs[0]

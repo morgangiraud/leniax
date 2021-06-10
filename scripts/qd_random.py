@@ -31,9 +31,9 @@ def run(omegaConf: DictConfig) -> None:
     lenia_generator = generator_builder()
 
     fitness_domain = [(0, config['run_params']['max_run_iter'])]
-    # features_domain = [(0., 20000), (0., 20000), (0., 20000), (0., 20000)]
-    features_domain = [(0., 1.), (0., 1.)]
-    grid_shape = [20, 100]
+    features_domain = config['grid']['features_domain']
+    grid_shape = config['grid']['shape']
+    assert len(grid_shape) == len(features_domain)
     grid = containers.Grid(
         shape=grid_shape, max_items_per_bin=1, fitness_domain=fitness_domain, features_domain=features_domain
     )
@@ -56,7 +56,7 @@ def run(omegaConf: DictConfig) -> None:
     dimension = len(config['params_and_domains'])
     algo = Sobol(
         container=grid,
-        budget=2**8,  # Nb of generated individuals
+        budget=2**12,  # Nb of generated individuals
         ind_domain=config['algo']['ind_domain'],
         batch_size=batch_size,  # how many to batch together
         dimension=dimension,  # Number of parameters that can be updated

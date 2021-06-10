@@ -37,6 +37,18 @@ params_and_domains:
       - 2
     type: int
 
+phenotype:
+  - kernels_params.k.0.m
+  - kernels_params.k.0.s
+grid:
+  features_domain:
+    - - 0.
+      - 1.
+    - - 0.
+      - 1.
+  shape: [20, 100]
+
+  
 algo:
   ind_domain:
     - 0.

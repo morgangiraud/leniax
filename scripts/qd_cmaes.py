@@ -2,6 +2,7 @@ import os
 import logging
 from omegaconf import DictConfig
 import hydra
+from functools import partial
 from qdpy import algorithms, containers
 from qdpy import plots as qdpy_plots
 from qdpy.base import ParallelismManager
@@ -15,7 +16,7 @@ cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
 
 
-@hydra.main(config_path=config_path, config_name="config_qd_evo")
+@hydra.main(config_path=config_path, config_name="config_qd_cmaes")
 def run(omegaConf: DictConfig) -> None:
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
@@ -30,10 +31,11 @@ def run(omegaConf: DictConfig) -> None:
     generator_builder = genBaseIndividual(config, rng_key)
     lenia_generator = generator_builder()
 
-    fitness_domain = [(0, config['run_params']['max_run_iter'])]
-    # features_domain = [(0., 20000), (0., 20000), (0., 20000), (0., 20000)]
-    features_domain = [(0., 1.), (0., 1.)]
-    grid_shape = [20, 100]
+    # CMAES algorithm can only minimize
+    fitness_domain = [(-config['run_params']['max_run_iter'], 0)]
+    features_domain = config['grid']['features_domain']
+    grid_shape = config['grid']['shape']
+    assert len(grid_shape) == len(features_domain)
     grid = containers.Grid(
         shape=grid_shape, max_items_per_bin=1, fitness_domain=fitness_domain, features_domain=features_domain
     )
@@ -56,7 +58,7 @@ def run(omegaConf: DictConfig) -> None:
     dimension = len(config['params_and_domains'])
     algo = CMAES(
         container=grid,
-        budget=2**7,  # Nb of generated individuals
+        budget=2**8,  # Nb of generated individuals
         batch_size=batch_size,  # how many to batch together
         dimension=dimension,  # Number of parameters that can be updated, we don't use it
         ind_domain=config['algo']['ind_domain'],
@@ -64,18 +66,18 @@ def run(omegaConf: DictConfig) -> None:
         separable_cma=config['algo']['separable_cma'],
         ignore_if_not_added_to_container=config['algo']['ignore_if_not_added_to_container'],
         nb_objectives=None,  # With None, use the container fitness domain
-        optimisation_task="max",
+        optimisation_task="min",
         base_ind_gen=lenia_generator,
         tell_container_at_init=False,
         add_default_logger=False,
-        name="lenia-random",
+        name="lenia-cmaes",
     )
 
     logger = algorithms.TQDMAlgorithmLogger(algo)
 
     # with ParallelismManager("none") as pMgr:
     with ParallelismManager("multiprocessing", max_workers=max_workers) as pMgr:
-        _ = algo.optimise(eval_fn, executor=pMgr.executor, batch_mode=False)
+        _ = algo.optimise(partial(eval_fn, neg_fitness=True), executor=pMgr.executor, batch_mode=False)
 
     # Print results info
     print("\n" + algo.summary())

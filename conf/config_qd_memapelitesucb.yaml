@@ -1,0 +1,62 @@
+defaults:
+  - world_params: default
+  - render_params: default
+  - kernels_params: default
+  - run_params: init_search
+
+params_and_domains:
+  # - key: kernels_params.k.0.r
+  #   domain: 
+  #     - 0.5
+  #     - 1.5
+  #   type: float
+  # - key: kernels_params.k.0.b
+  #   domain: 
+  #     - "1"
+  #     - "1,1"
+  #     - "1,1,1"
+  #   type: choice
+  - key: kernels_params.k.0.m
+    domain: 
+      - 0.
+      - 1.
+    type: float
+  - key: kernels_params.k.0.s
+    domain: 
+      - 0.
+      - 1.5
+    type: float
+  # - key: kernels_params.k.0.k_id
+  #   domain: 
+  #     - 0
+  #     - 4
+  #   type: int
+  # - key: kernels_params.k.0.gf_id
+  #   domain: 
+  #     - 0
+  #     - 2
+  #   type: int
+
+phenotype:
+  - kernels_params.k.0.m
+  - kernels_params.k.0.s
+grid:
+  features_domain:
+    - - 0.
+      - 1.
+    - - 0.
+      - 1.
+  shape: [25, 25]
+  
+algo:
+  ind_domain:
+    - 0.
+    - 1.
+  sel_pb: 0.9
+  mut_pb: 0.4
+  eta: 20.
+  sigma0: 0.3
+  separable_cma: false
+  ignore_if_not_added_to_container: false
+  zeta: 0.0005
+  initial_expected_rwds: 1.

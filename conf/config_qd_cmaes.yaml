@@ -52,6 +52,6 @@ algo:
   ind_domain:
     - 0.
     - 1.
-  sel_pb: 0.6
-  mut_pb: 0.2
-  eta: 20
+  sigma0: 0.2
+  separable_cma: false
+  ignore_if_not_added_to_container: false

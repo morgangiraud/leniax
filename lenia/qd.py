@@ -51,9 +51,6 @@ class LeniaIndividual(Individual):
 
         self.rng_key = rng_key
 
-    def get_base_config(self):
-        return self.base_config
-
     def set_init_cells(self, init_cells: jnp.ndarray):
         self.base_config['run_params']['cells'] = init_cells
 
@@ -67,22 +64,11 @@ class LeniaIndividual(Individual):
 
         return config
 
-    def get_param(self, key_string: str) -> Any:
-        keys = key_string.split('.')
-        dic = self.base_config
-        for i, key in enumerate(keys):
-            if key.isdigit():
-                dic = dic[int(key)]
-            else:
-                dic = dic[key]
-
-        return dic
-
     def get_params_and_domains(self):
         return self.base_config['params_and_domains']
 
 
-def eval_fn(ind: LeniaIndividual) -> LeniaIndividual:
+def eval_fn(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividual:
     config = ind.get_config()
 
     # We have a problem here for reproducibility
@@ -100,12 +86,15 @@ def eval_fn(ind: LeniaIndividual) -> LeniaIndividual:
     # all_stats = best['all_stats']
 
     ind.set_init_cells(lenia_utils.compress_array(init_cells))
-
-    ind.fitness.values = [nb_steps]
+    if neg_fitness is True:
+        ind.fitness.values = [-nb_steps]
+    else:
+        ind.fitness.values = [nb_steps]
     ind.features.values = [
         config['kernels_params']['k'][0]['m'],
         config['kernels_params']['k'][0]['s'],
     ]
+    ind.features.values = [get_param(config, key_string) for key_string in ind.base_config['phenotype']]
     # stats_dict = stats_list_to_dict(all_stats)
     # all_keys = list(stats_dict.keys())
     # ind.features.values = [jnp.mean(stats_dict[k]) for k in all_keys]
@@ -113,6 +102,17 @@ def eval_fn(ind: LeniaIndividual) -> LeniaIndividual:
     # print(ind.fitness.values, ind.features.values)
 
     return ind
+
+
+def get_param(dic: Dict, key_string: str) -> Any:
+    keys = key_string.split('.')
+    for i, key in enumerate(keys):
+        if key.isdigit():
+            dic = dic[int(key)]
+        else:
+            dic = dic[key]
+
+    return dic
 
 
 def linear_scale(raw_value: float, domain: Tuple[float, float]) -> float:

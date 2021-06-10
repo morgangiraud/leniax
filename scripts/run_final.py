@@ -12,7 +12,7 @@ from lenia.api import init_and_run
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
-pickle_path = os.path.join(cdir, '..', 'outputs', '2021-06-08', '16-19-27', 'final.p')
+pickle_path = os.path.join(cdir, '..', 'outputs', '2021-06-10', '12-19-34', 'final.p')
 
 
 @hydra.main(config_path=config_path, config_name="dummy")

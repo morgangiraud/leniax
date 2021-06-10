@@ -5,7 +5,7 @@ import hydra
 from qdpy import algorithms, containers
 from qdpy import plots as qdpy_plots
 from qdpy.base import ParallelismManager
-from qdpy.algorithms.evolution import RandomSearchMutPolyBounded
+from qdpy.algorithms.evolution import CMAES
 
 from lenia.api import get_container
 from lenia.qd import genBaseIndividual, eval_fn
@@ -48,22 +48,21 @@ def run(omegaConf: DictConfig) -> None:
     #
     # TODO: vmap and jit the search for init (hopefully winning a 10 time here)
     cpu_count = os.cpu_count()
-    batch_size = 16
+    batch_size = 8
     if isinstance(cpu_count, int):
         max_workers = cpu_count // 2
     else:
         max_workers = 1
     dimension = len(config['params_and_domains'])
-    algo = RandomSearchMutPolyBounded(
+    algo = CMAES(
         container=grid,
-        budget=2**10,  # Nb of generated individuals
+        budget=2**7,  # Nb of generated individuals
         batch_size=batch_size,  # how many to batch together
         dimension=dimension,  # Number of parameters that can be updated, we don't use it
         ind_domain=config['algo']['ind_domain'],
-        sel_pb=config['algo']['sel_pb'],
-        init_pb=1 - config['algo']['sel_pb'],
-        mut_pb=config['algo']['mut_pb'],
-        eta=config['algo']['eta'],
+        sigma0=config['algo']['sigma0'],
+        separable_cma=config['algo']['separable_cma'],
+        ignore_if_not_added_to_container=config['algo']['ignore_if_not_added_to_container'],
         nb_objectives=None,  # With None, use the container fitness domain
         optimisation_task="max",
         base_ind_gen=lenia_generator,

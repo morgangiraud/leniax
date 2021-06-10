@@ -41,3 +41,6 @@ algo:
   ind_domain:
     - 0.
     - 1.
+  sigma0: 0.2
+  separable_cma: false
+  ignore_if_not_added_to_container: false

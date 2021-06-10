@@ -357,7 +357,6 @@ def generate_noise_using_numpy(nb_noise: int, nb_channels: int, rng_key):
 
     key, subkey = jax.random.split(rng_key)
     noise = jax.random.uniform(subkey, (nb_noise, 1, max_h_np, max_w_np), minval=0, maxval=1.)
-
     noises = noise * masks
 
     return key, noises

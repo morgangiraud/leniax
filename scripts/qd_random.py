@@ -5,9 +5,10 @@ import hydra
 from qdpy import algorithms, containers
 from qdpy import plots as qdpy_plots
 from qdpy.base import ParallelismManager
+from qdpy.algorithms.search import Sobol
 
 from lenia.api import get_container
-from lenia.qd import genBaseIndividual, LeniaRandomUniform, eval_fn
+from lenia.qd import genBaseIndividual, eval_fn
 from lenia import utils as lenia_utils
 
 cdir = os.path.dirname(os.path.realpath(__file__))
@@ -47,16 +48,18 @@ def run(omegaConf: DictConfig) -> None:
     #
     # TODO: vmap and jit the search for init (hopefully winning a 10 time here)
     cpu_count = os.cpu_count()
-    batch_size = 16
+    batch_size = 8
     if isinstance(cpu_count, int):
         max_workers = cpu_count // 2
     else:
         max_workers = 1
-    algo = LeniaRandomUniform(
+    dimension = len(config['params_and_domains'])
+    algo = Sobol(
         container=grid,
-        budget=2**12,  # Nb of generated individuals
+        budget=2**8,  # Nb of generated individuals
+        ind_domain=config['algo']['ind_domain'],
         batch_size=batch_size,  # how many to batch together
-        # dimension=3,  # Number of parameters that can be updated, we don't use it
+        dimension=dimension,  # Number of parameters that can be updated
         nb_objectives=None,  # With None, use the container fitness domain
         optimisation_task="max",
         base_ind_gen=lenia_generator,

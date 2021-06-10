@@ -83,7 +83,7 @@ def run(cells: jnp.ndarray,
         current_mass = cells.sum()
         if current_mass <= EPSILON:
             break
-        if current_mass > 5 * init_mass:  # heuristic to detect explosive behaviour
+        if current_mass > 4 * init_mass:  # heuristic to detect explosive behaviour
             break
 
     # To keep the same number of elements per array
@@ -133,11 +133,11 @@ def run_init_search(rng_key: jnp.ndarray, config: Dict, with_stats: bool = True)
         cells_0 = init_cells(world_size, nb_channels, [noises[i]])
 
         all_cells, _, _, all_stats = run(cells_0, max_run_iter, update_fn, compute_stats_fn)
-        nb_iter_done = len(all_cells)
+        nb_iter_done = len(all_cells) - 1
 
         runs.append({"N": nb_iter_done, "all_cells": all_cells, "all_stats": all_stats})
 
-        if nb_iter_done == max_run_iter:
+        if nb_iter_done >= max_run_iter:
             break
 
     return rng_key, runs

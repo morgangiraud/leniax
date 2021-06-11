@@ -15,6 +15,7 @@ from qdpy.algorithms.cmame import (
 from lenia.api import get_container
 from lenia.qd import genBaseIndividual, eval_fn
 from lenia import utils as lenia_utils
+from lenia import helpers as lenia_helpers
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
@@ -138,6 +139,7 @@ def run(omegaConf: DictConfig) -> None:
     algo = MEMAPElitesUCB1(
         algos,
         budget=2**9,
+        batch_size=batch_size * len(algos),
         zeta=config['algo']['zeta'],
         initial_expected_rwds=config['algo']['initial_expected_rwds'],
         nb_active_emitters=len(algos),
@@ -148,14 +150,15 @@ def run(omegaConf: DictConfig) -> None:
 
     # with ParallelismManager("none") as pMgr:
     with ParallelismManager("multiprocessing", max_workers=max_workers) as pMgr:
-        _ = algo.optimise(partial(eval_fn, neg_fitness=True), executor=pMgr.executor, batch_mode=False)
+        _ = algo.optimise(partial(eval_fn, neg_fitness=True), executor=pMgr.executor, batch_mode=True)
 
     # Print results info
     print("\n" + algo.summary())
 
     # Plot the results
     qdpy_plots.default_plots_grid(logger, output_dir=save_dir)
-    # breakpoint()
+
+    lenia_helpers.dump_best(grid, config['run_params']['max_run_iter'])
 
 
 if __name__ == '__main__':

@@ -1,9 +1,9 @@
 import os
 import copy
 import logging
+import hydra
 from functools import partial
 from omegaconf import DictConfig
-import hydra
 from qdpy import algorithms, containers
 from qdpy import plots as qdpy_plots
 from qdpy.base import ParallelismManager
@@ -15,6 +15,7 @@ import jax
 from lenia.api import get_container
 from lenia.qd import genBaseIndividual, eval_fn
 from lenia import utils as lenia_utils
+from lenia import helpers as lenia_helpers
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
@@ -78,7 +79,7 @@ def run(omegaConf: DictConfig) -> None:
     algos.append(
         Sobol(
             container=grid,
-            budget=2**12,  # Nb of generated individuals
+            budget=2**9,  # Nb of generated individuals
             ind_domain=config['algo']['ind_domain'],
             batch_size=batch_size,  # how many to batch together
             dimension=dimension,  # Number of parameters that can be updated
@@ -93,7 +94,7 @@ def run(omegaConf: DictConfig) -> None:
     algos.append(
         RandomSearchMutPolyBounded(
             container=grid,
-            budget=2**10,  # Nb of generated individuals
+            budget=2**8,  # Nb of generated individuals
             batch_size=batch_size,  # how many to batch together
             dimension=dimension,  # Number of parameters that can be updated, we don't use it
             ind_domain=config['algo']['ind_domain'],
@@ -112,7 +113,7 @@ def run(omegaConf: DictConfig) -> None:
     algos.append(
         CMAES(
             container=grid,
-            budget=2**8,  # Nb of generated individuals
+            budget=2**7,  # Nb of generated individuals
             batch_size=batch_size,  # how many to batch together
             dimension=dimension,  # Number of parameters that can be updated, we don't use it
             ind_domain=config['algo']['ind_domain'],
@@ -127,7 +128,7 @@ def run(omegaConf: DictConfig) -> None:
             name="lenia-cmaes",
         )
     )
-    algo = Sq(algos)
+    algo = Sq(algos, tell_container_when_switching=True)
 
     logger = algorithms.TQDMAlgorithmLogger(algo)
 
@@ -140,7 +141,8 @@ def run(omegaConf: DictConfig) -> None:
 
     # Plot the results
     qdpy_plots.default_plots_grid(logger, output_dir=save_dir)
-    # breakpoint()
+
+    lenia_helpers.dump_best(grid, config_algo1['run_params']['max_run_iter'])
 
 
 if __name__ == '__main__':

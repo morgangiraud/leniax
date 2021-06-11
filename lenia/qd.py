@@ -90,10 +90,6 @@ def eval_fn(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividual:
         ind.fitness.values = [-nb_steps]
     else:
         ind.fitness.values = [nb_steps]
-    ind.features.values = [
-        config['kernels_params']['k'][0]['m'],
-        config['kernels_params']['k'][0]['s'],
-    ]
     ind.features.values = [get_param(config, key_string) for key_string in ind.base_config['phenotype']]
     # stats_dict = stats_list_to_dict(all_stats)
     # all_keys = list(stats_dict.keys())

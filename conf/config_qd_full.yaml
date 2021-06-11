@@ -24,7 +24,7 @@ params_and_domains:
   - key: kernels_params.k.0.s
     domain: 
       - 0.
-      - 1.5
+      - 1.
     type: float
   # - key: kernels_params.k.0.k_id
   #   domain: 

@@ -25,7 +25,7 @@ def run(omegaConf: DictConfig) -> None:
     # media_dir = os.path.join(save_dir, 'media')
 
     config = get_container(omegaConf)
-    config['run_params']['nb_init_search'] = 32
+    config['run_params']['nb_init_search'] = 128
     config['run_params']['max_run_iter'] = 512
 
     rng_key = lenia_utils.seed_everything(config['run_params']['seed'])
@@ -51,7 +51,7 @@ def run(omegaConf: DictConfig) -> None:
         max_workers = cpu_count // 2 - 1
     else:
         max_workers = 1
-    dimension = len(config['params_and_domains'])  # Number of genes
+    dimension = len(config['genotype'])  # Number of genes
     optimisation_task = 'max'
     algo = CMAES(
         container=grid,

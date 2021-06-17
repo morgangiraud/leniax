@@ -25,7 +25,7 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
         # Those statistics works on a centered world
         AX = [cells * x for x in whitened_coords]
         MX1 = [ax.sum() for ax in AX]
-        mass_center = jnp.asarray(MX1) / mass
+        mass_center = jnp.asarray(MX1) / (mass + EPSILON)
         # This function returns "mass centered" cells so the previous mass_center is at origin
         dm = mass_center
         mass_speed = jnp.linalg.norm(dm)
@@ -36,7 +36,7 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
         inertia = sum(MuX2)
 
         GX1 = [(pos_field * x).sum() for x in whitened_coords]
-        growth_center = jnp.asarray(GX1) / growth
+        growth_center = jnp.asarray(GX1) / (growth + EPSILON)
         mass_growth_dist = jnp.linalg.norm(mass_center - growth_center)
 
         centered_cells, centered_field, centered_potential, shift_idx = center_world(

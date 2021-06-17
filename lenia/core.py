@@ -1,3 +1,4 @@
+import math
 from jax import vmap, lax, jit
 import jax.numpy as jnp
 # import numpy as np
@@ -59,6 +60,13 @@ def run(cells: jnp.ndarray,
     all_stats = []
     total_shift_idx = None
     init_mass = cells.sum()
+
+    previous_mass = init_mass
+    previous_sign = 0.
+    nb_monotone_step = 0
+    nb_slow_mass_step = 0
+    nb_too_much_percent_step = 0
+    should_stop = False
     for _ in range(max_run_iter):
         cells, field, potential = update_fn(cells)
         # To compute stats, the world has to be centered
@@ -75,16 +83,63 @@ def run(cells: jnp.ndarray,
             all_cells.append(jnp.roll(cells, total_shift_idx, axes))
             all_fields.append(jnp.roll(field, total_shift_idx, axes))
             all_potentials.append(jnp.roll(potential, total_shift_idx, axes))
+
+            # Heuristics
+            # Looking for non-static species
+            mass_speed = stats['mass_speed']
+            if mass_speed < 0.01:
+                nb_slow_mass_step += 1
+                if nb_slow_mass_step > 10:
+                    should_stop = True
+            else:
+                nb_slow_mass_step = 0
+
+            # Checking if it is a kind of cosmic soup
+            growth = stats['growth']
+            if growth > 500:
+                should_stop = True
+
+            current_mass = stats['mass']
+            percent_activated = stats['percent_activated']
         else:
             all_cells.append(cells)
             all_fields.append(field)
             all_potentials.append(potential)
 
-        # TODO: improve heuristics
-        current_mass = cells.sum()
-        if current_mass <= EPSILON:
-            break
+            current_mass = cells.sum()
+            percent_activated = (cells > EPSILON).sum()
+
+        # Heuristics
+        # Stops when there is no more mass in the system
+        if current_mass < EPSILON:
+            should_stop = True
+
+        # Stops when there is too much mass in the system
         if current_mass > 3 * init_mass:  # heuristic to detect explosive behaviour
+            should_stop = True
+
+        # Stops when mass evolve monotically over a quite long period
+        # Signal for long-term explosive/implosivve behaviour
+        current_sign = math.copysign(1, previous_mass - current_mass)
+        if current_sign == previous_sign:
+            nb_monotone_step += 1
+            if nb_monotone_step > 80:
+                should_stop = True
+        else:
+            nb_monotone_step = 0
+        previous_sign = current_sign
+        previous_mass = current_mass
+
+        # Stops when the world is 25% covered
+        # Hopefully, no species takes so much space
+        if percent_activated > 0.25:
+            nb_too_much_percent_step += 1
+            if nb_too_much_percent_step > 50:
+                should_stop = True
+        else:
+            nb_too_much_percent_step = 0
+
+        if should_stop is True:
             break
 
     # To keep the same number of elements per array

@@ -53,7 +53,7 @@ def run(omegaConf: DictConfig) -> None:
         max_workers = cpu_count // 2
     else:
         max_workers = 1
-    dimension = len(config['params_and_domains'])
+    dimension = len(config['genotype'])
     algo = RandomSearchMutPolyBounded(
         container=grid,
         budget=2**12,  # Nb of generated individuals

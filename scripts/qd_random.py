@@ -54,7 +54,7 @@ def run(omegaConf: DictConfig) -> None:
         max_workers = max(cpu_count // 2 - 1, 1)
     else:
         max_workers = 1
-    dimension = len(config['params_and_domains'])
+    dimension = len(config['genotype'])
     algo = Sobol(
         container=grid,
         budget=config['algo']['budget'],  # Nb of generated individuals

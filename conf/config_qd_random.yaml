@@ -4,7 +4,7 @@ defaults:
   - kernels_params: default
   - run_params: init_search
 
-params_and_domains:
+genotype:
   - key: kernels_params.k.0.r
     domain: 
       - 0.5

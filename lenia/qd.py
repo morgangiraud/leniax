@@ -1,3 +1,4 @@
+# import math
 import random
 import copy
 from typing import Dict, Any, Tuple
@@ -9,7 +10,7 @@ from qdpy.phenotype import Individual
 
 from .api import search_for_init
 from . import utils as lenia_utils
-# from .statistics import stats_list_to_dict
+from .statistics import stats_list_to_dict
 
 
 class genBaseIndividual(object):
@@ -55,7 +56,7 @@ class LeniaIndividual(Individual):
         self.base_config['run_params']['cells'] = init_cells
 
     def get_config(self) -> Dict:
-        p_and_ds = self.get_params_and_domains()
+        p_and_ds = self.get_genotype()
         raw_values = list(self)
         assert len(raw_values) == len(p_and_ds)
 
@@ -64,8 +65,8 @@ class LeniaIndividual(Individual):
 
         return config
 
-    def get_params_and_domains(self):
-        return self.base_config['params_and_domains']
+    def get_genotype(self):
+        return self.base_config['genotype']
 
 
 def eval_fn(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividual:
@@ -78,22 +79,19 @@ def eval_fn(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividual:
     np.random.seed(ind.rng_key[0])
     random.seed(ind.rng_key[0])
 
-    _, runs = search_for_init(ind.rng_key, config, with_stats=False)
+    _, runs = search_for_init(ind.rng_key, config, with_stats=True)
 
     best = runs[0]
     nb_steps = best['N']
+    config['behaviours'] = stats_list_to_dict(best['all_stats'])
     init_cells = best['all_cells'][0][:, 0, 0, ...]
     ind.set_init_cells(lenia_utils.compress_array(init_cells))
-    # all_stats = best['all_stats']
 
     if neg_fitness is True:
         ind.fitness.values = [-nb_steps]
     else:
         ind.fitness.values = [nb_steps]
     ind.features.values = [get_param(config, key_string) for key_string in ind.base_config['phenotype']]
-    # stats_dict = stats_list_to_dict(all_stats)
-    # all_keys = list(stats_dict.keys())
-    # ind.features.values = [jnp.mean(stats_dict[k]) for k in all_keys]
 
     # print(ind.fitness.values, ind.features.values)
 
@@ -102,13 +100,18 @@ def eval_fn(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividual:
 
 def get_param(dic: Dict, key_string: str) -> Any:
     keys = key_string.split('.')
-    for i, key in enumerate(keys):
+    for key in keys:
         if key.isdigit():
             dic = dic[int(key)]
         else:
             dic = dic[key]
 
-    return dic
+    if isinstance(dic, jnp.ndarray):
+        val = float(jnp.mean(dic))
+    else:
+        val = dic
+
+    return val
 
 
 def linear_scale(raw_value: float, domain: Tuple[float, float]) -> float:
@@ -144,9 +147,9 @@ def update_dict(dic: Dict, key_string: str, value: Any):
     dic[keys[-1]] = value
 
 
-def get_update_config(params_and_domains: Dict, raw_values: list) -> Dict:
+def get_update_config(genotype: Dict, raw_values: list) -> Dict:
     to_update: Dict = {}
-    for p_and_d, raw_val in zip(params_and_domains, raw_values):
+    for p_and_d, raw_val in zip(genotype, raw_values):
         key_str = p_and_d['key']
         domain = p_and_d['domain']
         val_type = p_and_d['type']

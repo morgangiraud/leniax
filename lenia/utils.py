@@ -354,7 +354,7 @@ def seed_everything(seed: int) -> jnp.ndarray:
 def generate_noise_using_numpy(nb_noise: int, nb_channels: int, rng_key):
     # TODO: improve heuristics
     sizes_np = np.hstack([
-        np.array([nb_channels] * nb_noise)[:, np.newaxis], np.random.randint(2**3, 2**5, [nb_noise, 2])
+        np.array([nb_channels] * nb_noise)[:, np.newaxis], np.random.randint(2**3, 2**4, [nb_noise, 2])
     ])
     max_h_np = np.max(sizes_np[:, 1])
     max_w_np = np.max(sizes_np[:, 2])

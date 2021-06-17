@@ -58,7 +58,7 @@ class TestUtils(unittest.TestCase):
                     'c_out': 0,
                 }]
             },
-            'params_and_domains': [{
+            'genotype': [{
                 'key': 'kernels_params.k.0.m', 'domain': [0., .5], 'type': 'float'
             }, {
                 'key': 'kernels_params.k.0.s', 'domain': [0., 2.], 'type': 'float'
@@ -75,7 +75,7 @@ class TestUtils(unittest.TestCase):
                     'r': 1, 'b': '1', 'm': 0.35, 's': 0.6, 'h': 1, 'k_id': 0, 'gf_id': 0, 'c_in': 0, 'c_out': 0
                 }]
             },
-            'params_and_domains': [{
+            'genotype': [{
                 'key': 'kernels_params.k.0.m', 'domain': [0.0, 0.5], 'type': 'float'
             }, {
                 'key': 'kernels_params.k.0.s', 'domain': [0.0, 2.0], 'type': 'float'
@@ -120,7 +120,7 @@ class TestUtils(unittest.TestCase):
     #             'max_run_iter': 5,
     #             'nb_init_search': 50,
     #         },
-    #         'params_and_domains': [{
+    #         'genotype': [{
     #             'key': 'kernels_params.k.0.m', 'domain': [0., 1.], 'type': 'float'
     #         }, {
     #             'key': 'kernels_params.k.0.s', 'domain': [0., 1.], 'type': 'float'

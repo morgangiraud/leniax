@@ -55,7 +55,7 @@ def run(omegaConf: DictConfig) -> None:
         max_workers = cpu_count // 2 - 1
     else:
         max_workers = 1
-    dimension = len(config['params_and_domains'])  # Number of genes
+    dimension = len(config['genotype'])  # Number of genes
     optimisation_task = 'max'
     # Domain for genetic parameters, to be used in conjunction with a projecting function to reach phenotype domain
     ind_domain = config['algo']['ind_domain']
@@ -139,15 +139,22 @@ def run(omegaConf: DictConfig) -> None:
         batch_size=batch_size * len(algos),
         zeta=config['algo']['zeta'],
         initial_expected_rwds=config['algo']['initial_expected_rwds'],
-        nb_active_emitters=len(algos),
+        nb_active_emitters=1,  # len(algos), # number of emitters active per global batch,
+        # If nb_active_emitters equal to the number of emitters, all emitters are used the same number of times,
+        # set to 1 in the original paper
         shuffle_emitters=True,
+        batch_mode=True,  # If true, switch algo only after batch_size suggestions, else after every suggestions
     )
 
     logger = algorithms.TQDMAlgorithmLogger(algo)
 
     # with ParallelismManager("none") as pMgr:
     with ParallelismManager("multiprocessing", max_workers=max_workers) as pMgr:
-        _ = algo.optimise(partial(eval_fn, neg_fitness=False), executor=pMgr.executor, batch_mode=True)
+        _ = algo.optimise(
+            partial(eval_fn, neg_fitness=False),
+            executor=pMgr.executor,
+            batch_mode=False  # Calling the optimisation loop per batch if True, else calling it once with total budget
+        )
 
     # Print results info
     print("\n" + algo.summary())

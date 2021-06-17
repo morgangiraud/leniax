@@ -63,6 +63,7 @@ def run(cells: jnp.ndarray,
         cells, field, potential = update_fn(cells)
         # To compute stats, the world has to be centered
         if compute_stats_fn:
+            # The following matrixes are centered
             cells, field, potential, shift_idx, stats = compute_stats_fn(cells, field, potential)
             if total_shift_idx is None:
                 total_shift_idx = shift_idx
@@ -83,7 +84,7 @@ def run(cells: jnp.ndarray,
         current_mass = cells.sum()
         if current_mass <= EPSILON:
             break
-        if current_mass > 4 * init_mass:  # heuristic to detect explosive behaviour
+        if current_mass > 3 * init_mass:  # heuristic to detect explosive behaviour
             break
 
     # To keep the same number of elements per array
@@ -95,6 +96,7 @@ def run(cells: jnp.ndarray,
         else:
             total_shift_idx += shift_idx
         all_stats.append(stats)
+
         all_fields.append(jnp.roll(field, total_shift_idx, axes))
         all_potentials.append(jnp.roll(potential, total_shift_idx, axes))
     else:

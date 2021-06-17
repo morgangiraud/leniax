@@ -51,7 +51,7 @@ class LeniaIndividual(Individual):
 
         self.rng_key = rng_key
 
-    def set_init_cells(self, init_cells: jnp.ndarray):
+    def set_init_cells(self, init_cells: str):
         self.base_config['run_params']['cells'] = init_cells
 
     def get_config(self) -> Dict:
@@ -83,9 +83,9 @@ def eval_fn(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividual:
     best = runs[0]
     nb_steps = best['N']
     init_cells = best['all_cells'][0][:, 0, 0, ...]
+    ind.set_init_cells(lenia_utils.compress_array(init_cells))
     # all_stats = best['all_stats']
 
-    ind.set_init_cells(lenia_utils.compress_array(init_cells))
     if neg_fitness is True:
         ind.fitness.values = [-nb_steps]
     else:
@@ -149,17 +149,17 @@ def get_update_config(params_and_domains: Dict, raw_values: list) -> Dict:
     for p_and_d, raw_val in zip(params_and_domains, raw_values):
         key_str = p_and_d['key']
         domain = p_and_d['domain']
-        type = p_and_d['type']
-        if type == 'float':
-            val = linear_scale(raw_val, domain)
-        elif type == 'int':
+        val_type = p_and_d['type']
+        if val_type == 'float':
+            val = float(linear_scale(raw_val, domain))
+        elif val_type == 'int':
             d = (domain[0], domain[1] + 1)
             val = int(linear_scale(raw_val, d) - 0.5)
-        elif type == 'choice':
+        elif val_type == 'choice':
             d = (0, len(domain))
             val = domain[int(linear_scale(raw_val, d) - 0.5)]
         else:
-            raise ValueError(f"type {type} unknown")
+            raise ValueError(f"type {val_type} unknown")
 
         update_dict(to_update, key_str, val)
 

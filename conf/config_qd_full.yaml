@@ -1,15 +1,15 @@
 defaults:
   - world_params: default
   - render_params: default
-  - kernels_params: default
+  - kernels_params: default2
   - run_params: init_search
 
 params_and_domains:
-  # - key: kernels_params.k.0.r
-  #   domain: 
-  #     - 0.5
-  #     - 1.5
-  #   type: float
+  - key: kernels_params.k.0.r
+    domain: 
+      - 0.5
+      - 1.5
+    type: float
   # - key: kernels_params.k.0.b
   #   domain: 
   #     - "1"
@@ -36,17 +36,38 @@ params_and_domains:
   #     - 0
   #     - 2
   #   type: int
+  - key: kernels_params.k.1.r
+    domain: 
+      - 0.5
+      - 1.5
+    type: float
+  - key: kernels_params.k.1.m
+    domain: 
+      - 0.
+      - 1.
+    type: float
+  - key: kernels_params.k.1.s
+    domain: 
+      - 0.
+      - 1.
+    type: float
 
 phenotype:
   - kernels_params.k.0.m
   - kernels_params.k.0.s
+  - kernels_params.k.1.m
+  - kernels_params.k.1.s
 grid:
   features_domain:
     - - 0.
       - 1.
     - - 0.
       - 1.
-  shape: [20, 100]
+    - - 0.
+      - 1.
+    - - 0.
+      - 1.
+  shape: [25, 25, 25, 25]
   
 algo:
   ind_domain:

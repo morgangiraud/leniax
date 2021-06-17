@@ -79,7 +79,7 @@ def run(omegaConf: DictConfig) -> None:
     algos.append(
         Sobol(
             container=grid,
-            budget=2**9,  # Nb of generated individuals
+            budget=2**7,  # Nb of generated individuals
             ind_domain=config['algo']['ind_domain'],
             batch_size=batch_size,  # how many to batch together
             dimension=dimension,  # Number of parameters that can be updated
@@ -94,7 +94,7 @@ def run(omegaConf: DictConfig) -> None:
     algos.append(
         RandomSearchMutPolyBounded(
             container=grid,
-            budget=2**8,  # Nb of generated individuals
+            budget=2**7,  # Nb of generated individuals
             batch_size=batch_size,  # how many to batch together
             dimension=dimension,  # Number of parameters that can be updated, we don't use it
             ind_domain=config['algo']['ind_domain'],
@@ -113,7 +113,7 @@ def run(omegaConf: DictConfig) -> None:
     algos.append(
         CMAES(
             container=grid,
-            budget=2**7,  # Nb of generated individuals
+            budget=2**4,  # Nb of generated individuals
             batch_size=batch_size,  # how many to batch together
             dimension=dimension,  # Number of parameters that can be updated, we don't use it
             ind_domain=config['algo']['ind_domain'],

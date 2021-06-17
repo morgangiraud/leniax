@@ -50,6 +50,7 @@ grid:
 
   
 algo:
+  budget: 4096
   ind_domain:
     - 0.
     - 1.

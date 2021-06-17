@@ -1,4 +1,5 @@
 import time
+import ffmpeg
 import os
 import logging
 import matplotlib.pyplot as plt
@@ -37,24 +38,29 @@ def run(omegaConf: DictConfig) -> None:
     config['run_params']['cells'] = lenia_utils.compress_array(first_cells)
     lenia_utils.save_config(save_dir, config)
 
+    print('Plotting stats')
     lenia_utils.plot_stats(save_dir, all_stats)
 
+    print('Dumping video')
     colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
+    width = all_cells[0].shape[-1] * render_params['pixel_size']
+    height = all_cells[0].shape[-2] * render_params['pixel_size']
+    process = (
+        ffmpeg.input('pipe:', format='rawvideo', pix_fmt='rgb24',
+                     s=f"{width}x{height}").output(os.path.join(media_dir, 'beast.mp4'),
+                                                   pix_fmt='yuv420p').overwrite_output().run_async(pipe_stdin=True)
+    )
     all_times = []
     for i in range(len(all_cells)):
         start_time = time.time()
-        lenia_utils.save_images(
-            media_dir,
-            [all_cells[i][:, 0, 0, ...], all_fields[i][:, 0, 0, ...], all_potentials[i]],
-            0,
-            1,
-            render_params['pixel_size'],
-            render_params['pixel_border_size'],
-            colormap,
-            i,
-            "",
+        img = lenia_utils.get_image(
+            all_cells[i][:, 0, 0, ...], render_params['pixel_size'], render_params['pixel_border_size'], colormap
         )
+        process.stdin.write(img.tobytes())
+
         all_times.append(time.time() - start_time)
+    process.stdin.close()
+    process.wait()
     total_time = np.sum(all_times)
     mean_time = np.mean(all_times)
     print(f"{len(all_times)} images dumped in {total_time} seconds: {mean_time} fps")

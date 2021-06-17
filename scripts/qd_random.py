@@ -10,6 +10,7 @@ from qdpy.algorithms.search import Sobol
 from lenia.api import get_container
 from lenia.qd import genBaseIndividual, eval_fn
 from lenia import utils as lenia_utils
+from lenia import helpers as lenia_helpers
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
@@ -50,13 +51,13 @@ def run(omegaConf: DictConfig) -> None:
     cpu_count = os.cpu_count()
     batch_size = 8
     if isinstance(cpu_count, int):
-        max_workers = cpu_count // 2
+        max_workers = max(cpu_count // 2 - 1, 1)
     else:
         max_workers = 1
     dimension = len(config['params_and_domains'])
     algo = Sobol(
         container=grid,
-        budget=2**12,  # Nb of generated individuals
+        budget=config['algo']['budget'],  # Nb of generated individuals
         ind_domain=config['algo']['ind_domain'],
         batch_size=batch_size,  # how many to batch together
         dimension=dimension,  # Number of parameters that can be updated
@@ -80,6 +81,8 @@ def run(omegaConf: DictConfig) -> None:
     # Plot the results
     qdpy_plots.default_plots_grid(logger, output_dir=save_dir)
     # breakpoint()
+
+    lenia_helpers.dump_best(grid, config['run_params']['max_run_iter'])
 
 
 if __name__ == '__main__':

@@ -5,17 +5,17 @@ defaults:
   - run_params: init_search
 
 params_and_domains:
-  # - key: kernels_params.k.0.r
-  #   domain: 
-  #     - 0.5
-  #     - 1.5
-  #   type: float
-  # - key: kernels_params.k.0.b
-  #   domain: 
-  #     - "1"
-  #     - "1,1"
-  #     - "1,1,1"
-  #   type: choice
+  - key: kernels_params.k.0.r
+    domain: 
+      - 0.5
+      - 1.5
+    type: float
+  - key: kernels_params.k.0.b
+    domain: 
+      - "1"
+      - "1,1"
+      - "1,1,1"
+    type: choice
   - key: kernels_params.k.0.m
     domain: 
       - 0.
@@ -26,16 +26,16 @@ params_and_domains:
       - 0.
       - 1.5
     type: float
-  # - key: kernels_params.k.0.k_id
-  #   domain: 
-  #     - 0
-  #     - 4
-  #   type: int
-  # - key: kernels_params.k.0.gf_id
-  #   domain: 
-  #     - 0
-  #     - 2
-  #   type: int
+  - key: kernels_params.k.0.k_id
+    domain: 
+      - 0
+      - 4
+    type: int
+  - key: kernels_params.k.0.gf_id
+    domain: 
+      - 0
+      - 2
+    type: int
 
 phenotype:
   - kernels_params.k.0.m
@@ -46,17 +46,22 @@ grid:
       - 1.
     - - 0.
       - 1.
-  shape: [100, 100]
+  shape: [20, 100]
   
 algo:
+  # Generic
+  budget: 512
   ind_domain:
     - 0.
     - 1.
+  # Mut search
   sel_pb: 0.9
   mut_pb: 0.4
   eta: 20.
-  sigma0: 0.3
+  # cmaes 
+  sigma0: 0.5
   separable_cma: false
   ignore_if_not_added_to_container: false
+  # MEMAPElitesUCB1
   zeta: 0.0005
   initial_expected_rwds: 1.

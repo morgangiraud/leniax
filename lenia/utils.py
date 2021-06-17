@@ -300,15 +300,26 @@ def plot_stats(save_dir: str, all_stats: List[Dict]):
     stats_dict = stats_list_to_dict(all_stats)
     all_keys = list(stats_dict.keys())
 
-    nb_steps = stats_dict[all_keys[0]].shape[0]
-    X = jnp.linspace(0, nb_steps, num=nb_steps)
     fig, axs = plt.subplots(len(all_keys), sharex=True)
+    fig.set_size_inches(10, 10)
     for i, k in enumerate(all_keys):
         axs[i].set_title(k.capitalize())
-        axs[i].plot(X, stats_dict[k])
-
+        axs[i].plot(stats_dict[k])
+    # axs[-1].set_title('mass fft'.capitalize())
+    # axs[-1].plot(jnp.abs(jnp.fft.fft(stats_dict['mass'])[1:]))
     plt.tight_layout()
     fig.savefig(os.path.join(save_dir, 'stats.png'))
+    plt.close(fig)
+
+    # Running means
+    fig, axs = plt.subplots(len(all_keys), sharex=True)
+    fig.set_size_inches(10, 10)
+    for i, k in enumerate(all_keys):
+        axs[i].set_title(k.capitalize())
+        axs[i].plot(jnp.convolve(stats_dict[k], jnp.ones(24) / 24, mode='valid'))
+
+    plt.tight_layout()
+    fig.savefig(os.path.join(save_dir, 'stats_running_means.png'))
     plt.close(fig)
 
 

@@ -41,6 +41,10 @@ def run(omegaConf: DictConfig) -> None:
     print('Plotting stats')
     lenia_utils.plot_stats(save_dir, all_stats)
 
+    print('Dumping cells')
+    with open(os.path.join(save_dir, 'cells.p'), 'wb') as f: 
+        np.save(f, np.array(all_cells)[:, 0, 0, ...])
+
     print('Dumping video')
     colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
     width = all_cells[0].shape[-1] * render_params['pixel_size']

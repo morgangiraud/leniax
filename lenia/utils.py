@@ -353,9 +353,15 @@ def seed_everything(seed: int) -> jnp.ndarray:
 
 def generate_noise_using_numpy(nb_noise: int, nb_channels: int, rng_key):
     # TODO: improve heuristics
-    sizes_np = np.hstack([
-        np.array([nb_channels] * nb_noise)[:, np.newaxis], np.random.randint(2**3, 2**4, [nb_noise, 2])
-    ])
+
+    # Rectangles
+    rands = np.random.randint(2**4, 2**5, [nb_noise, 2])
+
+    # # Squares
+    # rands = np.random.randint(2**4, 2**5, [nb_noise, 1])
+    # rands = np.repeat(rands, 2, 1)
+
+    sizes_np = np.hstack([np.array([nb_channels] * nb_noise)[:, np.newaxis], rands])
     max_h_np = np.max(sizes_np[:, 1])
     max_w_np = np.max(sizes_np[:, 2])
 
@@ -384,3 +390,11 @@ def generate_mask(shape, max_h, max_w):
     mask = np.pad(mask, padding, mode='constant')
 
     return mask
+
+
+def center_world(cells, field, potential, shift_idx, axes):
+    cells = jnp.roll(cells, -shift_idx, axes)
+    field = jnp.roll(field, -shift_idx, axes)
+    potential = jnp.roll(potential, -shift_idx, axes)
+
+    return cells, field, potential

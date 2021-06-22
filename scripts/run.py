@@ -42,7 +42,7 @@ def run(omegaConf: DictConfig) -> None:
     lenia_utils.plot_stats(save_dir, all_stats)
 
     print('Dumping cells')
-    with open(os.path.join(save_dir, 'cells.p'), 'wb') as f: 
+    with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
         np.save(f, np.array(all_cells)[:, 0, 0, ...])
 
     print('Dumping video')

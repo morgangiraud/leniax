@@ -5,7 +5,7 @@ from omegaconf import DictConfig, OmegaConf
 import jax.numpy as jnp
 from jax import jit
 
-from .core import run_init_search, init, run, build_update_fn, build_compute_stats_fn
+from .core import run_init_search, run_init_search_parralel, init, run, build_update_fn, build_compute_stats_fn
 
 
 def search_for_init(rng_key: jnp.ndarray, config: Dict, with_stats: bool = True) -> Tuple[jnp.ndarray, List[Dict]]:
@@ -17,6 +17,14 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, with_stats: bool = True)
         runs.sort(key=lambda run: run["N"], reverse=True)
 
     return rng_key, runs
+
+
+def search_for_init_parallel(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, List[Dict]]:
+    logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
+
+    rng_key, best_all_cells = run_init_search_parralel(rng_key, config)
+
+    return rng_key, [{"all_cells": best_all_cells}]
 
 
 def get_container(omegaConf: DictConfig) -> Dict:

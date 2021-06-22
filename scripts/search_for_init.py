@@ -7,6 +7,7 @@ import hydra
 import matplotlib.pyplot as plt
 
 from lenia.api import search_for_init, get_container
+# from lenia.api import search_for_init_parallel
 from lenia import utils as lenia_utils
 
 cdir = os.path.dirname(os.path.realpath(__file__))
@@ -39,7 +40,7 @@ def launch(omegaConf: DictConfig) -> None:
             'code': '26f03e07-eb6c-4fcc-87bb-b4389793b63f',
             'seed': 1,
             'max_run_iter': 512,
-            'nb_init_search': 512,
+            'nb_init_search': 128,
             'cells': 'MISSING'
         },
         'genotype': [{
@@ -52,7 +53,10 @@ def launch(omegaConf: DictConfig) -> None:
 
     rng_key = lenia_utils.seed_everything(config['run_params']['seed'])
 
+    t0 = time.time()
     _, runs = search_for_init(rng_key, config, with_stats=True)
+    # _, runs = search_for_init_parallel(rng_key, config)
+    print(f"Init search done in {time.time() - t0}")
 
     if len(runs) > 0:
         best = runs[0]

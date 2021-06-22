@@ -1,4 +1,5 @@
 import math
+from functools import partial
 from jax import vmap, lax, jit
 import jax.numpy as jnp
 # import numpy as np
@@ -7,7 +8,7 @@ from typing import Callable, List, Dict, Tuple, Optional
 from . import utils
 from .kernels import get_kernels_and_mapping
 from .growth_functions import growth_fns
-from .statistics import build_compute_stats_fn
+from .statistics import build_compute_stats_fn, check_stats
 from .constant import EPSILON
 
 
@@ -30,8 +31,13 @@ def init(config: Dict) -> Tuple[jnp.ndarray, jnp.ndarray, Dict]:
     return cells, K, mapping
 
 
-def init_cells(world_size: List[int], nb_channels: int, other_cells: List[jnp.ndarray] = None) -> jnp.ndarray:
-    world_shape = [nb_channels] + world_size  # [C, H, W]
+def init_cells(
+    world_size: List[int], nb_channels: int, other_cells: List[jnp.ndarray] = None, nb_cells: int = 1
+) -> jnp.ndarray:
+    if nb_cells == 1:
+        world_shape = [nb_channels] + world_size  # [C, H, W]
+    else:
+        world_shape = [nb_cells, nb_channels] + world_size  # [C, H, W]
     cells = jnp.zeros(world_shape)
     if other_cells is not None:
         for c in other_cells:
@@ -40,7 +46,11 @@ def init_cells(world_size: List[int], nb_channels: int, other_cells: List[jnp.nd
     # 2D convolutions needs an input with shape [N, C, H, W]
     # And we are going to map over first dimension with vmap so we need th following shape
     # [C, N=1, c=1, H, W]
-    cells = cells[:, jnp.newaxis, jnp.newaxis]
+    if nb_cells == 1:
+        cells = cells[:, jnp.newaxis, jnp.newaxis]
+    else:
+        # In this case we also vmap on the number on init: [N_init, C, N=1, c=1, H, W]
+        cells = cells[:, :, jnp.newaxis, jnp.newaxis]
 
     return cells
 
@@ -48,38 +58,38 @@ def init_cells(world_size: List[int], nb_channels: int, other_cells: List[jnp.nd
 def run(cells: jnp.ndarray,
         max_run_iter: int,
         update_fn: Callable,
-        compute_stats_fn: Optional[Callable] = None) -> Tuple[List, List, List, List]:
-    assert max_run_iter > 0, f"max_run_iter must be positive, value given: {max_run_iter} "
+        compute_stats_fn: Optional[Callable] = None) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, List]:
+    assert max_run_iter > 0, f"max_run_iter must be positive, value given: {max_run_iter}"
 
+    # cells shape: [C, N=1, c=1, dims...]
     nb_dims = len(cells.shape) - 3
-    axes = tuple(reversed(range(-1, -nb_dims - 1, -1)))
+    axes = tuple(range(-nb_dims, 0, 1))
 
     all_cells = [cells]
     all_fields = []
     all_potentials = []
     all_stats = []
-    total_shift_idx = None
+    total_shift_idx = 0
     init_mass = cells.sum()
 
     previous_mass = init_mass
-    previous_sign = 0.
-    nb_monotone_step = 0
-    nb_slow_mass_step = 0
-    nb_too_much_percent_step = 0
+    previous_sign = jnp.array([0.])
+    nb_monotone_step = jnp.array([0])
+    nb_slow_mass_step = jnp.array([0])
+    nb_too_much_percent_step = jnp.array([0])
     should_stop = False
     for _ in range(max_run_iter):
-        cells, field, potential = update_fn(cells)
-        # To compute stats, the world has to be centered
+        new_cells, field, potential = update_fn(cells)
         if compute_stats_fn:
-            # The following matrixes are centered
-            cells, field, potential, shift_idx, stats = compute_stats_fn(cells, field, potential)
-            if total_shift_idx is None:
-                total_shift_idx = shift_idx
-            else:
-                total_shift_idx += shift_idx
+            # To compute stats, the world (cells, field, potential) has to be centered and taken from the same timestep
+            stats, shift_idx = compute_stats_fn(cells, field, potential)
             all_stats.append(stats)
 
-            # To have a nice viz, it's much nicer to NOT have the world centered
+            # centering
+            total_shift_idx += shift_idx
+            cells, field, potential = utils.center_world(new_cells, field, potential, shift_idx, axes)
+
+            # To visualize, it's nicer to keep the world uncentered
             all_cells.append(jnp.roll(cells, total_shift_idx, axes))
             all_fields.append(jnp.roll(field, total_shift_idx, axes))
             all_potentials.append(jnp.roll(potential, total_shift_idx, axes))
@@ -102,6 +112,7 @@ def run(cells: jnp.ndarray,
             current_mass = stats['mass']
             percent_activated = stats['percent_activated']
         else:
+            cells = new_cells
             all_cells.append(cells)
             all_fields.append(field)
             all_potentials.append(potential)
@@ -143,22 +154,53 @@ def run(cells: jnp.ndarray,
             break
 
     # To keep the same number of elements per array
-    _, field, potential = update_fn(cells)
-    if compute_stats_fn:
-        _, field, potential, shift_idx, stats = compute_stats_fn(cells, field, potential)
-        if total_shift_idx is None:
-            total_shift_idx = shift_idx
-        else:
-            total_shift_idx += shift_idx
+    all_cells.pop()
+
+    all_cells_jnp = jnp.array(all_cells)
+    all_fields_jnp = jnp.array(all_fields)
+    all_potentials_jnp = jnp.array(all_potentials)
+
+    return all_cells_jnp, all_fields_jnp, all_potentials_jnp, all_stats
+
+
+def run_parralel(cells: jnp.ndarray, max_run_iter: int, update_fn: Callable,
+                 compute_stats_fn: Callable) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, List]:
+
+    # This function should be vmapped
+    # cells shape for the vmapped input: [N_init, C, N=1, c=1, dims...]
+    # actual cells shape: [C, N=1, c=1, dims...]
+    nb_dims = len(cells.shape) - 3
+    axes = tuple(range(-nb_dims, 0, 1))
+
+    all_cells = [cells]
+    all_fields = []
+    all_potentials = []
+    all_stats = []
+    total_shift_idx = 0
+
+    for _ in range(max_run_iter):
+        new_cells, field, potential = update_fn(cells)
+        # To compute stats, the world (cells, field, potential) has to be centered and taken from the same timestep
+        stats, shift_idx = compute_stats_fn(cells, field, potential)
         all_stats.append(stats)
 
+        # centering
+        total_shift_idx += shift_idx
+        cells, field, potential = utils.center_world(new_cells, field, potential, shift_idx, axes)
+
+        # To have a nice viz, it's much nicer to NOT have the world centered
+        all_cells.append(jnp.roll(cells, total_shift_idx, axes))
         all_fields.append(jnp.roll(field, total_shift_idx, axes))
         all_potentials.append(jnp.roll(potential, total_shift_idx, axes))
-    else:
-        all_fields.append(field)
-        all_potentials.append(potential)
 
-    return all_cells, all_fields, all_potentials, all_stats
+    # To keep the same number of elements per array
+    all_cells.pop()
+
+    all_cells_jnp = jnp.array(all_cells)
+    all_fields_jnp = jnp.array(all_fields)
+    all_potentials_jnp = jnp.array(all_potentials)
+
+    return all_cells_jnp, all_fields_jnp, all_potentials_jnp, all_stats
 
 
 def run_init_search(rng_key: jnp.ndarray, config: Dict, with_stats: bool = True) -> Tuple[jnp.ndarray, List]:
@@ -191,13 +233,64 @@ def run_init_search(rng_key: jnp.ndarray, config: Dict, with_stats: bool = True)
 
         all_cells, _, _, all_stats = run(cells_0, max_run_iter, update_fn, compute_stats_fn)
         nb_iter_done = len(all_cells) - 1
-
+        print(nb_iter_done)
         runs.append({"N": nb_iter_done, "all_cells": all_cells, "all_stats": all_stats})
 
         if nb_iter_done >= max_run_iter:
             break
 
     return rng_key, runs
+
+
+def run_init_search_parralel(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, List]:
+    world_params = config['world_params']
+    nb_channels = world_params['nb_channels']
+    R = world_params['R']
+
+    render_params = config['render_params']
+    world_size = render_params['world_size']
+
+    kernels_params = config['kernels_params']['k']
+
+    run_params = config['run_params']
+    nb_init_search = run_params['nb_init_search']
+    max_run_iter = run_params['max_run_iter']
+
+    K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
+    update_fn = jit(build_update_fn(world_params, K, mapping))
+    compute_stats_fn = jit(build_compute_stats_fn(config['world_params'], config['render_params']))
+
+    rng_key, noises = utils.generate_noise_using_numpy(nb_init_search, nb_channels, rng_key)
+    cells_0 = init_cells(world_size, nb_channels, [noises], nb_init_search)
+
+    run_parralel_partial = partial(
+        run_parralel, max_run_iter=max_run_iter, update_fn=update_fn, compute_stats_fn=compute_stats_fn
+    )
+    vrun = vmap(run_parralel_partial, 0, 0)
+
+    # v_all_cells: list of N_iter ndarray with shape [N_init, C, N=1, c=1, H, W]
+    # v_all_stats: list of N_iter stat object with N_init values
+    v_all_cells, _, _, v_all_stats = vrun(cells_0)
+
+    all_should_continue = []
+    should_continue = jnp.ones(v_all_cells.shape[0])
+    init_mass = v_all_cells[:, 0].sum(axis=tuple(range(1, len(v_all_cells.shape) - 1)))
+    mass = init_mass.copy()
+    sign = jnp.ones_like(init_mass)
+    counters = {
+        'nb_slow_mass_step': jnp.zeros_like(init_mass),
+        'nb_monotone_step': jnp.zeros_like(init_mass),
+        'nb_too_much_percent_step': jnp.zeros_like(init_mass),
+    }
+    for i in range(len(v_all_stats)):
+        stats = v_all_stats[i]
+        should_continue, mass, sign = check_stats(stats, should_continue, init_mass, mass, sign, counters)
+        all_should_continue.append(should_continue)
+    all_should_continue_jnp = jnp.array(all_should_continue)
+    idx = all_should_continue_jnp.sum(axis=0).argmax()
+    best = v_all_cells[idx, :, :, 0, 0, ...]
+
+    return rng_key, best
 
 
 def build_update_fn(world_params: Dict, K: jnp.ndarray, mapping: Dict) -> Callable:
@@ -242,12 +335,7 @@ def build_get_field(mapping: Dict) -> Callable:
     cout_kernels = mapping["cout_kernels"]
     cout_kernels_h = mapping["cout_kernels_h"]
 
-    def average_per_channel(field, channel_list, weights):
-        out = jnp.average(field[channel_list], axis=0, weights=weights)
-
-        return out
-
-    vaverage = vmap(average_per_channel, (None, 0, 0))
+    vaverage = jit(vmap(weighted_Select_average, (None, 0, 0)))
 
     def get_field(potential: jnp.ndarray) -> jnp.ndarray:
         fields = []
@@ -257,17 +345,28 @@ def build_get_field(mapping: Dict) -> Callable:
             m = cin_growth_fns['m'][i]
             s = cin_growth_fns['s'][i]
 
-            fields.append(growth_fns[gf_id](sub_potential, m, s))
-        field = jnp.stack(fields)  # Add a dimension
+            growth_fn = growth_fns[gf_id]
+            sub_field = growth_fn(sub_potential, m, s)
 
-        field = vaverage(field, cout_kernels, cout_kernels_h)  # [C, H, W]
-        field = field[:, jnp.newaxis, jnp.newaxis]
+            fields.append(sub_field)
+        fields_jnp = jnp.stack(fields)  # Add a dimension
 
-        return field
+        fields_jnp = vaverage(fields_jnp, cout_kernels, cout_kernels_h)  # [C, H, W]
+        fields_jnp = fields_jnp[:, jnp.newaxis, jnp.newaxis]
+
+        return fields_jnp
 
     return get_field
 
 
+def weighted_Select_average(field, channel_list, weights):
+    out_fields = field[channel_list]
+    out_field = jnp.average(out_fields, axis=0, weights=weights)
+
+    return out_field
+
+
+@jit
 def update_cells(cells: jnp.ndarray, field: jnp.ndarray, T: float) -> jnp.ndarray:
     dt = 1 / T
 

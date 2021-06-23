@@ -7,9 +7,10 @@ from omegaconf import DictConfig
 import hydra
 import numpy as np
 
-from lenia.api import get_container
+from lenia.api import get_container, init_and_run
 from lenia import utils as lenia_utils
-from lenia.api import init_and_run
+from lenia.growth_functions import growth_fns
+from lenia.core import init
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf', 'species')
@@ -38,15 +39,32 @@ def run(omegaConf: DictConfig) -> None:
     config['run_params']['cells'] = lenia_utils.compress_array(first_cells)
     lenia_utils.save_config(save_dir, config)
 
-    print('Plotting stats')
-    lenia_utils.plot_stats(save_dir, all_stats)
-
     print('Dumping cells')
     with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
         np.save(f, np.array(all_cells)[:, 0, 0, ...])
 
-    print('Dumping video')
+
+    print('Plotting stats and functions')
     colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
+
+    lenia_utils.plot_stats(save_dir, all_stats)
+    _, K, _ = init(config)
+    for i in range(K.shape[0]):
+        current_k = K[i:i+1, 0, 0]
+        img = lenia_utils.get_image(
+            lenia_utils.normalize(current_k, np.min(current_k), np.max(current_k)), 1, 0, colormap
+        )
+        with open(os.path.join(save_dir, f"kernel{i}.png"), 'wb') as f:
+            img.save(f, format='png')
+    for i, kernel in enumerate(config['kernels_params']['k']): 
+        lenia_utils.plot_gfunction(
+            save_dir, i, growth_fns[kernel['gf_id']], kernel['m'], kernel['s'], config['world_params']['T']
+        )
+
+    
+
+    print('Dumping video')
+    
     width = all_cells[0].shape[-1] * render_params['pixel_size']
     height = all_cells[0].shape[-2] * render_params['pixel_size']
     process = (

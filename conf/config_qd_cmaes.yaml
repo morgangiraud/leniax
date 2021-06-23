@@ -18,13 +18,13 @@ genotype:
   #   type: choice
   - key: kernels_params.k.0.m
     domain: 
-      - 0.1
-      - 0.2
+      - 0.
+      - 1.
     type: float
   - key: kernels_params.k.0.s
     domain: 
-      - 0.01
-      - 0.02
+      - 0.
+      - 1.
     type: float
   # - key: kernels_params.k.0.k_id
   #   domain: 
@@ -40,16 +40,16 @@ genotype:
 phenotype:
   - kernels_params.k.0.m
   - kernels_params.k.0.s
-  - behaviours.mass_speed
+  # - behaviours.mass_speed
 grid:
   features_domain:
-    - - 0.1
-      - 0.2
-    - - 0.01
-      - 0.02
     - - 0.
-      - 0.5
-  shape: [10, 10, 10]
+      - 1.
+    - - 0.
+      - 1.
+    # - - 0.
+    #   - 0.5
+  shape: [20, 20]
   
 algo:
   # Generic

@@ -7,6 +7,9 @@ from qdpy.containers import Container
 
 from . import utils as lenia_utils
 from .api import init_and_run
+from lenia import utils as lenia_utils
+from lenia.growth_functions import growth_fns
+from lenia.core import init
 
 
 def dump_best(grid: Container, fitness_threshold: float):
@@ -29,16 +32,33 @@ def dump_best(grid: Container, fitness_threshold: float):
 
         save_dir = os.path.join(os.getcwd(), str(id_best))  # changed by hydra
         media_dir = os.path.join(save_dir, 'media')
-        frames_dir = os.path.join(media_dir, 'frames')
-        lenia_utils.check_dir(frames_dir)
+        lenia_utils.check_dir(media_dir)
 
         first_cells = all_cells[0][:, 0, 0, ...]
         config['run_params']['cells'] = lenia_utils.compress_array(first_cells)
         lenia_utils.save_config(save_dir, config)
 
-        lenia_utils.plot_stats(save_dir, all_stats)
+        print('Dumping cells')
+        with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
+            np.save(f, np.array(all_cells)[:, 0, 0, ...])
 
+        # print('Plotting stats and functions')
         colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
+
+        lenia_utils.plot_stats(save_dir, all_stats)
+        _, K, _ = init(config)
+        for i in range(K.shape[0]):
+            current_k = K[i:i+1, 0, 0]
+            img = lenia_utils.get_image(
+                lenia_utils.normalize(current_k, np.min(current_k), np.max(current_k)), 1, 0, colormap
+            )
+            with open(os.path.join(save_dir, f"kernel{i}.png"), 'wb') as f:
+                img.save(f, format='png')
+        for i, kernel in enumerate(config['kernels_params']['k']): 
+            lenia_utils.plot_gfunction(
+                save_dir, i, growth_fns[kernel['gf_id']], kernel['m'], kernel['s'], config['world_params']['T']
+            )
+
         width = all_cells[0].shape[-1] * render_params['pixel_size']
         height = all_cells[0].shape[-2] * render_params['pixel_size']
         process = (

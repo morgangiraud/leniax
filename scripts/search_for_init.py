@@ -19,36 +19,36 @@ def launch(omegaConf: DictConfig) -> None:
 
     config = get_container(omegaConf)
 
-    config = {
-        'world_params': {
-            'nb_dims': 2, 'nb_channels': 1, 'R': 13, 'T': 10
-        },
-        'render_params': {
-            'win_size_power2': 9,
-            'pixel_size_power2': 2,
-            'size_power2': 7,
-            'pixel_border_size': 0,
-            'world_size': [128, 128],
-            'pixel_size': 4
-        },
-        'kernels_params': {
-            'k': [{
-                'r': 1, 'b': '1', 'm': 0.15, 's': 0.015, 'h': 1, 'k_id': 0, 'gf_id': 0, 'c_in': 0, 'c_out': 0
-            }]
-        },
-        'run_params': {
-            'code': '26f03e07-eb6c-4fcc-87bb-b4389793b63f',
-            'seed': 1,
-            'max_run_iter': 512,
-            'nb_init_search': 128,
-            'cells': 'MISSING'
-        },
-        'genotype': [{
-            'key': 'kernels_params.k.0.m', 'domain': [0.0, 0.5], 'type': 'float'
-        }, {
-            'key': 'kernels_params.k.0.s', 'domain': [0.0, 0.5], 'type': 'float'
-        }]
-    }
+    # config = {
+    #     'world_params': {
+    #         'nb_dims': 2, 'nb_channels': 1, 'R': 13, 'T': 10
+    #     },
+    #     'render_params': {
+    #         'win_size_power2': 9,
+    #         'pixel_size_power2': 2,
+    #         'size_power2': 7,
+    #         'pixel_border_size': 0,
+    #         'world_size': [128, 128],
+    #         'pixel_size': 4
+    #     },
+    #     'kernels_params': {
+    #         'k': [{
+    #             'r': 1, 'b': '1', 'm': 0.15, 's': 0.015, 'h': 1, 'k_id': 0, 'gf_id': 0, 'c_in': 0, 'c_out': 0
+    #         }]
+    #     },
+    #     'run_params': {
+    #         'code': '26f03e07-eb6c-4fcc-87bb-b4389793b63f',
+    #         'seed': 1,
+    #         'max_run_iter': 512,
+    #         'nb_init_search': 400,
+    #         'cells': 'MISSING'
+    #     },
+    #     'genotype': [{
+    #         'key': 'kernels_params.k.0.m', 'domain': [0.0, 0.5], 'type': 'float'
+    #     }, {
+    #         'key': 'kernels_params.k.0.s', 'domain': [0.0, 0.5], 'type': 'float'
+    #     }]
+    # }
     print(config)
 
     rng_key = lenia_utils.seed_everything(config['run_params']['seed'])

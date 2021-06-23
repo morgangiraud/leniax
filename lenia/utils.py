@@ -269,28 +269,28 @@ def normalize(
         return (v - vmin) / max(vmax - vmin, vmax2 - vmin2)
 
 
-def plot_function(save_dir: str, id: int, fn: Callable, m: float, s: float):
+def plot_gfunction(save_dir: str, id: int, fn: Callable, m: float, s: float, T: float):
     fullpath = os.path.join(save_dir, f"growth_function{str(id).zfill(2)}.{image_ext}")
 
-    x = jnp.linspace(-0.5, 1.5, 500)
+    x = jnp.linspace(0., 1., 500)
 
     y = fn(x, m, s)
+    dty = (1. / T) * y
 
-    fig = plt.figure()
-    ax = fig.add_subplot(1, 1, 1)
-    ax.grid(True, which='both')
-    ax.axhline(y=0, color='k')
-    ax.axvline(x=0, color='k')
-    # ax.spines['left'].set_position('center')
-    # ax.spines['bottom'].set_position('center')
-    # ax.spines['right'].set_color('none')
-    # ax.spines['top'].set_color('none')
-    # ax.xaxis.set_ticks_position('bottom')
-    # ax.yaxis.set_ticks_position('left')
+    fig, axs = plt.subplots(ncols=2, sharey=True)
+    axs[0].grid(True, which='both')
+    axs[0].axhline(y=0, color='k')
+    axs[0].axvline(x=0, color='k')
+    axs[0].plot(x, y, 'r', label='Growth function')
+    axs[0].legend(loc='upper left')
 
-    plt.plot(x, y, 'r', label='Growth function')
-    plt.legend(loc='upper left')
+    axs[1].grid(True, which='both')
+    axs[1].axhline(y=0, color='k')
+    axs[1].axvline(x=0, color='k')
+    axs[1].plot(x, dty, 'r', label='Growth function * dt')
+    axs[1].legend(loc='upper left')
 
+    plt.yticks(np.arange(-1, 1, .1))
     plt.tight_layout()
     plt.savefig(fullpath)
     plt.close(fig)
@@ -355,11 +355,22 @@ def generate_noise_using_numpy(nb_noise: int, nb_channels: int, rng_key):
     # TODO: improve heuristics
 
     # Rectangles
-    rands = np.random.randint(2**4, 2**5, [nb_noise, 2])
+    # rands = np.random.randint(16, 32, [nb_noise, 2])
 
     # # Squares
-    # rands = np.random.randint(2**4, 2**5, [nb_noise, 1])
+    # rands = np.random.randint(16, 32, [nb_noise, 1])
     # rands = np.repeat(rands, 2, 1)
+
+    # Grid search
+    import math
+    nb_noise = int(math.sqrt(nb_noise))**2
+    min_bound = 16
+    max_bound = int(math.sqrt(nb_noise)) + min_bound
+    rands = []
+    for i in range(min_bound, max_bound):
+        for j in range(min_bound, max_bound):
+            rands.append([i, j])
+    rands = np.array(rands)
 
     sizes_np = np.hstack([np.array([nb_channels] * nb_noise)[:, np.newaxis], rands])
     max_h_np = np.max(sizes_np[:, 1])

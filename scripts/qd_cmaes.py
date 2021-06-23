@@ -25,7 +25,7 @@ def run(omegaConf: DictConfig) -> None:
     # media_dir = os.path.join(save_dir, 'media')
 
     config = get_container(omegaConf)
-    config['run_params']['nb_init_search'] = 128
+    config['run_params']['nb_init_search'] = 256
     config['run_params']['max_run_iter'] = 512
 
     rng_key = lenia_utils.seed_everything(config['run_params']['seed'])

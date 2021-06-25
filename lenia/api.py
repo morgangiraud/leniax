@@ -23,8 +23,12 @@ def search_for_init_parallel(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.nd
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
     rng_key, best_all_cells = run_init_search_parralel(rng_key, config)
+    runs = [{"all_cells": best_all_cells}]
 
-    return rng_key, [{"all_cells": best_all_cells}]
+    # if len(runs) > 0:
+    #     runs.sort(key=lambda run: run["N"], reverse=True)
+
+    return rng_key, runs
 
 
 def get_container(omegaConf: DictConfig) -> Dict:

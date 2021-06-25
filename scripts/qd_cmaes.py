@@ -82,7 +82,7 @@ def run(omegaConf: DictConfig) -> None:
     # Plot the results
     qdpy_plots.default_plots_grid(logger, output_dir=save_dir)
 
-    lenia_helpers.dump_best(grid, config['run_params']['max_run_iter'])
+    lenia_helpers.dump_best(grid, config['run_params']['max_run_iter'] - 1)
 
 
 if __name__ == '__main__':

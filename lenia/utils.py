@@ -363,13 +363,14 @@ def generate_noise_using_numpy(nb_noise: int, nb_channels: int, rng_key):
 
     # Grid search
     import math
-    nb_noise = int(math.sqrt(nb_noise))**2
     min_bound = 16
     max_bound = int(math.sqrt(nb_noise)) + min_bound
     rands = []
     for i in range(min_bound, max_bound):
         for j in range(min_bound, max_bound):
             rands.append([i, j])
+    for i in range(nb_noise - len(rands)):
+        rands.append([max_bound, max_bound])
     rands = np.array(rands)
 
     sizes_np = np.hstack([np.array([nb_channels] * nb_noise)[:, np.newaxis], rands])

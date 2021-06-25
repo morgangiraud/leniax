@@ -263,6 +263,8 @@ def run_init_search_parralel(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.nd
     rng_key, noises = utils.generate_noise_using_numpy(nb_init_search, nb_channels, rng_key)
     cells_0 = init_cells(world_size, nb_channels, [noises], nb_init_search)
 
+    # prevent any gradient-related operations from downstream operations, including tracing / graph building
+    cells_0 = lax.stop_gradient(cells_0)
     run_parralel_partial = partial(
         run_parralel, max_run_iter=max_run_iter, update_fn=update_fn, compute_stats_fn=compute_stats_fn
     )

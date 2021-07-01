@@ -3,7 +3,6 @@ import uuid
 from typing import Dict, Tuple, List, Optional, Callable
 from omegaconf import DictConfig, OmegaConf
 import jax.numpy as jnp
-from jax import jit
 
 from .core import run_init_search, run_init_search_parralel, init, run, build_update_fn, build_compute_stats_fn
 
@@ -52,10 +51,10 @@ def get_container(omegaConf: DictConfig) -> Dict:
 
 def init_and_run(config: Dict, with_stats: bool = True) -> Tuple:
     cells, K, mapping = init(config)
-    update_fn = jit(build_update_fn(config['world_params'], K, mapping))
+    update_fn = build_update_fn(config['world_params'], K, mapping)
     compute_stats_fn: Optional[Callable]
     if with_stats:
-        compute_stats_fn = jit(build_compute_stats_fn(config['world_params'], config['render_params']))
+        compute_stats_fn = build_compute_stats_fn(config['world_params'], config['render_params'])
     else:
         compute_stats_fn = None
 

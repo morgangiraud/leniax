@@ -24,7 +24,7 @@ genotype:
   - key: kernels_params.k.0.s
     domain: 
       - 0.
-      - 1.5
+      - 1.
     type: float
   - key: kernels_params.k.0.k_id
     domain: 
@@ -40,6 +40,7 @@ genotype:
 phenotype:
   - kernels_params.k.0.m
   - kernels_params.k.0.s
+
 grid:
   features_domain:
     - - 0.
@@ -49,9 +50,15 @@ grid:
   shape: [20, 100]
   
 algo:
+  # Generic
+  budget: 512
   ind_domain:
     - 0.
     - 1.
+  # RandomSearchMut 
   sel_pb: 0.6
   mut_pb: 0.2
   eta: 20
+
+other:
+  dump_bests: True

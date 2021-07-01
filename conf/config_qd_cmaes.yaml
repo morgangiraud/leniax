@@ -24,7 +24,7 @@ genotype:
   - key: kernels_params.k.0.s
     domain: 
       - 0.
-      - 1.
+      - 0.75
     type: float
   # - key: kernels_params.k.0.k_id
   #   domain: 
@@ -41,12 +41,13 @@ phenotype:
   - kernels_params.k.0.m
   - kernels_params.k.0.s
   # - behaviours.mass_speed
+  
 grid:
   features_domain:
     - - 0.
       - 1.
     - - 0.
-      - 1.
+      - 0.75
     # - - 0.
     #   - 0.5
   shape: [20, 20]
@@ -61,3 +62,6 @@ algo:
   sigma0: 0.5
   separable_cma: false
   ignore_if_not_added_to_container: false
+
+other:
+  dump_bests: True

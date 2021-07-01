@@ -28,7 +28,7 @@ def run(omegaConf: DictConfig) -> None:
     all_cells, all_fields, all_potentials, all_stats = init_and_run(config)
     total_time = time.time() - start_time
 
-    nb_iter_done = len(all_cells) - 1  # all_cells contains cell_0
+    nb_iter_done = len(all_cells)
     print(f"{nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
 
     save_dir = os.getcwd()  # changed by hydra
@@ -43,28 +43,25 @@ def run(omegaConf: DictConfig) -> None:
     with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
         np.save(f, np.array(all_cells)[:, 0, 0, ...])
 
-
     print('Plotting stats and functions')
     colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
 
     lenia_utils.plot_stats(save_dir, all_stats)
     _, K, _ = init(config)
     for i in range(K.shape[0]):
-        current_k = K[i:i+1, 0, 0]
+        current_k = K[i:i + 1, 0, 0]
         img = lenia_utils.get_image(
             lenia_utils.normalize(current_k, np.min(current_k), np.max(current_k)), 1, 0, colormap
         )
         with open(os.path.join(save_dir, f"kernel{i}.png"), 'wb') as f:
             img.save(f, format='png')
-    for i, kernel in enumerate(config['kernels_params']['k']): 
+    for i, kernel in enumerate(config['kernels_params']['k']):
         lenia_utils.plot_gfunction(
             save_dir, i, growth_fns[kernel['gf_id']], kernel['m'], kernel['s'], config['world_params']['T']
         )
 
-    
-
     print('Dumping video')
-    
+
     width = all_cells[0].shape[-1] * render_params['pixel_size']
     height = all_cells[0].shape[-2] * render_params['pixel_size']
     process = (
@@ -73,7 +70,7 @@ def run(omegaConf: DictConfig) -> None:
                                                    pix_fmt='yuv420p').overwrite_output().run_async(pipe_stdin=True)
     )
     all_times = []
-    for i in range(len(all_cells)):
+    for i in range(nb_iter_done):
         start_time = time.time()
         img = lenia_utils.get_image(
             all_cells[i][:, 0, 0, ...], render_params['pixel_size'], render_params['pixel_border_size'], colormap

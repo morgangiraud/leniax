@@ -4,7 +4,7 @@ import unittest
 # from qdpy.base import ParallelismManager
 
 from lenia.qd import LeniaIndividual, update_dict
-# from lenia.qd import LeniaEvo, genBaseIndividual, eval_fn
+# from lenia.qd import LeniaEvo, genBaseIndividual, eval_lenia_config
 from lenia import utils as lenia_utils
 
 cfd = os.path.dirname(os.path.realpath(__file__))
@@ -154,6 +154,6 @@ class TestUtils(unittest.TestCase):
     #     )
 
     #     with ParallelismManager("none") as pMgr:
-    #         _ = algo.optimise(eval_fn, executor=pMgr.executor, batch_mode=False)
+    #         _ = algo.optimise(eval_lenia_config, executor=pMgr.executor, batch_mode=False)
 
     #     # breakpoint()

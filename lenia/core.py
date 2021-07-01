@@ -8,7 +8,7 @@ from typing import Callable, List, Dict, Tuple, Optional
 from . import utils
 from .kernels import get_kernels_and_mapping
 from .growth_functions import growth_fns
-from .statistics import build_compute_stats_fn, check_stats
+from .statistics import build_compute_stats_fn, check_heuristics
 from .constant import EPSILON
 
 
@@ -78,7 +78,7 @@ def run(cells: jnp.ndarray,
     nb_slow_mass_step = jnp.array([0])
     nb_too_much_percent_step = jnp.array([0])
     should_stop = False
-    for _ in range(max_run_iter):
+    for current_iter in range(max_run_iter):
         new_cells, field, potential = update_fn(cells)
         if compute_stats_fn:
             # To compute stats, the world (cells, field, potential) has to be centered and taken from the same timestep
@@ -100,6 +100,7 @@ def run(cells: jnp.ndarray,
             if mass_speed < 0.01:
                 nb_slow_mass_step += 1
                 if nb_slow_mass_step > 10:
+                    # print("mass_speed should_stop")
                     should_stop = True
             else:
                 nb_slow_mass_step = 0
@@ -107,6 +108,7 @@ def run(cells: jnp.ndarray,
             # Checking if it is a kind of cosmic soup
             growth = stats['growth']
             if growth > 500:
+                # print("growth should_stop")
                 should_stop = True
 
             current_mass = stats['mass']
@@ -123,10 +125,12 @@ def run(cells: jnp.ndarray,
         # Heuristics
         # Stops when there is no more mass in the system
         if current_mass < EPSILON:
+            # print("current_mass < should_stop", current_mass)
             should_stop = True
 
         # Stops when there is too much mass in the system
         if current_mass > 3 * init_mass:  # heuristic to detect explosive behaviour
+            # print("current_mass > should_stop", current_mass)
             should_stop = True
 
         # Stops when mass evolve monotically over a quite long period
@@ -135,6 +139,7 @@ def run(cells: jnp.ndarray,
         if current_sign == previous_sign:
             nb_monotone_step += 1
             if nb_monotone_step > 80:
+                # print("current_sign > should_stop")
                 should_stop = True
         else:
             nb_monotone_step = 0
@@ -146,11 +151,13 @@ def run(cells: jnp.ndarray,
         if percent_activated > 0.25:
             nb_too_much_percent_step += 1
             if nb_too_much_percent_step > 50:
+                # print("nb_too_much_percent_step > should_stop")
                 should_stop = True
         else:
             nb_too_much_percent_step = 0
 
-        if should_stop is True:
+        # We avoid dismissing a simulation during the init period
+        if current_iter > 8 and should_stop is True:
             break
 
     # To keep the same number of elements per array
@@ -218,10 +225,10 @@ def run_init_search(rng_key: jnp.ndarray, config: Dict, with_stats: bool = True)
     max_run_iter = run_params['max_run_iter']
 
     K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
-    update_fn = jit(build_update_fn(world_params, K, mapping))
+    update_fn = build_update_fn(world_params, K, mapping)
     compute_stats_fn: Optional[Callable]
     if with_stats:
-        compute_stats_fn = jit(build_compute_stats_fn(config['world_params'], config['render_params']))
+        compute_stats_fn = build_compute_stats_fn(config['world_params'], config['render_params'])
     else:
         compute_stats_fn = None
 
@@ -232,11 +239,11 @@ def run_init_search(rng_key: jnp.ndarray, config: Dict, with_stats: bool = True)
         cells_0 = init_cells(world_size, nb_channels, [noises[i]])
 
         all_cells, _, _, all_stats = run(cells_0, max_run_iter, update_fn, compute_stats_fn)
-        nb_iter_done = len(all_cells) - 1
+        nb_iter_done = len(all_cells)
 
         runs.append({"N": nb_iter_done, "all_cells": all_cells, "all_stats": all_stats})
 
-        if nb_iter_done >= max_run_iter - 1:
+        if nb_iter_done >= max_run_iter:
             break
 
     return rng_key, runs
@@ -257,8 +264,8 @@ def run_init_search_parralel(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.nd
     max_run_iter = run_params['max_run_iter']
 
     K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
-    update_fn = jit(build_update_fn(world_params, K, mapping))
-    compute_stats_fn = jit(build_compute_stats_fn(config['world_params'], config['render_params']))
+    update_fn = build_update_fn(world_params, K, mapping)
+    compute_stats_fn = build_compute_stats_fn(config['world_params'], config['render_params'])
 
     rng_key, noises = utils.generate_noise_using_numpy(nb_init_search, nb_channels, rng_key)
     cells_0 = init_cells(world_size, nb_channels, [noises], nb_init_search)
@@ -286,7 +293,7 @@ def run_init_search_parralel(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.nd
     }
     for i in range(len(v_all_stats)):
         stats = v_all_stats[i]
-        should_continue, mass, sign = check_stats(stats, should_continue, init_mass, mass, sign, counters)
+        should_continue, mass, sign = check_heuristics(stats, should_continue, init_mass, mass, sign, counters)
         all_should_continue.append(should_continue)
     all_should_continue_jnp = jnp.array(all_should_continue)
     idx = all_should_continue_jnp.sum(axis=0).argmax()
@@ -301,6 +308,7 @@ def build_update_fn(world_params: Dict, K: jnp.ndarray, mapping: Dict) -> Callab
     get_potential_fn = build_get_potential(K.shape, mapping["true_channels"])
     get_field_fn = build_get_field(mapping)
 
+    @jit
     def update(cells: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         potential = get_potential_fn(cells, K)
         field = get_field_fn(potential)

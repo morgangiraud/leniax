@@ -3,7 +3,6 @@ import logging
 from omegaconf import DictConfig
 import hydra
 import math
-from functools import partial
 from qdpy import algorithms, containers
 from qdpy import plots as qdpy_plots
 from qdpy.base import ParallelismManager
@@ -13,7 +12,7 @@ from qdpy.algorithms.cmame import (
 )
 
 from lenia.api import get_container
-from lenia.qd import genBaseIndividual, eval_fn
+from lenia.qd import genBaseIndividual, eval_lenia_config
 from lenia import utils as lenia_utils
 from lenia import helpers as lenia_helpers
 
@@ -25,12 +24,9 @@ config_path = os.path.join(cdir, '..', 'conf')
 def run(omegaConf: DictConfig) -> None:
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
-    save_dir = os.getcwd()  # changed by hydra
-    # media_dir = os.path.join(save_dir, 'media')
-
     config = get_container(omegaConf)
-    config['run_params']['nb_init_search'] = 128
-    config['run_params']['max_run_iter'] = 512
+    config['run_params']['nb_init_search'] = 512
+    config['run_params']['max_run_iter'] = 1024
 
     rng_key = lenia_utils.seed_everything(config['run_params']['seed'])
     generator_builder = genBaseIndividual(config, rng_key)
@@ -52,15 +48,14 @@ def run(omegaConf: DictConfig) -> None:
     cpu_count = os.cpu_count()
     batch_size = 8
     if isinstance(cpu_count, int):
-        max_workers = cpu_count // 2 - 1
+        max_workers = max(cpu_count // 2 - 1, 1)
     else:
         max_workers = 1
     dimension = len(config['genotype'])  # Number of genes
     optimisation_task = 'max'
     # Domain for genetic parameters, to be used in conjunction with a projecting function to reach phenotype domain
     ind_domain = config['algo']['ind_domain']
-    algos = []
-    algos.append(
+    algos = [
         RandomSearchMutPolyBounded(
             container=grid,
             budget=math.inf,  # Nb of generated individuals
@@ -77,9 +72,7 @@ def run(omegaConf: DictConfig) -> None:
             tell_container_at_init=False,
             add_default_logger=False,
             name="lenia-randomsearchmutpolybounded",
-        )
-    )
-    algos.append(
+        ),
         CMAMEOptimizingEmitter(
             container=grid,
             budget=math.inf,  # Nb of generated individuals
@@ -95,9 +88,7 @@ def run(omegaConf: DictConfig) -> None:
             tell_container_at_init=False,
             add_default_logger=False,
             name="lenia-cmameoptimizingemitter",
-        )
-    )
-    algos.append(
+        ),
         CMAMERandomDirectionEmitter(
             container=grid,
             budget=math.inf,  # Nb of generated individuals
@@ -113,9 +104,7 @@ def run(omegaConf: DictConfig) -> None:
             tell_container_at_init=False,
             add_default_logger=False,
             name="lenia-cmamerandomdirectionemitter",
-        )
-    )
-    algos.append(
+        ),
         CMAMEImprovementEmitter(
             container=grid,
             budget=math.inf,  # Nb of generated individuals
@@ -132,7 +121,7 @@ def run(omegaConf: DictConfig) -> None:
             add_default_logger=False,
             name="lenia-cmameimprovementemitter",
         )
-    )
+    ]
     algo = MEMAPElitesUCB1(
         algos,
         budget=config['algo']['budget'],  # Nb of generated individuals
@@ -151,7 +140,7 @@ def run(omegaConf: DictConfig) -> None:
     # with ParallelismManager("none") as pMgr:
     with ParallelismManager("multiprocessing", max_workers=max_workers) as pMgr:
         _ = algo.optimise(
-            partial(eval_fn, neg_fitness=False),
+            eval_lenia_config,
             executor=pMgr.executor,
             batch_mode=False  # Calling the optimisation loop per batch if True, else calling it once with total budget
         )
@@ -160,9 +149,11 @@ def run(omegaConf: DictConfig) -> None:
     print("\n" + algo.summary())
 
     # Plot the results
+    save_dir = os.getcwd()
     qdpy_plots.default_plots_grid(logger, output_dir=save_dir)
 
-    lenia_helpers.dump_best(grid, config['run_params']['max_run_iter'])
+    if config['other']['dump_bests'] is True:
+        lenia_helpers.dump_best(grid, config['run_params']['max_run_iter'])
 
 
 if __name__ == '__main__':

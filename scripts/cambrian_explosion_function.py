@@ -13,9 +13,9 @@ def f(x: float, expo: int = 2, threshold: int = 10, nb_era=10, nb_assets_at_init
     all_th = [1]
     for i in range(1, nb_era):
         all_th.append(all_th[-1] + expo**i)
-    all_th = np.array(all_th) * threshold
+    all_th_np = np.array(all_th) * threshold
 
-    for i, th in enumerate(all_th):
+    for i, th in enumerate(all_th_np):
         if x <= th:
             y = math.log(x + 1 - threshold * (expo**i - 1)) / math.log(1 + threshold * expo**i)
 

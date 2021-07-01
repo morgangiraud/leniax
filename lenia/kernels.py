@@ -4,32 +4,32 @@ from typing import List, Dict, Any
 from .utils import st2fracs2float
 
 
-def poly_quad4(x: jnp.ndarray) -> jnp.ndarray:
-    x = 4 * x * (1 - x)
-    x = x**4
+def poly_quad4(x: jnp.ndarray):
+    out = 4 * x * (1 - x)
+    out = out**4
 
-    return x
-
-
-def poly_quad2(x: jnp.ndarray) -> jnp.ndarray:
-    x = 2 * x * (1 - x)
-    x = x**2
-
-    return x
+    return out
 
 
-def gauss_bump4(x: jnp.ndarray) -> jnp.ndarray:
-    x = 4 - 1 / (x * (1 - x))
-    x = jnp.exp(x)
+def poly_quad2(x: jnp.ndarray):
+    out = 2 * x * (1 - x)
+    out = out**2
 
-    return x
+    return out
 
 
-def step4(x: jnp.ndarray, q: float = 1 / 4) -> jnp.ndarray:
+def gauss_bump4(x: jnp.ndarray):
+    out = 4 - 1 / (x * (1 - x))
+    out = jnp.exp(out)
+
+    return out
+
+
+def step4(x: jnp.ndarray, q: float = 1 / 4):
     return (x >= q) * (x <= 1 - q)
 
 
-def staircase(x: jnp.ndarray, q: float = 1 / 4) -> jnp.ndarray:
+def staircase(x: jnp.ndarray, q: float = 1 / 4):
     return (x >= q) * (x <= 1 - q) + (x < q) * 0.5
 
 

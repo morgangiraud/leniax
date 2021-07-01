@@ -1,6 +1,6 @@
 import jax
 import jax.numpy as jnp
-# from jax import jit
+from jax import jit
 from typing import Dict, Callable, List
 from .constant import EPSILON
 
@@ -13,6 +13,7 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
     coords = jnp.indices(world_size)
     whitened_coords = (coords - midpoint) / R  # [nb_dims, H, W]
 
+    @jit
     def compute_stats(cells, field, potential):
         # cells: # [C, N=1, c=1, H, W]
         # field: # [C, N=1, c=1, H, W]
@@ -71,8 +72,11 @@ def stats_list_to_dict(all_stats: List[Dict]) -> Dict[str, jnp.ndarray]:
     return stats_dict
 
 
+###
+# Heuristics
+###
 # @jit
-def check_stats(
+def check_heuristics(
     stats: Dict[str, jnp.ndarray],
     prev_should_continue: jnp.ndarray,
     init_mass: jnp.ndarray,
@@ -112,9 +116,6 @@ def check_stats(
     return should_continue, mass, sign
 
 
-###
-# Heuristics
-###
 def min_mass_heuristic(epsilon: float, mass: jnp.ndarray):
     should_continue_cond = mass >= epsilon
 

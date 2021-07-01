@@ -102,8 +102,7 @@ class TestCore(unittest.TestCase):
             },
             "true_channels": jnp.array([True])
         }
-        update_fn = jax.jit(lenia_core.build_update_fn(config['world_params'], K, mapping))
-        # compute_stats_fn = jax.jit(lenia_core.build_compute_stats_fn(config['world_params'], config['render_params']))
+        update_fn = lenia_core.build_update_fn(config['world_params'], K, mapping)
         compute_stats_fn = lenia_core.build_compute_stats_fn(config['world_params'], config['render_params'])
         max_run_iter = config['run_params']['max_run_iter']
 
@@ -145,7 +144,7 @@ class TestCore(unittest.TestCase):
         }
         for i in range(len(v_all_stats)):
             stats = v_all_stats[i]
-            should_continue, mass, sign = lenia_stats.check_stats(
+            should_continue, mass, sign = lenia_stats.check_heuristics(
                 stats, should_continue, init_mass, mass, sign, counters
             )
             all_should_continue.append(should_continue)

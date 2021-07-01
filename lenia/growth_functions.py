@@ -2,25 +2,25 @@ import jax.numpy as jnp
 
 
 def poly_quad4(X: jnp.ndarray, m: float, s: float):
-    X = 1 - (X - m)**2 / (9 * s**2)
-    X = jnp.maximum(0, X)
-    X = X**4 * 2 - 1
+    out = 1 - (X - m)**2 / (9 * s**2)
+    out = jnp.maximum(0, out)
+    out = out**4 * 2 - 1
 
-    return X
+    return out
 
 
 def gaussian(X: jnp.ndarray, m: float, s: float):
-    X = -(X - m)**2 / (2 * s**2)
-    X = jnp.exp(X) * 2 - 1
+    out = -(X - m)**2 / (2 * s**2)
+    out = jnp.exp(out) * 2 - 1
 
-    return X
+    return out
 
 
 def step(X: jnp.ndarray, m: float, s: float):
-    X = jnp.abs(X - m)
-    X = (X <= s) * 2 - 1
+    out = jnp.abs(X - m)
+    out = (out <= s) * 2 - 1
 
-    return X
+    return out
 
 
 growth_fns = {0: poly_quad4, 1: gaussian, 2: step}

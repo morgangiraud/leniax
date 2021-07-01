@@ -19,7 +19,7 @@ def launch(omegaConf: DictConfig) -> None:
     config = get_container(omegaConf)
 
     config['run_params']['nb_init_search'] = 1024
-    
+
     print(config)
 
     rng_key = lenia_utils.seed_everything(config['run_params']['seed'])

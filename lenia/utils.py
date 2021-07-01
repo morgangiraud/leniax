@@ -255,14 +255,7 @@ def get_image(cells_buffer: jnp.ndarray, pixel_size: int, pixel_border_size: int
     return blank_img
 
 
-def normalize(
-    v: jnp.ndarray,
-    vmin: float,
-    vmax: float,
-    is_square: bool = False,
-    vmin2: float = 0,
-    vmax2: float = 0
-) -> jnp.ndarray:
+def normalize(v: jnp.ndarray, vmin: float, vmax: float, is_square: bool = False, vmin2: float = 0, vmax2: float = 0):
     if not is_square:
         return (v - vmin) / (vmax - vmin)
     else:
@@ -300,6 +293,8 @@ def plot_stats(save_dir: str, all_stats: List[Dict]):
     stats_dict = stats_list_to_dict(all_stats)
     all_keys = list(stats_dict.keys())
 
+    nb_steps = len(stats_dict[all_keys[0]])
+    ticks = nb_steps // 20
     fig, axs = plt.subplots(len(all_keys), sharex=True)
     fig.set_size_inches(10, 10)
     for i, k in enumerate(all_keys):
@@ -308,6 +303,7 @@ def plot_stats(save_dir: str, all_stats: List[Dict]):
     # axs[-1].set_title('mass fft'.capitalize())
     # axs[-1].plot(jnp.abs(jnp.fft.fft(stats_dict['mass'])[1:]))
     plt.tight_layout()
+    plt.xticks(np.arange(0, nb_steps, ticks))
     fig.savefig(os.path.join(save_dir, 'stats.png'))
     plt.close(fig)
 
@@ -319,6 +315,7 @@ def plot_stats(save_dir: str, all_stats: List[Dict]):
         axs[i].plot(jnp.convolve(stats_dict[k], jnp.ones(24) / 24, mode='valid'))
 
     plt.tight_layout()
+    plt.xticks(np.arange(0, nb_steps, ticks))
     fig.savefig(os.path.join(save_dir, 'stats_running_means.png'))
     plt.close(fig)
 
@@ -371,9 +368,9 @@ def generate_noise_using_numpy(nb_noise: int, nb_channels: int, rng_key):
             rands.append([i, j])
     for i in range(nb_noise - len(rands)):
         rands.append([max_bound, max_bound])
-    rands = np.array(rands)
+    rands_np = np.array(rands)
 
-    sizes_np = np.hstack([np.array([nb_channels] * nb_noise)[:, np.newaxis], rands])
+    sizes_np = np.hstack([np.array([nb_channels] * nb_noise)[:, np.newaxis], rands_np])
     max_h_np = np.max(sizes_np[:, 1])
     max_w_np = np.max(sizes_np[:, 2])
 

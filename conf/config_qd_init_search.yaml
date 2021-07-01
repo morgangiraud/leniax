@@ -1,0 +1,40 @@
+defaults:
+  - world_params: default
+  - render_params: default
+  - kernels_params: default
+  - run_params: init_search
+
+genotype:
+  
+
+phenotype:
+  
+
+grid:
+  features_domain:
+    - - 0.
+      - 1.
+    - - 0.
+      - 1.
+  shape: [10, 10]
+  
+algo:
+  # Generic
+  budget: 512
+  ind_domain:
+    - 0.
+    - 1.
+  # Mut search
+  sel_pb: 0.9
+  mut_pb: 0.4
+  eta: 20.
+  # cmaes 
+  sigma0: 0.5
+  separable_cma: false
+  ignore_if_not_added_to_container: false
+  # MEMAPElitesUCB1
+  zeta: 0.0005
+  initial_expected_rwds: 1.
+
+other:
+  dump_bests: True

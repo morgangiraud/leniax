@@ -59,7 +59,7 @@ typecheck:
 	mypy $(CURRENT_DIR)/lenia $(CURRENT_DIR)/scripts
 
 test:
-	pytest .
+	pytest --disable-pytest-warnings .
 
 ci: lint typecheck test
 

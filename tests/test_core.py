@@ -9,6 +9,7 @@ from functools import partial
 from lenia import core as lenia_core
 from lenia import utils as lenia_utils
 from lenia import statistics as lenia_stats
+from lenia.kernels import KernelMapping
 
 cfd = os.path.dirname(os.path.realpath(__file__))
 fixture_dir = os.path.join(cfd, 'fixtures')
@@ -37,7 +38,7 @@ class TestCore(unittest.TestCase):
 
         true_channels = jnp.array([True, True, True, False])
 
-        get_potential = lenia_core.build_get_potential(K.shape, true_channels)
+        get_potential = lenia_core.build_get_potential_fn(K.shape, true_channels)
         potential = get_potential(cells, K)
 
         assert len(potential.shape) == 3
@@ -91,17 +92,16 @@ class TestCore(unittest.TestCase):
                 [1, 1, 1],
             ],
         ], dtype=jnp.float32)[jnp.newaxis, jnp.newaxis, ...]
-        mapping = {
-            "cin_kernels": [[0]],
-            "cout_kernels": jnp.array([[0]]),
-            "cout_kernels_h": jnp.array([[1]]),
-            "cin_growth_fns": {
-                'gf_id': [0],
-                'm': [0.15],
-                's': [0.015],
-            },
-            "true_channels": jnp.array([True])
-        }
+
+        mapping = KernelMapping(config['world_params']['nb_channels'])
+        mapping.cin_kernels[0].append(0)
+        mapping.cout_kernels[0].append(0)
+        mapping.cout_kernels_h[0].append(1)
+        mapping.true_channels.append(True)
+        mapping.cin_growth_fns['gf_id'].append(0)
+        mapping.cin_growth_fns['m'].append(0.15)
+        mapping.cin_growth_fns['s'].append(0.015)
+
         update_fn = lenia_core.build_update_fn(config['world_params'], K, mapping)
         compute_stats_fn = lenia_core.build_compute_stats_fn(config['world_params'], config['render_params'])
         max_run_iter = config['run_params']['max_run_iter']

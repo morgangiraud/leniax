@@ -68,31 +68,16 @@ def run(omegaConf: DictConfig) -> None:
     sigma0 = config['algo']['sigma0']
     emitters = [
         GaussianEmitter(
-            archive,
-            initial_model.flatten(),
-            sigma0,
-            batch_size=batch_size,
-            seed=seed + 1,
-            bounds=genotype_bounds
+            archive, initial_model.flatten(), sigma0, batch_size=batch_size, seed=seed + 1, bounds=genotype_bounds
         ),
         ImprovementEmitter(
             archive, initial_model.flatten(), sigma0, batch_size=batch_size, seed=seed + 2, bounds=genotype_bounds
         ),
         OptimizingEmitter(
-            archive,
-            initial_model.flatten(),
-            sigma0,
-            batch_size=batch_size,
-            seed=seed + 3,
-            bounds=genotype_bounds
+            archive, initial_model.flatten(), sigma0, batch_size=batch_size, seed=seed + 3, bounds=genotype_bounds
         ),
         RandomDirectionEmitter(
-            archive,
-            initial_model.flatten(),
-            sigma0,
-            batch_size=batch_size,
-            seed=seed + 4,
-            bounds=genotype_bounds
+            archive, initial_model.flatten(), sigma0, batch_size=batch_size, seed=seed + 4, bounds=genotype_bounds
         ),
     ]
     optimizer = Optimizer(archive, emitters)

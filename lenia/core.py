@@ -1,18 +1,19 @@
 import math
 from functools import partial
+import jax
 from jax import vmap, lax, jit
 import jax.numpy as jnp
 # import numpy as np
 from typing import Callable, List, Dict, Tuple, Optional
 
 from . import utils
-from .kernels import get_kernels_and_mapping
+from .kernels import get_kernels_and_mapping, KernelMapping
 from .growth_functions import growth_fns
 from .statistics import build_compute_stats_fn, check_heuristics
 from .constant import EPSILON
 
 
-def init(config: Dict) -> Tuple[jnp.ndarray, jnp.ndarray, Dict]:
+def init(config: Dict) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
     nb_dims = config['world_params']['nb_dims']
     nb_channels = config['world_params']['nb_channels']
     world_size = config['render_params']['world_size']
@@ -302,11 +303,11 @@ def run_init_search_parralel(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.nd
     return rng_key, best
 
 
-def build_update_fn(world_params: Dict, K: jnp.ndarray, mapping: Dict) -> Callable:
+def build_update_fn(world_params: Dict, K: jnp.ndarray, mapping: KernelMapping) -> Callable:
     T = world_params['T']
 
-    get_potential_fn = build_get_potential(K.shape, mapping["true_channels"])
-    get_field_fn = build_get_field(mapping)
+    get_potential_fn = build_get_potential_fn(K.shape, mapping.true_channels)
+    get_field_fn = build_get_field_fn(mapping)
 
     @jit
     def update(cells: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
@@ -319,13 +320,15 @@ def build_update_fn(world_params: Dict, K: jnp.ndarray, mapping: Dict) -> Callab
     return update
 
 
-def build_get_potential(kernel_shape: Tuple[int, ...], true_channels: List[bool]) -> Callable:
+def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: List[bool]) -> Callable:
+    true_channels_jnp = jnp.array(true_channels)
     vconv = vmap(lax.conv, (0, 0, None, None), 0)
     nb_channels = kernel_shape[0]
     depth = kernel_shape[1]
     pad_w = kernel_shape[-1] // 2
     pad_h = kernel_shape[-2] // 2
 
+    @jit
     def get_potential(cells: jnp.ndarray, K: jnp.ndarray) -> jnp.ndarray:
         H, W = cells.shape[-2:]
 
@@ -333,35 +336,40 @@ def build_get_potential(kernel_shape: Tuple[int, ...], true_channels: List[bool]
         conv_out = vconv(padded_cells, K, (1, 1), 'VALID')  # [C, N=1, c=O, H, W]
 
         conv_out_reshaped = conv_out.reshape(nb_channels * depth, H, W)
-        potential = conv_out_reshaped[true_channels]  # [nb_kernels, H, W]
+        potential = conv_out_reshaped[true_channels_jnp]  # [nb_kernels, H, W]
 
         return potential
 
     return get_potential
 
 
-def build_get_field(mapping: Dict) -> Callable:
-    cin_growth_fns = mapping["cin_growth_fns"]
-    cout_kernels = mapping["cout_kernels"]
-    cout_kernels_h = mapping["cout_kernels_h"]
+def build_get_field_fn(mapping: KernelMapping) -> Callable:
+    cout_kernels = jnp.array(mapping.cout_kernels)
+    cout_kernels_h = jnp.array(mapping.cout_kernels_h)
 
-    vaverage = jit(vmap(weighted_Select_average, (None, 0, 0)))
+    cin_growth_fns = mapping.cin_growth_fns
+    growth_fn_l = []
+    for i in range(len(cin_growth_fns['gf_id'])):
+        gf_id = cin_growth_fns['gf_id'][i]
+        m = cin_growth_fns['m'][i]
+        s = cin_growth_fns['s'][i]
 
+        growth_fn = growth_fns[gf_id]
+        growth_fn_l.append(partial(growth_fn, m=m, s=s))
+
+    @jit
     def get_field(potential: jnp.ndarray) -> jnp.ndarray:
         fields = []
         for i in range(len(cin_growth_fns['gf_id'])):
             sub_potential = potential[i]
-            gf_id = cin_growth_fns['gf_id'][i]
-            m = cin_growth_fns['m'][i]
-            s = cin_growth_fns['s'][i]
+            growth_fn = growth_fn_l[i]
 
-            growth_fn = growth_fns[gf_id]
-            sub_field = growth_fn(sub_potential, m, s)
+            sub_field = growth_fn(sub_potential)
 
             fields.append(sub_field)
         fields_jnp = jnp.stack(fields)  # Add a dimension
 
-        fields_jnp = vaverage(fields_jnp, cout_kernels, cout_kernels_h)  # [C, H, W]
+        fields_jnp = weighted_select_average(fields_jnp, cout_kernels, cout_kernels_h)  # [C, H, W]
         fields_jnp = fields_jnp[:, jnp.newaxis, jnp.newaxis]
 
         return fields_jnp
@@ -369,14 +377,16 @@ def build_get_field(mapping: Dict) -> Callable:
     return get_field
 
 
-def weighted_Select_average(field, channel_list, weights):
+@jit
+@jax.partial(vmap, in_axes=(None, 0, 0), out_axes=0)
+def weighted_select_average(field: jnp.ndarray, channel_list: jnp.ndarray, weights: jnp.ndarray) -> jnp.ndarray:
     out_fields = field[channel_list]
     out_field = jnp.average(out_fields, axis=0, weights=weights)
 
     return out_field
 
 
-@jit
+@jax.partial(jit, static_argnums=2)
 def update_cells(cells: jnp.ndarray, field: jnp.ndarray, T: float) -> jnp.ndarray:
     dt = 1 / T
 

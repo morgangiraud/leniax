@@ -4,6 +4,8 @@ import ffmpeg
 import numpy as np
 import matplotlib.pyplot as plt
 from qdpy.containers import Container
+from ribs.archives import ArchiveBase
+from typing import Union
 
 from . import utils as lenia_utils
 from .api import init_and_run
@@ -11,9 +13,17 @@ from .growth_functions import growth_fns
 from .core import init
 
 
-def dump_best(grid: Container, fitness_threshold: float):
-    best_inds = grid._get_best_inds()
-    real_bests = list(filter(lambda x: abs(x.fitness.values[0]) >= fitness_threshold, best_inds))
+def dump_best(grid: Union[Container, ArchiveBase], fitness_threshold: float, lenia_generator=None):
+    if isinstance(grid, Container):
+        best_inds = grid._get_best_inds()
+        real_bests = list(filter(lambda x: abs(x.fitness.values[0]) >= fitness_threshold, best_inds))
+    else:
+        real_bests = []
+        for i in grid._occupied_indices:
+            if abs(grid._objective_values[i]) >= fitness_threshold:
+                lenia = lenia_generator()
+                lenia[:] = grid._solutions[i]
+                real_bests.append(lenia)
     print(f"Found {len(real_bests)} beast!")
 
     for id_best, best in enumerate(real_bests):

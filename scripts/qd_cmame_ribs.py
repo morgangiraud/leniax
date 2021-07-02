@@ -10,13 +10,14 @@ from ribs.emitters import GaussianEmitter, ImprovementEmitter, OptimizingEmitter
 from ribs.optimizers import Optimizer
 
 from lenia.api import get_container
-from lenia import utils as lenia_utils
 from lenia import qd as lenia_qd
+from lenia import utils as lenia_utils
+from lenia import helpers as lenia_helpers
 
-# We are not using matmul and huge matrix, so we can avoid parallelising every operation
+# We are not using matmul on huge matrix, so we can avoid parallelising every operation
 # This allow us to increase the numbre of parallel process
 # https://github.com/google/jax/issues/743
-os.environ["XLA_FLAGS"] = ("--xla_cpu_multi_thread_eigen=false " "intra_op_parallelism_threads=2")
+os.environ["XLA_FLAGS"] = ("--xla_cpu_multi_thread_eigen=false " "intra_op_parallelism_threads=1")
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
@@ -26,12 +27,10 @@ config_path = os.path.join(cdir, '..', 'conf')
 
 @hydra.main(config_path=config_path, config_name="config_qd_cmame")
 def run(omegaConf: DictConfig) -> None:
+    config = get_container(omegaConf)
+
     # Disable JAX logging https://abseil.io/docs/python/guides/logging
     logging.set_verbosity(logging.ERROR)
-
-    config = get_container(omegaConf)
-    config['run_params']['nb_init_search'] = 16
-    config['run_params']['max_run_iter'] = 1024
 
     seed = config['run_params']['seed']
     rng_key = lenia_utils.seed_everything(seed)
@@ -50,11 +49,10 @@ def run(omegaConf: DictConfig) -> None:
 
     genotype_dims = len(config['genotype'])
     initial_model = jnp.ones((genotype_dims, )) * .5  # start the CMA-ES algorithm
-    # genotype_bounds = [(0., 1.) for _ in range(genotype_dims)]
+    genotype_bounds = [(0., 1.) for _ in range(genotype_dims)]
 
-    budget = 4
+    batch_size = config['algo']['batch_size']
     log_freq = 1
-    batch_size = 8
     sigma0 = config['algo']['sigma0']
     emitters = [
         GaussianEmitter(
@@ -64,37 +62,30 @@ def run(omegaConf: DictConfig) -> None:
             batch_size=batch_size,
             seed=seed + 1,  # bounds=genotype_bounds
         ),
-        ImprovementEmitter(
-            archive,
-            initial_model.flatten(),
-            sigma0,
-            batch_size=batch_size,
-            seed=seed + 2,  # bounds=genotype_bounds
-        ),
         OptimizingEmitter(
-            archive,
-            initial_model.flatten(),
-            sigma0,
-            batch_size=batch_size,
-            seed=seed + 3,  # bounds=genotype_bounds
+            archive, initial_model.flatten(), sigma0, batch_size=batch_size, seed=seed + 2, bounds=genotype_bounds
         ),
         RandomDirectionEmitter(
-            archive,
-            initial_model.flatten(),
-            sigma0,
-            batch_size=batch_size,
-            seed=seed + 4,  # bounds=genotype_bounds
+            archive, initial_model.flatten(), sigma0, batch_size=batch_size, seed=seed + 3, bounds=genotype_bounds
+        ),
+        ImprovementEmitter(
+            archive, initial_model.flatten(), sigma0, batch_size=batch_size, seed=seed + 4, bounds=genotype_bounds
         ),
     ]
     optimizer = Optimizer(archive, emitters)
 
-    metrics = lenia_qd.run_qd_ribs_search(lenia_qd.eval_lenia_config, budget, lenia_generator, optimizer, log_freq)
+    nb_iter = config['algo']['budget'] // (batch_size * len(emitters))
+    metrics = lenia_qd.run_qd_ribs_search(lenia_qd.eval_lenia_config, nb_iter, lenia_generator, optimizer, log_freq)
 
+    # Plot the results
     save_dir = os.getcwd()
     optimizer.archive.as_pandas().to_csv(f"{save_dir}/archive.csv")
     lenia_qd.save_ccdf(optimizer.archive, str(f"{save_dir}/archive_ccdf.png"))
     lenia_qd.save_metrics(save_dir, metrics)
     lenia_qd.save_heatmap(optimizer.archive, fitness_domain, save_dir)
+
+    if config['other']['dump_bests'] is True:
+        lenia_helpers.dump_best(optimizer.archive, config['run_params']['max_run_iter'], lenia_generator)
 
 
 if __name__ == '__main__':

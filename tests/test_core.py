@@ -131,7 +131,7 @@ class TestCore(unittest.TestCase):
         # v_all_cells: ndarray with shape [N_init, N_iter + 1, C, N=1, c=1, H, W]
         # v_all_stats: list of N_iter + 1 stat object with N_init values
         v_all_cells, _, _, v_all_stats = vrun(cells)
-        # breakpoint()
+
         all_should_continue = []
         should_continue = jnp.ones(v_all_cells.shape[0])
         init_mass = v_all_cells[:, 0].sum(axis=tuple(range(1, len(v_all_cells.shape) - 1)))

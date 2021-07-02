@@ -10,6 +10,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from alive_progress import alive_bar
+from qdpy.phenotype import Individual
 
 from ribs.archives import GridArchive, CVTArchive
 from ribs.visualize import grid_archive_heatmap, cvt_archive_heatmap
@@ -41,7 +42,7 @@ class genBaseIndividual(object):
             yield self.__next__()
 
 
-class LeniaIndividual(list):
+class LeniaIndividual(Individual):
     # Individual inherits from list
     # The raw parameters can then be set with ind[:] = [param1,  ...]
     #
@@ -56,6 +57,8 @@ class LeniaIndividual(list):
     #       3. You evaluate the configuration
     #       4. you set fitness and features
     def __init__(self, config: Dict, rng_key: jnp.ndarray):
+        super().__init__()
+
         self.base_config = config
 
         self.rng_key = rng_key
@@ -159,8 +162,8 @@ def update_config(old_config, to_update):
     return new_config
 
 
-def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False) -> Tuple:
-    # This function is usually called un sub-process, before launching any JAX code
+def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False, qdpy=False) -> Tuple:
+    # This function is usually called in forked processes, before launching any JAX code
     # We silent it
     # Disable JAX logging https://abseil.io/docs/python/guides/logging
     logging.set_verbosity(logging.ERROR)
@@ -188,7 +191,10 @@ def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False) -> Tuple:
         fitness = nb_steps
     features = [get_param(config, key_string) for key_string in ind.base_config['phenotype']]
 
-    # print(ind.fitness.values, ind.features.values)
+    if qdpy is True:
+        ind.fitness.values = [fitness]
+        ind.features.values = features
+        return ind
 
     return fitness, features
 
@@ -218,7 +224,7 @@ def eval_lenia_init(ind: LeniaIndividual, neg_fitness=False) -> Tuple:
     # We use the first element of the jax rng key to do so
     np.random.seed(ind.rng_key[0])
     random.seed(ind.rng_key[0])
-    breakpoint()
+
     K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
     update_fn = build_update_fn(world_params, K, mapping)
     compute_stats_fn = build_compute_stats_fn(config['world_params'], config['render_params'])
@@ -238,7 +244,7 @@ def eval_lenia_init(ind: LeniaIndividual, neg_fitness=False) -> Tuple:
     return fitness, features
 
 
-def run_qd_ribs_search(eval_fn: Callable, budget: int, lenia_generator, optimizer, log_freq: int = 1) -> QDMetrics:
+def run_qd_ribs_search(eval_fn: Callable, nb_iter: int, lenia_generator, optimizer, log_freq: int = 1) -> QDMetrics:
     metrics: QDMetrics = {
         "QD Score": {
             "x": [0],
@@ -263,11 +269,12 @@ def run_qd_ribs_search(eval_fn: Callable, budget: int, lenia_generator, optimize
         n_workers = max(cpu_count - 1, 1)
     else:
         n_workers = 1
-    DEBUG = True
-    breakpoint()
+    DEBUG = False
+
     # ray_eval_fn = ray.remote(eval_fn)
-    with alive_bar(budget) as update_bar:
-        for itr in range(1, budget + 1):
+    print(f"{'iter':16}{'coverage':32}{'mean':32}{'std':32}{'min':16}{'max':16}{'QD Score':32}")
+    with alive_bar(nb_iter) as update_bar:
+        for itr in range(1, nb_iter + 1):
             # Request models from the optimizer.
             sols = optimizer.ask()
             lenial_sols = []
@@ -301,15 +308,17 @@ def run_qd_ribs_search(eval_fn: Callable, budget: int, lenia_generator, optimize
             if not DEBUG:
                 update_bar()
 
-            if itr % log_freq == 0 or itr == budget:
+            if itr % log_freq == 0 or itr == nb_iter:
                 df = optimizer.archive.as_pandas(include_solutions=False)
                 metrics["QD Score"]["x"].append(itr)
-                qd_score = df['objective'].sum() / nb_total_bins
+                qd_score = df['objective'].sum()
                 metrics["QD Score"]["y"].append(qd_score)
 
                 metrics["Max Score"]["x"].append(itr)
+                min_score = df["objective"].min()
                 max_score = df["objective"].max()
                 mean_score = df["objective"].mean()
+                std_score = df["objective"].std()
                 metrics["Max Score"]["y"].append(max_score)
 
                 metrics["Archive Size"]["x"].append(itr)
@@ -318,7 +327,9 @@ def run_qd_ribs_search(eval_fn: Callable, budget: int, lenia_generator, optimize
                 coverage = len(df) / nb_total_bins * 100
                 metrics["Archive Coverage"]["y"].append(coverage)
 
-                print(f"QD Score: {qd_score:20}, max: {max_score:6}, mean: {mean_score:20}, coverage: {coverage:20}")
+                print(
+                    f"{len(df):12}/{nb_total_bins}{mean_score:32}{std_score:32}{min_score:16}{max_score:16}{qd_score:32}"
+                )
 
     return metrics
 

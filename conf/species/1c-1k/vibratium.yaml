@@ -1,0 +1,70 @@
+algo:
+  batch_size: 8
+  budget: 512
+  eta: 20.0
+  ignore_if_not_added_to_container: false
+  ind_domain:
+  - 0.0
+  - 1.0
+  initial_expected_rwds: 1.0
+  mut_pb: 0.4
+  sel_pb: 0.9
+  separable_cma: false
+  sigma0: 0.5
+  zeta: 0.0005
+genotype:
+- domain:
+  - 0.0
+  - 1.0
+  key: kernels_params.k.0.m
+  type: float
+- domain:
+  - 0.0
+  - 0.75
+  key: kernels_params.k.0.s
+  type: float
+grid:
+  features_domain:
+  - - 0.0
+    - 1.0
+  - - 0.0
+    - 0.75
+  shape:
+  - 20
+  - 20
+kernels_params:
+  k:
+  - b: '1'
+    c_in: 0
+    c_out: 0
+    gf_id: 0
+    h: 1
+    k_id: 0
+    m: 0.3770679299340973
+    r: 1
+    s: 0.06512496140859439
+other:
+  dump_bests: true
+phenotype:
+- kernels_params.k.0.m
+- kernels_params.k.0.s
+render_params:
+  pixel_border_size: 0
+  pixel_size: 4
+  pixel_size_power2: 2
+  size_power2: 7
+  win_size_power2: 9
+  world_size:
+  - 128
+  - 128
+run_params:
+  cells: 128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$48.pKpDvUqBrHvMpExXwFwLtRtUtCyIKpVuWuOpKpNuDwVyDtTtNtBqLyItVrIqJ49.$48.uAwMrCxOvDpN2pGwXAtPqAsSxWpAvJvUsWwBtLvEvRsApOrHwTNrLtJvDP49.$48.xAqUHpIxBGwAxFyD2wRpTuSvIsAsPvMrEwQpLqFI2pDtFtEuOwKpPvNqO49.$48.sSqABsJrAxFuOuIpLWvMvWuUrSsNVrDtPuXyEuSsTpFuMpLwFpGvDuSqOqT49.$48.yNVxExCtDqXqHuFIwVxErItSpJxDsNBqXtFpGvPsEsSrVwXtStVtTyFRtD49.$48.rQqVpOtIyHuCyNxQvExINrORNuPtKqOvTuVrGyDqUvIXxCvArGpSyAsExJ49.$48.rLyCyDsQwPsGtVrHvUGtAwRsXtSrJrVrRrPpRvTrSyAyNyCsHuLsQuBtTvSqU49.$48.tNPsSyMqKqXuMpTxIuLtVpFuJrMuKqSsLqNuBqMyCwJyITyFxVStHpNpKtX49.$48.sBqPyEwDpBpPwUpXpNqCtCqUvJrQtUuPwGvMLxWqHyBFPUsUxFuExGpDxV49.$48.qHtStQKtWqCqSyJRxPvSwBsLuXqDwKxAsHsJrPrONtSxLpEBtSxPwWvLxC49.$48.xNxSxVyFsEyMtOwWpXwHpDvRxStTuROuXyDyIrNtLtKwMuHxOsBtPrEsCwEqX49.$48.yBuJsGpCxHsSqKvFsRqBwDvRyArPIsArTyGuQuUrWvNvLrCqIyDxWwItLtNA49.$48.pWrDyKuSwJxJvPXyGwTsDxDwGxXpVuVOtFrKwVtPrPrCsMsEqOrCqSxGxQxS49.$48.vVvIuEtOpLpBrDpWuRtMsOuHvWvPyAyDrQxJtOwUyHtHrRxByBtJsVuQwMuEvS49.$48.vJsUqRvWpQsUyMvHMqKxRvXpXwUxQtFsOpIpRxTSyJrWxXXvUpWqGSxFwE49.$48.wJvDxStL2rSvUvQsCvDvJuLtJOvDxFwPpXwGtEDpGrOuBuGsVtPuIvBpQqP49.$48.pAvWxHpLwJvAsRvFrDQvCyEqRyJuErDsFrWvPqOvROqEvQvLrADuXrFtWrD49.$48.rCtJpDuCxS2LpNwRuLwHqKtCpXyCStJuIxWpNwOsQwPqJqHrRQsUxGtGI49.$48.wFrNIsAqVrSxRSyGuLwPuVrMuB2uEtHvXvQxVyFrCPvTwTyHvMwNxXpHD49.$48.EvArIrRyDrVvQrCOrXvSvCsMvRuHxLvJJpHsLwVuHwPrFyIwCvTvUwGxUpP49.$48.sQtMyBxEsNwPuJpCxVTsHyLxAqCwGyGsUyCCqKqNKpOsUuGyLxCNRxAH49.$48.uEqNtGxRxApCtMCKsLuFuVsRyJwVyFVuWrAqHtCtPqRwLuHqXpANrIuDrH49.$48.uCqHqIrVrC.tQuXrJsStQuPyArCvFrUrLsKvBuGqTpVpRErIsCxNwWsGsFtB49.$48.yKsMsQpKxHqMpHuOwDqKqMtHyDwEpPpQyGsNvVxTpFxEuWpVtJvApGxIwAwBsX49.$48.qTxCpFyBuWwEsKwDxUsRuQvAtBpDyDtHxOuPsWuIJtMwBsIuSqBvSqFtOyDqV49.$48.tLyDsFpItTrKxXuVyDrDxRSxKWuAUqAxUsDxJsCuKtVsBtSuNrQsIpJuSsV49.$48.qIsJpNyJPvHrTwSpUqRpHVxBpUqKPpWsNqNqXwKqDyFtWqXwBvXVxPqNtF49.$48.rJsAxFrIyEsSqIsTrHtGwHuLPsKtTpSqEsLqIwDDvFpRvVwLsVqRvWsNrLuA49.$48.WxUyEsStFwTpHvVwHqFpNwUsIpOAtTqDqFrIqVEtKsBpOwJqPvPrAtFqIW49.$48.sEyHtApAwRuNxRwUtCpAyLxOrUvTIyBwQsNwKpGsGuBsRtUKHrPtKqDrTB49.$48.rQyDyGvGqTxNxLuStXvPwOwTtVrRtFqBxGvCuPuDtDwBqDEuCuGvGqNyCrNtQ49.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.$128.!
+  code: dfa255f7-70ed-491c-a8f3-30f779355dd1
+  max_run_iter: 1024
+  nb_init_search: 256
+  seed: 1
+world_params:
+  R: 13
+  T: 10
+  nb_channels: 1
+  nb_dims: 2

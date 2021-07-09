@@ -162,6 +162,21 @@ def update_config(old_config, to_update):
     return new_config
 
 
+def debug_eval(ind: LeniaIndividual, neg_fitness=False, qdpy=False):
+    if neg_fitness is True:
+        fitness = -random.random()
+    else:
+        fitness = random.random()
+    features = [random.random() for _ in ind.base_config['phenotype']]
+
+    if qdpy is True:
+        ind.fitness.values = [fitness]
+        ind.features.values = features
+        return ind
+
+    return fitness, features
+
+
 def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False, qdpy=False) -> Tuple:
     # This function is usually called in forked processes, before launching any JAX code
     # We silent it
@@ -244,7 +259,9 @@ def eval_lenia_init(ind: LeniaIndividual, neg_fitness=False) -> Tuple:
     return fitness, features
 
 
-def run_qd_ribs_search(eval_fn: Callable, nb_iter: int, lenia_generator, optimizer, log_freq: int = 1) -> QDMetrics:
+def run_qd_ribs_search(
+    eval_fn: Callable, nb_iter: int, lenia_generator, optimizer, fitness_domain, log_freq: int = 1
+) -> QDMetrics:
     metrics: QDMetrics = {
         "QD Score": {
             "x": [0],
@@ -270,6 +287,8 @@ def run_qd_ribs_search(eval_fn: Callable, nb_iter: int, lenia_generator, optimiz
     else:
         n_workers = 1
     DEBUG = False
+    if DEBUG is True:
+        print('!!!! DEBUGGING MODE !!!!')
 
     # ray_eval_fn = ray.remote(eval_fn)
     print(f"{'iter':16}{'coverage':32}{'mean':32}{'std':32}{'min':16}{'max':16}{'QD Score':32}")
@@ -311,7 +330,7 @@ def run_qd_ribs_search(eval_fn: Callable, nb_iter: int, lenia_generator, optimiz
             if itr % log_freq == 0 or itr == nb_iter:
                 df = optimizer.archive.as_pandas(include_solutions=False)
                 metrics["QD Score"]["x"].append(itr)
-                qd_score = df['objective'].sum()
+                qd_score = df['objective'].sum() / fitness_domain[1]
                 metrics["QD Score"]["y"].append(qd_score)
 
                 metrics["Max Score"]["x"].append(itr)
@@ -328,7 +347,8 @@ def run_qd_ribs_search(eval_fn: Callable, nb_iter: int, lenia_generator, optimiz
                 metrics["Archive Coverage"]["y"].append(coverage)
 
                 print(
-                    f"{len(df):12}/{nb_total_bins}{mean_score:32}{std_score:32}{min_score:16}{max_score:16}{qd_score:32}"
+                    f"{len(df):12}/{nb_total_bins}{mean_score:32}\
+                        {std_score:32}{min_score:16}{max_score:16}{qd_score:32}"
                 )
 
     return metrics

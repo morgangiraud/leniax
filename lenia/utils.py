@@ -294,7 +294,7 @@ def plot_stats(save_dir: str, all_stats: List[Dict]):
     all_keys = list(stats_dict.keys())
 
     nb_steps = len(stats_dict[all_keys[0]])
-    ticks = nb_steps // 20
+    ticks = max(nb_steps // 20, 1)
     fig, axs = plt.subplots(len(all_keys), sharex=True)
     fig.set_size_inches(10, 10)
     for i, k in enumerate(all_keys):
@@ -349,41 +349,10 @@ def seed_everything(seed: int) -> jnp.ndarray:
 
 
 def generate_noise_using_numpy(nb_noise: int, nb_channels: int, rng_key):
-    # TODO: improve heuristics
-
-    # Rectangles
-    # rands = np.random.randint(16, 32, [nb_noise, 2])
-
-    # # Squares
-    # rands = np.random.randint(16, 32, [nb_noise, 1])
-    # rands = np.repeat(rands, 2, 1)
-
-    # Grid search
-    import math
-    min_bound = 16
-    max_bound = int(math.sqrt(nb_noise)) + min_bound
-    rands = []
-    for i in range(min_bound, max_bound):
-        for j in range(min_bound, max_bound):
-            rands.append([i, j])
-    for i in range(nb_noise - len(rands)):
-        rands.append([max_bound, max_bound])
-    rands_np = np.array(rands)
-
-    sizes_np = np.hstack([np.array([nb_channels] * nb_noise)[:, np.newaxis], rands_np])
-    max_h_np = np.max(sizes_np[:, 1])
-    max_w_np = np.max(sizes_np[:, 2])
-
-    all_masks = []
-    for i in range(nb_noise):
-        shape = sizes_np[i]
-        mask = generate_mask(shape, max_h_np, max_w_np)
-        all_masks.append(mask)
-    masks = jnp.array(np.vstack(mask))
-
     key, subkey = jax.random.split(rng_key)
-    noise = jax.random.uniform(subkey, (nb_noise, 1, max_h_np, max_w_np), minval=0, maxval=1.)
-    noises = noise * masks
+    maxvals = jnp.linspace(0.4, 0.8, nb_noise)[:, jnp.newaxis, jnp.newaxis, jnp.newaxis]
+    rand_shape = [nb_noise] + [nb_channels] + [128, 128]
+    noises = jax.random.uniform(subkey, rand_shape, minval=0, maxval=maxvals)
 
     return key, noises
 

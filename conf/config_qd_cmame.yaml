@@ -5,7 +5,7 @@ defaults:
   - run_params: default
 
 run_params:
-  nb_init_search: 256
+  nb_init_search: 64
   max_run_iter: 1024
 
 genotype:
@@ -58,8 +58,9 @@ grid:
   
 algo:
   # Generic
-  budget: 512
-  batch_size: 8
+  budget: 32
+  batch_size: 4
+  # QDPY
   ind_domain:
     - 0.
     - 1.

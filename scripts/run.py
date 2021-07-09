@@ -14,9 +14,11 @@ from lenia.core import init
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf', 'species')
+config_path_1c1k = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
 
 
 @hydra.main(config_path=config_path, config_name="orbium")
+# @hydra.main(config_path=config_path_1c1k, config_name="prototype")
 def run(omegaConf: DictConfig) -> None:
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 

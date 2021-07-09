@@ -100,17 +100,17 @@ def run(cells: jnp.ndarray,
             mass_speed = stats['mass_speed']
             if mass_speed < 0.01:
                 nb_slow_mass_step += 1
-                if nb_slow_mass_step > 10:
+                if nb_slow_mass_step > 25:
                     # print("mass_speed should_stop")
                     should_stop = True
             else:
                 nb_slow_mass_step = 0
 
-            # Checking if it is a kind of cosmic soup
-            growth = stats['growth']
-            if growth > 500:
-                # print("growth should_stop")
-                should_stop = True
+            # # Checking if it is a kind of cosmic soup
+            # growth = stats['growth']
+            # if growth > 500:
+            #     # print("growth should_stop")
+            #     should_stop = True
 
             current_mass = stats['mass']
             percent_activated = stats['percent_activated']
@@ -243,7 +243,6 @@ def run_init_search(rng_key: jnp.ndarray, config: Dict, with_stats: bool = True)
         nb_iter_done = len(all_cells)
 
         runs.append({"N": nb_iter_done, "all_cells": all_cells, "all_stats": all_stats})
-
         if nb_iter_done >= max_run_iter:
             break
 

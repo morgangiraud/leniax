@@ -1,16 +1,24 @@
 import os
-import logging
+from functools import partial
+from absl import logging
 from omegaconf import DictConfig
 import hydra
-from qdpy import algorithms, containers
+
+from qdpy.containers import Grid, CVTGrid
+from qdpy.algorithms.evolution import CMAES
+from qdpy import algorithms
 from qdpy import plots as qdpy_plots
 from qdpy.base import ParallelismManager
-from qdpy.algorithms.evolution import CMAES
 
 from lenia.api import get_container
-from lenia.qd import genBaseIndividual, eval_lenia_config
+from lenia import qd as lenia_qd
 from lenia import utils as lenia_utils
 from lenia import helpers as lenia_helpers
+
+# We are not using matmul on huge matrix, so we can avoid parallelising every operation
+# This allow us to increase the numbre of parallel process
+# https://github.com/google/jax/issues/743
+os.environ["XLA_FLAGS"] = ("--xla_cpu_multi_thread_eigen=false " "intra_op_parallelism_threads=1")
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
@@ -18,14 +26,14 @@ config_path = os.path.join(cdir, '..', 'conf')
 
 @hydra.main(config_path=config_path, config_name="config_qd_cmaes")
 def run(omegaConf: DictConfig) -> None:
-    logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
-
     config = get_container(omegaConf)
-    config['run_params']['nb_init_search'] = 512
-    config['run_params']['max_run_iter'] = 1024
 
-    rng_key = lenia_utils.seed_everything(config['run_params']['seed'])
-    generator_builder = genBaseIndividual(config, rng_key)
+    # Disable JAX logging https://abseil.io/docs/python/guides/logging
+    logging.set_verbosity(logging.ERROR)
+
+    seed = config['run_params']['seed']
+    rng_key = lenia_utils.seed_everything(seed)
+    generator_builder = lenia_qd.genBaseIndividual(config, rng_key)
     lenia_generator = generator_builder()
 
     # cma-es algorithm can only minimize
@@ -37,22 +45,24 @@ def run(omegaConf: DictConfig) -> None:
     features_domain = config['grid']['features_domain']  # Phenotype
     grid_shape = config['grid']['shape']  # Phenotype bins
     assert len(grid_shape) == len(features_domain)
-    grid = containers.Grid(
-        shape=grid_shape, max_items_per_bin=1, fitness_domain=fitness_domain, features_domain=features_domain
-    )
-
-    cpu_count = os.cpu_count()
-    batch_size = 8
-    if isinstance(cpu_count, int):
-        max_workers = max(cpu_count // 2 - 1, 1)
+    if True:
+        archive = Grid(
+            shape=grid_shape, max_items_per_bin=1, fitness_domain=fitness_domain, features_domain=features_domain
+        )
     else:
-        max_workers = 1
+        bins = 1_000
+        archive = CVTGrid(bins, features_domain, seed=seed, use_kd_tree=True)
+
+    batch_size = config['algo']['batch_size']
     dimension = len(config['genotype'])  # Number of genes
     optimisation_task = 'max'
+    # Domain for genetic parameters, to be used in conjunction with a projecting function to reach phenotype domain
+    ind_domain = config['algo']['ind_domain']
+    budget = config['algo']['budget'] // batch_size * batch_size
     algo = CMAES(
-        container=grid,
-        budget=config['algo']['budget'],  # Nb of generated individuals
-        ind_domain=config['algo']['ind_domain'],
+        container=archive,
+        budget=budget,  # Nb of generated individuals
+        ind_domain=ind_domain,
         batch_size=batch_size,  # how many to batch together
         dimension=dimension,  # Number of parameters that can be updated, we don't use it
         nb_objectives=None,  # With None, use the container fitness domain
@@ -69,10 +79,16 @@ def run(omegaConf: DictConfig) -> None:
 
     logger = algorithms.TQDMAlgorithmLogger(algo)
 
+    cpu_count = os.cpu_count()
+    if isinstance(cpu_count, int):
+        n_workers = max(cpu_count - 1, 1)
+    else:
+        n_workers = 1
+    eval_fn = partial(lenia_qd.eval_lenia_config, neg_fitness=False, qdpy=True)
     # with ParallelismManager("none") as pMgr:
-    with ParallelismManager("multiprocessing", max_workers=max_workers) as pMgr:
+    with ParallelismManager("multiprocessing", max_workers=n_workers) as pMgr:
         _ = algo.optimise(
-            eval_lenia_config,
+            eval_fn,
             executor=pMgr.executor,
             batch_mode=False  # Calling the optimisation loop per batch if True, else calling it once with total budget
         )
@@ -85,7 +101,7 @@ def run(omegaConf: DictConfig) -> None:
     qdpy_plots.default_plots_grid(logger, output_dir=save_dir)
 
     if config['other']['dump_bests'] is True:
-        lenia_helpers.dump_best(grid, config['run_params']['max_run_iter'])
+        lenia_helpers.dump_best(archive, config['run_params']['max_run_iter'])
 
 
 if __name__ == '__main__':

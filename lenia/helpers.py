@@ -21,7 +21,7 @@ def dump_best(grid: Union[Container, ArchiveBase], fitness_threshold: float, len
         real_bests = []
         for i in grid._occupied_indices:
             if abs(grid._objective_values[i]) >= fitness_threshold:
-                lenia = lenia_generator()
+                lenia = next(lenia_generator)
                 lenia[:] = grid._solutions[i]
                 real_bests.append(lenia)
     print(f"Found {len(real_bests)} beast!")

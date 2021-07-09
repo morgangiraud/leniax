@@ -1,5 +1,7 @@
 import os
+import re
 import pickle
+import pandas as pd
 
 from lenia import helpers as lenia_helpers
 
@@ -13,15 +15,17 @@ final_filename = os.path.join(final_dir, 'final.p')
 
 def run() -> None:
     with open(final_filename, "rb") as f:
-        data = pickle.load(f)
-
-    if 'container' in data:
-        grid = data['container']
-    elif 'algorithms' in data:
-        grid = data['algorithms'][0].container
-    else:
-        breakpoint()
-    max_val = grid[0].base_config['run_params']['max_run_iter'] // 2
+        if re.match("archive.csv", final_filename):
+            grid = pd.read_csv(final_filename)
+        else:
+            data = pickle.load(f)
+            if 'container' in data:
+                grid = data['container']
+            elif 'algorithms' in data:
+                grid = data['algorithms'][0].container
+            else:
+                breakpoint()
+            max_val = grid[0].base_config['run_params']['max_run_iter'] // 2
 
     os.chdir(final_dir)
     lenia_helpers.dump_best(grid, max_val)

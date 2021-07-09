@@ -2,7 +2,11 @@ defaults:
   - world_params: default
   - render_params: default
   - kernels_params: default
-  - run_params: init_search
+  - run_params: default
+
+run_params:
+  nb_init_search: 64
+  max_run_iter: 1024
 
 genotype:
   # - key: kernels_params.k.0.r
@@ -18,13 +22,13 @@ genotype:
   #   type: choice
   - key: kernels_params.k.0.m
     domain: 
-      - 0.
-      - 1.
+      - 0.5
+      - 0.65
     type: float
   - key: kernels_params.k.0.s
     domain: 
-      - 0.
-      - 0.75
+      - 0.1
+      - 0.2
     type: float
   # - key: kernels_params.k.0.k_id
   #   domain: 
@@ -44,22 +48,23 @@ phenotype:
   
 grid:
   features_domain:
-    - - 0.
-      - 1.
-    - - 0.
-      - 0.75
+    - - 0.5
+      - 0.65
+    - - 0.1
+      - 0.2
     # - - 0.
     #   - 0.5
-  shape: [20, 20]
+  shape: [10, 10]
   
 algo:
   # Generic
-  budget: 512
+  budget: 128
+  batch_size: 8
   ind_domain:
     - 0.
     - 1.
   # cmaes
-  sigma0: 0.5
+  sigma0: 0.1
   separable_cma: false
   ignore_if_not_added_to_container: false
 

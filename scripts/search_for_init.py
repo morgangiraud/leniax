@@ -10,15 +10,20 @@ from lenia.api import search_for_init, get_container
 # from lenia.api import search_for_init_parallel
 from lenia import utils as lenia_utils
 
+# We are not using matmul on huge matrix, so we can avoid parallelising every operation
+# This allow us to increase the numbre of parallel process
+# https://github.com/google/jax/issues/743
+os.environ["XLA_FLAGS"] = ("--xla_cpu_multi_thread_eigen=false " "intra_op_parallelism_threads=1")
+
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
+config_path_1c1k = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
 
 
 @hydra.main(config_path=config_path, config_name="config_init_search")
+# @hydra.main(config_path=config_path_1c1k, config_name="prototype")
 def launch(omegaConf: DictConfig) -> None:
     config = get_container(omegaConf)
-
-    config['run_params']['nb_init_search'] = 1024
 
     print(config)
 

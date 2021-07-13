@@ -3,6 +3,7 @@ from absl import logging
 from omegaconf import DictConfig
 import hydra
 import jax.numpy as jnp
+import pickle
 # import ray
 
 from ribs.archives import GridArchive, CVTArchive
@@ -46,43 +47,46 @@ def run(omegaConf: DictConfig) -> None:
     else:
         bins = 1_000
         archive = CVTArchive(bins, features_domain, seed=seed, use_kd_tree=True)
+    archive.base_config = config
 
     genotype_dims = len(config['genotype'])
-    genotype_bounds = [(0., 1.) for _ in range(genotype_dims)]
+    sampling_domain = config['algo']['sampling_domain']
+    sampling_bounds = [sampling_domain for _ in range(genotype_dims)]
     initial_model = jnp.array([bounds[0] + 0.5 * (bounds[1] - bounds[0])
-                               for bounds in genotype_bounds])  # start the CMA-ES algorithm
+                               for bounds in sampling_bounds])  # start the CMA-ES algorithm
 
     batch_size = config['algo']['batch_size']
     log_freq = 1
     sigma0 = config['algo']['sigma0']
     emitters = [
         GaussianEmitter(
-            archive, initial_model.flatten(), sigma0, batch_size=batch_size, seed=seed + 1, bounds=genotype_bounds
+            archive, initial_model.flatten(), sigma0, batch_size=batch_size, seed=seed + 1, bounds=sampling_bounds
         ),
         OptimizingEmitter(
-            archive, initial_model.flatten(), sigma0, batch_size=batch_size, seed=seed + 2, bounds=genotype_bounds
+            archive, initial_model.flatten(), sigma0, batch_size=batch_size, seed=seed + 2, bounds=sampling_bounds
         ),
         RandomDirectionEmitter(
-            archive, initial_model.flatten(), sigma0, batch_size=batch_size, seed=seed + 3, bounds=genotype_bounds
+            archive, initial_model.flatten(), sigma0, batch_size=batch_size, seed=seed + 3, bounds=sampling_bounds
         ),
         ImprovementEmitter(
-            archive, initial_model.flatten(), sigma0, batch_size=batch_size, seed=seed + 4, bounds=genotype_bounds
+            archive, initial_model.flatten(), sigma0, batch_size=batch_size, seed=seed + 4, bounds=sampling_bounds
         ),
     ]
     optimizer = Optimizer(archive, emitters)
 
     nb_iter = config['algo']['budget'] // (batch_size * len(emitters))
-    # metrics = lenia_qd.run_qd_ribs_search(
-    #   lenia_qd.eval_lenia_config, nb_iter, lenia_generator, optimizer, fitness_domain, log_freq
-    # )
     metrics = lenia_qd.run_qd_ribs_search(
-        lenia_qd.debug_eval, nb_iter, lenia_generator, optimizer, fitness_domain, log_freq
+        lenia_qd.eval_lenia_config, nb_iter, lenia_generator, optimizer, fitness_domain, log_freq
     )
+    # metrics = lenia_qd.run_qd_ribs_search(
+    #     lenia_qd.debug_eval, nb_iter, lenia_generator, optimizer, fitness_domain, log_freq
+    # )
 
     # Save results
-    breakpoint()
     save_dir = os.getcwd()
-    optimizer.archive.as_pandas().to_csv(f"{save_dir}/archive.csv")
+    with open(f"{save_dir}/final.p", 'wb') as handle:
+        pickle.dump(archive, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
     lenia_qd.save_ccdf(optimizer.archive, str(f"{save_dir}/archive_ccdf.png"))
     lenia_qd.save_metrics(save_dir, metrics)
     lenia_qd.save_heatmap(optimizer.archive, fitness_domain, save_dir)

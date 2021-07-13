@@ -1,8 +1,9 @@
+import os
 import jax.numpy as jnp
 from dataclasses import dataclass
 from typing import List, Dict, Tuple
 
-from .utils import st2fracs2float
+import lenia.utils as lenia_utils
 
 
 @dataclass()
@@ -81,7 +82,7 @@ def get_kernels_and_mapping(kernels_params: Dict, world_size: List[int], nb_chan
         mapping.cin_growth_fns["m"].append(param["m"])
         mapping.cin_growth_fns["s"].append(param["s"])
     # ! vstack concantenate on the first dimension
-    # Currently it works, ebcause we only considere 1-channel kernels
+    # Currently it works, because we only considere 1-channel kernels
     kernels = jnp.vstack(kernels_list)  # [nb_kernels, H, W]
     kernels = remove_zero_dims(kernels)  # [nb_kernels, K_h=max_k_h, K_w=max_k_w]
 
@@ -117,15 +118,16 @@ def get_kernels_and_mapping(kernels_params: Dict, world_size: List[int], nb_chan
 
 def get_kernel(kernel_params: Dict, world_size: list, R: float) -> jnp.ndarray:
     """ Build one kernel """
-    midpoint = jnp.asarray([size // 2 for size in world_size])
-    coords = jnp.indices(world_size)
-
-    whitened_coords = [(coords[i] - midpoint[i]) / (kernel_params['r'] * R) for i in range(coords.shape[0])]
-    distances = jnp.sqrt(sum([x**2 for x in whitened_coords]))  # Distances from the center of the grid
+    midpoint = jnp.asarray([size // 2 for size in world_size])  # [nb_dims]
+    midpoint = midpoint.reshape([-1] + [1] * len(world_size))  # [nb_dims, 1, 1, ...]
+    coords = jnp.indices(world_size)  # [nb_dims, dim_0, dim_1, ...]
+    centered_coords = (coords - midpoint) / (kernel_params['r'] * R)  # [nb_dims, dim_0, dim_1, ...]
+    # Distances from the center of the grid
+    distances = jnp.sqrt(jnp.sum(centered_coords**2, axis=0))  # [dim_0, dim_1, ...]
 
     kernel = kernel_shell(distances, kernel_params)
     kernel = kernel / kernel.sum()
-    kernel = kernel[jnp.newaxis, ...]
+    kernel = kernel[jnp.newaxis, ...]  # [1, dim_0, dim_1, ...]
 
     return kernel
 
@@ -133,7 +135,7 @@ def get_kernel(kernel_params: Dict, world_size: list, R: float) -> jnp.ndarray:
 def kernel_shell(distances: jnp.ndarray, kernel_params: Dict) -> jnp.ndarray:
     kernel_func = kernel_core[kernel_params['k_id']]
 
-    bs = jnp.asarray(st2fracs2float(kernel_params['b']))
+    bs = jnp.asarray(lenia_utils.st2fracs2float(kernel_params['b']))
     nb_b = bs.shape[0]
 
     B_dist = nb_b * distances  # scale distances by the number of modes
@@ -152,3 +154,18 @@ def remove_zero_dims(kernels: jnp.ndarray) -> jnp.ndarray:
     kernels = kernels[:, :, ~jnp.all(kernels == 0, axis=(0, 1))]  # remove 0 lines
 
     return kernels
+
+
+###
+# Viz
+###
+
+
+def draw_kernels(K, save_dir, colormap):
+    for i in range(K.shape[0]):
+        current_k = K[i:i + 1, 0, 0]
+        img = lenia_utils.get_image(
+            lenia_utils.normalize(current_k, jnp.min(current_k), jnp.max(current_k)), 1, 0, colormap
+        )
+        with open(os.path.join(save_dir, f"kernel{i}.png"), 'wb') as f:
+            img.save(f, format='png')

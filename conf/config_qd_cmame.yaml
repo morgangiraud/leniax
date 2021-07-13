@@ -1,11 +1,21 @@
 defaults:
   - world_params: default
   - render_params: default
-  - kernels_params: default
   - run_params: default
 
+kernels_params:
+  k:
+    - r: 1
+      b: "1/2,0,1"
+      m: 0.17
+      s: 0.015
+      h: 1
+      k_id: 0
+      gf_id: 0 
+      c_in: 0 
+      c_out: 0
 run_params:
-  nb_init_search: 64
+  nb_init_search: 80
   max_run_iter: 1024
 
 genotype:
@@ -28,7 +38,7 @@ genotype:
   - key: kernels_params.k.0.s
     domain: 
       - 0.
-      - 0.75
+      - 1.
     type: float
   # - key: kernels_params.k.0.k_id
   #   domain: 
@@ -51,17 +61,17 @@ grid:
     - - 0.
       - 1.
     - - 0.
-      - 0.75
+      - 1.
     # - - 0.
     #   - 0.5
   shape: [20, 20]
   
 algo:
   # Generic
-  budget: 32
-  batch_size: 4
+  budget: 2048
+  batch_size: 8
   # QDPY
-  ind_domain:
+  sampling_domain:
     - 0.
     - 1.
   # Mut search

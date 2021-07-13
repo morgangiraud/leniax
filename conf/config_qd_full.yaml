@@ -72,7 +72,7 @@ grid:
   
 algo:
   budget: 512
-  ind_domain:
+  sampling_domain:
     - 0.
     - 1.
   # RandomSearchMut

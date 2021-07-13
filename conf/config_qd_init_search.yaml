@@ -21,7 +21,7 @@ grid:
 algo:
   # Generic
   budget: 512
-  ind_domain:
+  sampling_domain:
     - 0.
     - 1.
   # Mut search

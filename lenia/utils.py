@@ -162,7 +162,30 @@ def merge_cells(cells: jnp.ndarray, other_cells: jnp.ndarray, offset: List[int] 
 
 
 ###
-# IMAGE
+# Math
+###
+def get_unit_distances(world_size: List[int]) -> jnp.ndarray:
+    midpoint = jnp.asarray([size // 2 for size in world_size])  # [nb_dims]
+    midpoint = midpoint.reshape([-1] + [1] * len(world_size))  # [nb_dims, 1, 1, ...]
+    coords = jnp.indices(world_size)  # [nb_dims, dim_0, dim_1, ...]
+    centered_coords = coords - midpoint
+    unit_coords = centered_coords / centered_coords.max()
+
+    unit_distances = jnp.sqrt(jnp.sum(unit_coords**2, axis=0))
+
+    return unit_distances
+
+
+def center_world(cells, field, potential, shift_idx, axes):
+    cells = jnp.roll(cells, -shift_idx, axes)
+    field = jnp.roll(field, -shift_idx, axes)
+    potential = jnp.roll(potential, -shift_idx, axes)
+
+    return cells, field, potential
+
+
+###
+# VIZ
 ###
 MARKER_COLORS_W = [0x5F, 0x5F, 0x5F, 0x7F, 0x7F, 0x7F, 0xFF, 0xFF, 0xFF]
 MARKER_COLORS_B = [0x9F, 0x9F, 0x9F, 0x7F, 0x7F, 0x7F, 0x0F, 0x0F, 0x0F]
@@ -265,25 +288,56 @@ def normalize(v: jnp.ndarray, vmin: float, vmax: float, is_square: bool = False,
 def plot_gfunction(save_dir: str, id: int, fn: Callable, m: float, s: float, T: float):
     fullpath = os.path.join(save_dir, f"growth_function{str(id).zfill(2)}.{image_ext}")
 
-    x = jnp.linspace(0., 1., 500)
+    x_t = jnp.linspace(0., 1., 100)
+    dt = 1. / T
+    y = fn(x_t, m, s)
+    dty = dt * y
+    y_t_dt = x_t + dty
 
-    y = fn(x, m, s)
-    dty = (1. / T) * y
-
-    fig, axs = plt.subplots(ncols=2, sharey=True)
+    fig, axs = plt.subplots(ncols=3, sharey=True)
     axs[0].grid(True, which='both')
     axs[0].axhline(y=0, color='k')
     axs[0].axvline(x=0, color='k')
-    axs[0].plot(x, y, 'r', label='Growth function')
+    axs[0].plot(x_t, y, 'r', label='y = gf(x)')
     axs[0].legend(loc='upper left')
 
     axs[1].grid(True, which='both')
     axs[1].axhline(y=0, color='k')
     axs[1].axvline(x=0, color='k')
-    axs[1].plot(x, dty, 'r', label='Growth function * dt')
+    axs[1].plot(x_t, dty, 'r', label='y = dt * gf(x)')
     axs[1].legend(loc='upper left')
 
+    axs[2].grid(True, which='both')
+    axs[2].axhline(y=0, color='k')
+    axs[2].axvline(x=0, color='k')
+    axs[2].plot(x_t, y_t_dt, 'r', label='y = x + dt * gf(x)')
+    axs[2].plot(x_t, x_t, 'b', label='y = x')
+    axs[2].legend(loc='upper left')
     plt.yticks(np.arange(-1, 1, .1))
+    plt.xticks(np.arange(0., 1, .1))
+
+    plt.tight_layout()
+    plt.savefig(fullpath)
+    plt.close(fig)
+
+    fullpath = os.path.join(save_dir, f"growth_function{str(id).zfill(2)}_iter.{image_ext}")
+    fig, axs = plt.subplots(nrows=5, ncols=4)
+    fig.set_size_inches(18.5, 10.5)
+    axs = axs.flatten()
+    for i in range(len(axs)):
+        x_0 = x_t = 1 / len(axs) + i * 1 / len(axs)
+        vals = [x_t]
+        for _ in range(50):
+            x_t = x_t + dt * fn(x_t, m, s)
+            x_t = max(0, min(1., x_t))
+            vals.append(x_t)
+        axs[i].grid(True, which='both')
+        # axs[i].axhline(y=0, color='k')
+        # axs[i].axvline(x=0, color='k')
+        axs[i].plot(vals, 'r', label=f"iteration x_0={x_0}")
+        axs[i].legend(loc='upper left')
+        plt.yticks(np.arange(0, 1, .1))
+
     plt.tight_layout()
     plt.savefig(fullpath)
     plt.close(fig)
@@ -321,7 +375,7 @@ def plot_stats(save_dir: str, all_stats: List[Dict]):
 
 
 ###
-# Others
+# OS
 ###
 def check_dir(dir: str):
     if not os.path.exists(dir):
@@ -348,15 +402,6 @@ def seed_everything(seed: int) -> jnp.ndarray:
     return rng_key
 
 
-def generate_noise_using_numpy(nb_noise: int, nb_channels: int, rng_key):
-    key, subkey = jax.random.split(rng_key)
-    maxvals = jnp.linspace(0.4, 0.8, nb_noise)[:, jnp.newaxis, jnp.newaxis, jnp.newaxis]
-    rand_shape = [nb_noise] + [nb_channels] + [128, 128]
-    noises = jax.random.uniform(subkey, rand_shape, minval=0, maxval=maxvals)
-
-    return key, noises
-
-
 def generate_mask(shape, max_h, max_w):
     mask = np.ones(shape)
 
@@ -368,11 +413,3 @@ def generate_mask(shape, max_h, max_w):
     mask = np.pad(mask, padding, mode='constant')
 
     return mask
-
-
-def center_world(cells, field, potential, shift_idx, axes):
-    cells = jnp.roll(cells, -shift_idx, axes)
-    field = jnp.roll(field, -shift_idx, axes)
-    potential = jnp.roll(potential, -shift_idx, axes)
-
-    return cells, field, potential

@@ -57,12 +57,12 @@ def run(omegaConf: DictConfig) -> None:
     dimension = len(config['genotype'])  # Number of genes
     optimisation_task = 'max'
     # Domain for genetic parameters, to be used in conjunction with a projecting function to reach phenotype domain
-    ind_domain = config['algo']['ind_domain']
+    sampling_domain = config['algo']['sampling_domain']
     budget = config['algo']['budget'] // batch_size * batch_size
     algo = CMAES(
         container=archive,
         budget=budget,  # Nb of generated individuals
-        ind_domain=ind_domain,
+        ind_domain=sampling_domain,
         batch_size=batch_size,  # how many to batch together
         dimension=dimension,  # Number of parameters that can be updated, we don't use it
         nb_objectives=None,  # With None, use the container fitness domain

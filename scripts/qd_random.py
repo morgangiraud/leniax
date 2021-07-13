@@ -47,7 +47,7 @@ def run(omegaConf: DictConfig) -> None:
     algo = Sobol(
         container=grid,
         budget=config['algo']['budget'],  # Nb of generated individuals
-        ind_domain=config['algo']['ind_domain'],
+        ind_domain=config['algo']['sampling_domain'],
         batch_size=batch_size,  # how many to batch together
         dimension=dimension,  # Number of parameters that can be updated
         nb_objectives=None,  # With None, use the container fitness domain

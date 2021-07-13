@@ -9,12 +9,12 @@ run_params:
 
 kernels_params:
   k:
-    - b: '1, 0, 1/2'
-      c_in: 0
-      c_out: 0
-      gf_id: 0
+    - r: 1
+      b: '1'
+      m: 0.15
+      s: 0.015
       h: 1
       k_id: 0
-      m: 0.3770679299340973
-      r: 1
-      s: 0.06512496140859439
+      gf_id: 0
+      c_in: 0
+      c_out: 0

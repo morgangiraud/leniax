@@ -49,11 +49,11 @@ class LeniaIndividual(Individual):
     # The philosophy of the lib is to have parameters sampled from the same domain
     # And then scaled by custom functions before being used in the evaluation function
     # To sum up:
-    #   - All parameters are generated in the ind_domain
+    #   - All parameters are generated in the sampling_domain
     #   - the dimension parameter is the number of parameter
     #   - in the eval function:
     #       1. You scale those parameters
-    #       2. You create the configuration form those parameters
+    #       2. You create the configuration from those parameters
     #       3. You evaluate the configuration
     #       4. you set fitness and features
     def __init__(self, config: Dict, rng_key: jnp.ndarray):
@@ -291,7 +291,7 @@ def run_qd_ribs_search(
         print('!!!! DEBUGGING MODE !!!!')
 
     # ray_eval_fn = ray.remote(eval_fn)
-    print(f"{'iter':16}{'coverage':32}{'mean':32}{'std':32}{'min':16}{'max':16}{'QD Score':32}")
+    print(f"{'iter'}{'coverage':>32}{'mean':>20}{'std':>20}{'min':>8}{'max':>8}{'QD Score':>20}")
     with alive_bar(nb_iter) as update_bar:
         for itr in range(1, nb_iter + 1):
             # Request models from the optimizer.
@@ -323,10 +323,6 @@ def run_qd_ribs_search(
             # Send the results back to the optimizer.
             optimizer.tell(fits, bcs)
 
-            # Logging.
-            if not DEBUG:
-                update_bar()
-
             if itr % log_freq == 0 or itr == nb_iter:
                 df = optimizer.archive.as_pandas(include_solutions=False)
                 metrics["QD Score"]["x"].append(itr)
@@ -347,9 +343,13 @@ def run_qd_ribs_search(
                 metrics["Archive Coverage"]["y"].append(coverage)
 
                 print(
-                    f"{len(df):12}/{nb_total_bins}{mean_score:32}\
-                        {std_score:32}{min_score:16}{max_score:16}{qd_score:32}"
+                    f"{len(df):>24}/{nb_total_bins:<6}{mean_score:>20.6f}"
+                    f"{std_score:>20.6f}{min_score:>8}{max_score:>8}{qd_score:>20.6f}"
                 )
+
+            # Logging.
+            if not DEBUG:
+                update_bar()
 
     return metrics
 

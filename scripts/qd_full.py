@@ -66,7 +66,7 @@ def run(omegaConf: DictConfig) -> None:
         Sobol(
             container=grid,
             budget=config['algo']['budget'],  # Nb of generated individuals
-            ind_domain=config['algo']['ind_domain'],
+            ind_domain=config['algo']['sampling_domain'],
             batch_size=batch_size,  # how many to batch together
             dimension=dimension,  # Number of parameters that can be updated
             nb_objectives=None,  # With None, use the container fitness domain
@@ -90,7 +90,7 @@ def run(omegaConf: DictConfig) -> None:
             add_default_logger=False,
             name="lenia-randomsearchmutpolybounded",
             # RandomSearchMutPolyBounded parameters
-            ind_domain=config['algo']['ind_domain'],
+            ind_domain=config['algo']['sampling_domain'],
             sel_pb=config['algo']['sel_pb'],
             init_pb=1 - config['algo']['sel_pb'],
             mut_pb=config['algo']['mut_pb'],
@@ -111,7 +111,7 @@ def run(omegaConf: DictConfig) -> None:
             add_default_logger=False,
             name="lenia-cmaes",
             # CMAES parameters
-            ind_domain=config['algo']['ind_domain'],
+            ind_domain=config['algo']['sampling_domain'],
             sigma0=config['algo']['sigma0'],
             separable_cma=config['algo']['separable_cma'],
         )

@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 
 from . import core as lenia_core
+from . import statistics as lenia_stat
 
 
 def search_for_init(rng_key: jnp.ndarray, config: Dict, with_stats: bool = True) -> Tuple[jnp.ndarray, List[Dict]]:
@@ -55,7 +56,7 @@ def init_and_run(config: Dict, with_stats: bool = True) -> Tuple:
     update_fn = lenia_core.build_update_fn(config['world_params'], K, mapping)
     compute_stats_fn: Optional[Callable]
     if with_stats:
-        compute_stats_fn = lenia_core.build_compute_stats_fn(config['world_params'], config['render_params'])
+        compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
     else:
         compute_stats_fn = None
 
@@ -89,7 +90,7 @@ def slow_init_search(rng_key: jnp.ndarray, config: Dict, with_stats: bool = True
     update_fn = lenia_core.build_update_fn(world_params, K, mapping)
     compute_stats_fn: Optional[Callable]
     if with_stats:
-        compute_stats_fn = lenia_core.build_compute_stats_fn(config['world_params'], config['render_params'])
+        compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
     else:
         compute_stats_fn = None
 

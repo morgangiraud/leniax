@@ -8,16 +8,18 @@ from ribs.archives import ArchiveBase
 from typing import Union
 
 from . import utils as lenia_utils
-from .api import init_and_run
+from .api import init_and_run, search_for_init
 from .growth_functions import growth_fns
 from .core import init
 
 
 def dump_best(grid: Union[Container, ArchiveBase], fitness_threshold: float, lenia_generator=None):
+    is_ribs_archive = False
     if isinstance(grid, Container):
         best_inds = grid._get_best_inds()
         real_bests = list(filter(lambda x: abs(x.fitness.values[0]) >= fitness_threshold, best_inds))
     else:
+        is_ribs_archive = True
         real_bests = []
         for i in grid._occupied_indices:
             if abs(grid._objective_values[i]) >= fitness_threshold:
@@ -33,7 +35,13 @@ def dump_best(grid: Union[Container, ArchiveBase], fitness_threshold: float, len
         render_params = config['render_params']
 
         start_time = time.time()
-        all_cells, all_fields, all_potentials, all_stats = init_and_run(config)
+        if is_ribs_archive is True:
+            _, runs = search_for_init(best.rng_key, config, with_stats=True)
+            best = runs[0]
+            all_cells = best['all_cells']
+            all_stats = best['all_stats']
+        else:
+            all_cells, _, _, all_stats = init_and_run(config)
         total_time = time.time() - start_time
 
         nb_iter_done = len(all_cells)

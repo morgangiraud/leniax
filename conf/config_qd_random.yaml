@@ -52,7 +52,7 @@ grid:
   
 algo:
   budget: 4096
-  ind_domain:
+  sampling_domain:
     - 0.
     - 1.
 

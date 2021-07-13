@@ -7,10 +7,11 @@ import jax.numpy as jnp
 from typing import Callable, List, Dict, Tuple, Optional
 
 from . import utils
+from . import initializations
+from . import statistics as lenia_stat
 from .kernels import get_kernels_and_mapping, KernelMapping
 from .growth_functions import growth_fns
-from .statistics import build_compute_stats_fn, check_heuristics
-from .constant import EPSILON
+from .constant import EPSILON, START_CHECK_STOP
 
 
 def init(config: Dict) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
@@ -33,12 +34,12 @@ def init(config: Dict) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
 
 
 def init_cells(
-    world_size: List[int], nb_channels: int, other_cells: List[jnp.ndarray] = None, nb_cells: int = 1
+    world_size: List[int], nb_channels: int, other_cells: List[jnp.ndarray] = None, nb_init: int = 1
 ) -> jnp.ndarray:
-    if nb_cells == 1:
+    if nb_init == 1:
         world_shape = [nb_channels] + world_size  # [C, H, W]
     else:
-        world_shape = [nb_cells, nb_channels] + world_size  # [C, H, W]
+        world_shape = [nb_init, nb_channels] + world_size  # [C, H, W]
     cells = jnp.zeros(world_shape)
     if other_cells is not None:
         for c in other_cells:
@@ -47,7 +48,7 @@ def init_cells(
     # 2D convolutions needs an input with shape [N, C, H, W]
     # And we are going to map over first dimension with vmap so we need th following shape
     # [C, N=1, c=1, H, W]
-    if nb_cells == 1:
+    if nb_init == 1:
         cells = cells[:, jnp.newaxis, jnp.newaxis]
     else:
         # In this case we also vmap on the number on init: [N_init, C, N=1, c=1, H, W]
@@ -74,13 +75,14 @@ def run(cells: jnp.ndarray,
     init_mass = cells.sum()
 
     previous_mass = init_mass
-    previous_sign = jnp.array([0.])
-    nb_monotone_step = jnp.array([0])
-    nb_slow_mass_step = jnp.array([0])
-    nb_too_much_percent_step = jnp.array([0])
-    should_stop = False
+    previous_sign = 0.
+    nb_monotone_step = 0
+    nb_slow_mass_step = 0
+    nb_too_much_percent_step = 0
+    should_continue = True
     for current_iter in range(max_run_iter):
         new_cells, field, potential = update_fn(cells)
+
         if compute_stats_fn:
             # To compute stats, the world (cells, field, potential) has to be centered and taken from the same timestep
             stats, shift_idx = compute_stats_fn(cells, field, potential)
@@ -98,19 +100,15 @@ def run(cells: jnp.ndarray,
             # Heuristics
             # Looking for non-static species
             mass_speed = stats['mass_speed']
-            if mass_speed < 0.01:
-                nb_slow_mass_step += 1
-                if nb_slow_mass_step > 25:
-                    # print("mass_speed should_stop")
-                    should_stop = True
-            else:
-                nb_slow_mass_step = 0
+            should_continue_cond, nb_slow_mass_step = lenia_stat.max_mass_speed_heuristic_seq(
+                mass_speed, nb_slow_mass_step
+            )
+            should_continue = should_continue and should_continue_cond
 
-            # # Checking if it is a kind of cosmic soup
+            # Checking if it is a kind of cosmic soup
             # growth = stats['growth']
-            # if growth > 500:
-            #     # print("growth should_stop")
-            #     should_stop = True
+            # should_continue_cond = lenia_stat.max_growth_heuristics_sec(growth)
+            # should_continue = should_continue and should_continue_cond
 
             current_mass = stats['mass']
             percent_activated = stats['percent_activated']
@@ -127,12 +125,12 @@ def run(cells: jnp.ndarray,
         # Stops when there is no more mass in the system
         if current_mass < EPSILON:
             # print("current_mass < should_stop", current_mass)
-            should_stop = True
+            should_continue = False
 
         # Stops when there is too much mass in the system
         if current_mass > 3 * init_mass:  # heuristic to detect explosive behaviour
             # print("current_mass > should_stop", current_mass)
-            should_stop = True
+            should_continue = False
 
         # Stops when mass evolve monotically over a quite long period
         # Signal for long-term explosive/implosivve behaviour
@@ -141,24 +139,19 @@ def run(cells: jnp.ndarray,
             nb_monotone_step += 1
             if nb_monotone_step > 80:
                 # print("current_sign > should_stop")
-                should_stop = True
+                should_continue = False
         else:
             nb_monotone_step = 0
         previous_sign = current_sign
         previous_mass = current_mass
 
-        # Stops when the world is 25% covered
-        # Hopefully, no species takes so much space
-        if percent_activated > 0.25:
-            nb_too_much_percent_step += 1
-            if nb_too_much_percent_step > 50:
-                # print("nb_too_much_percent_step > should_stop")
-                should_stop = True
-        else:
-            nb_too_much_percent_step = 0
+        should_continue_cond, nb_too_much_percent_step = lenia_stat.percent_activated_heuristic_seq(
+            percent_activated, nb_too_much_percent_step
+        )
+        should_continue = should_continue and should_continue_cond
 
         # We avoid dismissing a simulation during the init period
-        if current_iter > 8 and should_stop is True:
+        if current_iter >= START_CHECK_STOP and not should_continue:
             break
 
     # To keep the same number of elements per array
@@ -171,6 +164,8 @@ def run(cells: jnp.ndarray,
     return all_cells_jnp, all_fields_jnp, all_potentials_jnp, all_stats
 
 
+# @jax.partial(jit, static_argnums=(1, 2, 3))
+# @jax.partial(vmap, in_axes=(0, None, None, None), out_axes=(0, 0, 0, None))
 def run_parralel(cells: jnp.ndarray, max_run_iter: int, update_fn: Callable,
                  compute_stats_fn: Callable) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, List]:
 
@@ -229,11 +224,11 @@ def run_init_search(rng_key: jnp.ndarray, config: Dict, with_stats: bool = True)
     update_fn = build_update_fn(world_params, K, mapping)
     compute_stats_fn: Optional[Callable]
     if with_stats:
-        compute_stats_fn = build_compute_stats_fn(config['world_params'], config['render_params'])
+        compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
     else:
         compute_stats_fn = None
 
-    rng_key, noises = utils.generate_noise_using_numpy(nb_init_search, nb_channels, rng_key)
+    rng_key, noises = initializations.random_uniform(rng_key, nb_init_search, nb_channels)
 
     runs = []
     for i in range(nb_init_search):
@@ -265,9 +260,9 @@ def run_init_search_parralel(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.nd
 
     K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
     update_fn = build_update_fn(world_params, K, mapping)
-    compute_stats_fn = build_compute_stats_fn(config['world_params'], config['render_params'])
+    compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
-    rng_key, noises = utils.generate_noise_using_numpy(nb_init_search, nb_channels, rng_key)
+    rng_key, noises = initializations.random_uniform(rng_key, nb_init_search, nb_channels)
     cells_0 = init_cells(world_size, nb_channels, [noises], nb_init_search)
 
     # prevent any gradient-related operations from downstream operations, including tracing / graph building
@@ -293,7 +288,9 @@ def run_init_search_parralel(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.nd
     }
     for i in range(len(v_all_stats)):
         stats = v_all_stats[i]
-        should_continue, mass, sign = check_heuristics(stats, should_continue, init_mass, mass, sign, counters)
+        should_continue, mass, sign = lenia_stat.check_heuristics(
+            stats, should_continue, init_mass, mass, sign, counters
+        )
         all_should_continue.append(should_continue)
     all_should_continue_jnp = jnp.array(all_should_continue)
     idx = all_should_continue_jnp.sum(axis=0).argmax()
@@ -329,11 +326,10 @@ def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: List[bo
 
     @jit
     def get_potential(cells: jnp.ndarray, K: jnp.ndarray) -> jnp.ndarray:
-        H, W = cells.shape[-2:]
-
         padded_cells = jnp.pad(cells, [(0, 0), (0, 0), (0, 0), (pad_h, pad_h), (pad_w, pad_w)], mode='wrap')
         conv_out = vconv(padded_cells, K, (1, 1), 'VALID')  # [C, N=1, c=O, H, W]
 
+        H, W = cells.shape[-2:]
         conv_out_reshaped = conv_out.reshape(nb_channels * depth, H, W)
         potential = conv_out_reshaped[true_channels_jnp]  # [nb_kernels, H, W]
 
@@ -391,5 +387,7 @@ def update_cells(cells: jnp.ndarray, field: jnp.ndarray, T: float) -> jnp.ndarra
 
     cells_new = cells + dt * field
     cells_new = jnp.clip(cells_new, 0, 1)
+    # smoothstep(x)
+    # cells_new = 3 * cells_new ** 2 - 2 * cells_new ** 3
 
     return cells_new

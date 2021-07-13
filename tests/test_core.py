@@ -8,7 +8,7 @@ from functools import partial
 
 from lenia import core as lenia_core
 from lenia import utils as lenia_utils
-from lenia import statistics as lenia_stats
+from lenia import statistics as lenia_stat
 from lenia.kernels import KernelMapping
 
 cfd = os.path.dirname(os.path.realpath(__file__))
@@ -103,7 +103,7 @@ class TestCore(unittest.TestCase):
         mapping.cin_growth_fns['s'].append(0.015)
 
         update_fn = lenia_core.build_update_fn(config['world_params'], K, mapping)
-        compute_stats_fn = lenia_core.build_compute_stats_fn(config['world_params'], config['render_params'])
+        compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
         max_run_iter = config['run_params']['max_run_iter']
 
         t0 = time.time()
@@ -112,7 +112,7 @@ class TestCore(unittest.TestCase):
         idx = 0
         for i in range(cells.shape[0]):
             all_cells, _, _, all_stats = lenia_core.run(cells[i], max_run_iter, update_fn, compute_stats_fn)
-            nb_iter_done = all_cells.shape[0] - 1  # contains the initialisation
+            nb_iter_done = all_cells.shape[0]  # contains the initialisation
 
             if max_n < nb_iter_done:
                 max_n = nb_iter_done
@@ -120,7 +120,7 @@ class TestCore(unittest.TestCase):
             runs.append({"N": nb_iter_done, "all_cells": all_cells, "all_stats": all_stats})
         best = runs[idx]["all_cells"][:, :, 0, 0, ...]
 
-        print(time.time() - t0, idx, runs[idx]["N"])
+        print(time.time() - t0, idx, max_n)
 
         run_parralel = partial(
             lenia_core.run_parralel, max_run_iter=max_run_iter, update_fn=update_fn, compute_stats_fn=compute_stats_fn
@@ -144,7 +144,7 @@ class TestCore(unittest.TestCase):
         }
         for i in range(len(v_all_stats)):
             stats = v_all_stats[i]
-            should_continue, mass, sign = lenia_stats.check_heuristics(
+            should_continue, mass, sign = lenia_stat.check_heuristics(
                 stats, should_continue, init_mass, mass, sign, counters
             )
             all_should_continue.append(should_continue)
@@ -153,7 +153,7 @@ class TestCore(unittest.TestCase):
         N_max_iter = int(all_should_continue[:, idx].sum() + 1)
         best_par = v_all_cells[idx, :N_max_iter, :, 0, 0, ...]
 
-        print(time.time() - t0, idx, all_should_continue[:, idx].sum())
+        print(time.time() - t0, idx, N_max_iter)
 
         assert idx == 0
         np.testing.assert_array_equal(best, best_par)

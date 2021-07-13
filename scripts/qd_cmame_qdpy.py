@@ -60,14 +60,14 @@ def run(omegaConf: DictConfig) -> None:
     dimension = len(config['genotype'])  # Number of genes
     optimisation_task = 'max'
     # Domain for genetic parameters, to be used in conjunction with a projecting function to reach phenotype domain
-    ind_domain = config['algo']['ind_domain']
+    sampling_domain = config['algo']['sampling_domain']
     emitters = [
         RandomSearchMutPolyBounded(
             container=archive,
             budget=math.inf,  # Nb of generated individuals
             batch_size=batch_size,  # how many to batch together
             dimension=dimension,  # Number of parameters that can be updated, we don't use it
-            ind_domain=ind_domain,
+            ind_domain=sampling_domain,
             sel_pb=config['algo']['sel_pb'],
             init_pb=1 - config['algo']['sel_pb'],
             mut_pb=config['algo']['mut_pb'],
@@ -84,7 +84,7 @@ def run(omegaConf: DictConfig) -> None:
             budget=math.inf,  # Nb of generated individuals
             batch_size=batch_size,  # how many to batch together
             dimension=dimension,  # Number of parameters that can be updated, we don't use it
-            ind_domain=config['algo']['ind_domain'],
+            ind_domain=sampling_domain,
             sigma0=config['algo']['sigma0'],
             separable_cma=config['algo']['separable_cma'],
             ignore_if_not_added_to_container=config['algo']['ignore_if_not_added_to_container'],
@@ -100,7 +100,7 @@ def run(omegaConf: DictConfig) -> None:
             budget=math.inf,  # Nb of generated individuals
             batch_size=batch_size,  # how many to batch together
             dimension=dimension,  # Number of parameters that can be updated, we don't use it
-            ind_domain=config['algo']['ind_domain'],
+            ind_domain=sampling_domain,
             sigma0=config['algo']['sigma0'],
             separable_cma=config['algo']['separable_cma'],
             ignore_if_not_added_to_container=config['algo']['ignore_if_not_added_to_container'],
@@ -116,7 +116,7 @@ def run(omegaConf: DictConfig) -> None:
             budget=math.inf,  # Nb of generated individuals
             batch_size=batch_size,  # how many to batch together
             dimension=dimension,  # Number of parameters that can be updated, we don't use it
-            ind_domain=config['algo']['ind_domain'],
+            ind_domain=sampling_domain,
             sigma0=config['algo']['sigma0'],
             separable_cma=config['algo']['separable_cma'],
             ignore_if_not_added_to_container=config['algo']['ignore_if_not_added_to_container'],

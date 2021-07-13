@@ -3,7 +3,7 @@ algo:
   budget: 512
   eta: 20.0
   ignore_if_not_added_to_container: false
-  ind_domain:
+  sampling_domain:
   - 0.0
   - 1.0
   initial_expected_rwds: 1.0

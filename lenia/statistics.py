@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 from jax import jit
-from typing import Dict, Callable, List
+from typing import Dict, Callable, List, Tuple
 from .constant import EPSILON
 
 
@@ -95,13 +95,13 @@ def check_heuristics(
     cond, counters['nb_monotone_step'] = monotonic_heuristic(sign, previous_sign, monotone_counter)
     should_continue_cond *= cond
 
-    growth = stats['growth']
-    cond = max_growth_heuristics(growth)
-    should_continue_cond *= cond
+    # growth = stats['growth']
+    # cond = max_growth_heuristic(growth)
+    # should_continue_cond *= cond
 
     mass_speed = stats['mass_speed']
     mass_speed_counter = counters['nb_slow_mass_step']
-    cond, counters['nb_slow_mass_step'] = max_mass_speed_heuristics(mass_speed, mass_speed_counter)
+    cond, counters['nb_slow_mass_step'] = max_mass_speed_heuristic(mass_speed, mass_speed_counter)
     should_continue_cond *= cond
 
     percent_activated = stats['percent_activated']
@@ -137,25 +137,69 @@ def monotonic_heuristic(sign: jnp.ndarray, previous_sign: jnp.ndarray, monotone_
     return should_continue_cond, monotone_counter
 
 
-def max_mass_speed_heuristics(mass_speed, mass_speed_counter):
-    mass_speed_cond = (mass_speed < 0.01)
+MASS_SPEED_THRESHOLD = 0.01
+MASS_SPEED_STOP_STEP = 16
+
+
+def max_mass_speed_heuristic(mass_speed: jnp.ndarray, mass_speed_counter: jnp.ndarray):
+    mass_speed_cond = (mass_speed < MASS_SPEED_THRESHOLD)
     mass_speed_counter = jax.ops.index_add(mass_speed_counter, mass_speed_cond, 1.)
     mass_speed_counter = jax.ops.index_update(mass_speed_counter, ~mass_speed_cond, 0.)
-    should_continue_cond = mass_speed_counter <= 10
+    should_continue_cond = mass_speed_counter <= MASS_SPEED_STOP_STEP
 
     return should_continue_cond, mass_speed_counter
 
 
-def max_growth_heuristics(growth):
-    should_continue_cond = growth <= 500
+def max_mass_speed_heuristic_seq(mass_speed: float, nb_slow_mass_step: int) -> Tuple[bool, int]:
+    should_continue_cond = True
+    if mass_speed < MASS_SPEED_THRESHOLD:
+        nb_slow_mass_step += 1
+        if nb_slow_mass_step > MASS_SPEED_STOP_STEP:
+            should_continue_cond = False
+    else:
+        nb_slow_mass_step = 0
+
+    return should_continue_cond, nb_slow_mass_step
+
+
+GROWTH_THRESHOLD = 500
+
+
+def max_growth_heuristic(growth: jnp.ndarray):
+    should_continue_cond = growth <= GROWTH_THRESHOLD
 
     return should_continue_cond
 
 
+def max_growth_heuristic_sec(growth: float):
+    should_continue_cond = growth <= GROWTH_THRESHOLD
+
+    return should_continue_cond
+
+
+PERCENT_ACTIVATED_THRESHOLD = 0.25
+PERCENT_ACTIVATED_STOP_STEP = 50
+
+
 def percent_activated_heuristic(percent_activated: jnp.ndarray, percent_activated_counter: jnp.ndarray):
-    percent_activated_cond = (percent_activated > 0.25)
+    percent_activated_cond = (percent_activated > PERCENT_ACTIVATED_THRESHOLD)
     percent_activated_counter = jax.ops.index_add(percent_activated_counter, percent_activated_cond, 1.)
     percent_activated_counter = jax.ops.index_update(percent_activated_counter, ~percent_activated_cond, 0.)
-    should_continue_cond = percent_activated_counter <= 50
+    should_continue_cond = percent_activated_counter <= PERCENT_ACTIVATED_STOP_STEP
 
     return should_continue_cond, percent_activated_counter
+
+
+def percent_activated_heuristic_seq(percent_activated: float, nb_too_much_percent_step: int) -> Tuple[bool, int]:
+    # Stops when the world is N% covered
+    # Hopefully, no species takes so much space
+    should_continue_cond = True
+    if percent_activated > PERCENT_ACTIVATED_THRESHOLD:
+        nb_too_much_percent_step += 1
+        if nb_too_much_percent_step > PERCENT_ACTIVATED_STOP_STEP:
+            # print("nb_too_much_percent_step > should_stop")
+            should_continue_cond = False
+    else:
+        nb_too_much_percent_step = 0
+
+    return should_continue_cond, nb_too_much_percent_step

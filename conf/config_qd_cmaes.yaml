@@ -60,7 +60,7 @@ algo:
   # Generic
   budget: 128
   batch_size: 8
-  ind_domain:
+  sampling_domain:
     - 0.
     - 1.
   # cmaes

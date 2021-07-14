@@ -13,9 +13,10 @@ def dump_video(all_cells, render_params, media_dir, colormap):
     width = all_cells[0].shape[-1] * render_params['pixel_size']
     height = all_cells[0].shape[-2] * render_params['pixel_size']
     process = (
-        ffmpeg.input('pipe:', format='rawvideo', pix_fmt='rgb24',
-                     s=f"{width}x{height}").output(os.path.join(media_dir, 'beast.mp4'),
-                                                   pix_fmt='yuv420p').overwrite_output().run_async(pipe_stdin=True)
+        ffmpeg.input('pipe:', format='rawvideo', pix_fmt='rgb24', s=f"{width}x{height}").output(
+            os.path.join(media_dir, 'beast.mp4'),
+            pix_fmt='yuv420p',
+        ).overwrite_output().run_async(pipe_stdin=True)
     )
     all_times = []
     for i in range(nb_iter_done):

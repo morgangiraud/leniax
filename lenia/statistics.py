@@ -177,7 +177,7 @@ def max_growth_heuristic_sec(growth: float):
     return should_continue_cond
 
 
-PERCENT_ACTIVATED_THRESHOLD = 0.25
+PERCENT_ACTIVATED_THRESHOLD = 0.2
 PERCENT_ACTIVATED_STOP_STEP = 50
 
 

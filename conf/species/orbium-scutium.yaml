@@ -18,6 +18,7 @@ kernels_params:
       s: 0.015
       h: 1
       k_id: 0
+      q: 4
       gf_id: 0
       c_in: 0
       c_out: 0
@@ -27,6 +28,7 @@ kernels_params:
       s: 0.045
       h: 1
       k_id: 0
+      q: 4
       gf_id: 0
       c_in: 1
       c_out: 1

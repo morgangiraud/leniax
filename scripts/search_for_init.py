@@ -1,19 +1,19 @@
 import time
-import ffmpeg
-import numpy as np
 import os
+from absl import logging
+import matplotlib.pyplot as plt
 from omegaconf import DictConfig
 import hydra
-import matplotlib.pyplot as plt
 
 from lenia.api import search_for_init, get_container
 # from lenia.api import search_for_init_parallel
 from lenia import utils as lenia_utils
+from lenia.growth_functions import growth_fns
+from lenia.core import init
+import lenia.video as lenia_video
+import lenia.kernels as lenia_kernels
 
-# We are not using matmul on huge matrix, so we can avoid parallelising every operation
-# This allow us to increase the numbre of parallel process
-# https://github.com/google/jax/issues/743
-os.environ["XLA_FLAGS"] = ("--xla_cpu_multi_thread_eigen=false " "intra_op_parallelism_threads=1")
+logging.set_verbosity(logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
@@ -32,7 +32,7 @@ def launch(omegaConf: DictConfig) -> None:
     t0 = time.time()
     _, runs = search_for_init(rng_key, config, with_stats=True)
     # _, runs = search_for_init_parallel(rng_key, config)
-    print(f"Init search done in {time.time() - t0}")
+    print(f"Init search done in {time.time() - t0} (nb_inits done: {len(runs) })")
 
     if len(runs) > 0:
         best = runs[0]
@@ -50,32 +50,19 @@ def launch(omegaConf: DictConfig) -> None:
         config['run_params']['cells'] = lenia_utils.compress_array(first_cells)
         lenia_utils.save_config(save_dir, config)
 
-        print('Plotting stats')
+        print('Plotting stats and functions')
+        colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
+
         lenia_utils.plot_stats(save_dir, all_stats)
+        _, K, _ = init(config)
+        lenia_kernels.draw_kernels(K, save_dir, colormap)
+        for i, kernel in enumerate(config['kernels_params']['k']):
+            lenia_utils.plot_gfunction(
+                save_dir, i, growth_fns[kernel['gf_id']], kernel['m'], kernel['s'], config['world_params']['T']
+            )
 
         print('Dumping video')
-        colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
-        width = all_cells[0].shape[-1] * render_params['pixel_size']
-        height = all_cells[0].shape[-2] * render_params['pixel_size']
-        process = (
-            ffmpeg.input('pipe:', format='rawvideo', pix_fmt='rgb24',
-                         s=f"{width}x{height}").output(os.path.join(media_dir, 'beast.mp4'),
-                                                       pix_fmt='yuv420p').overwrite_output().run_async(pipe_stdin=True)
-        )
-        all_times = []
-        for i in range(len(all_cells)):
-            start_time = time.time()
-            img = lenia_utils.get_image(
-                all_cells[i][:, 0, 0, ...], render_params['pixel_size'], render_params['pixel_border_size'], colormap
-            )
-            process.stdin.write(img.tobytes())
-
-            all_times.append(time.time() - start_time)
-        process.stdin.close()
-        process.wait()
-        total_time = np.sum(all_times)
-        mean_time = np.mean(all_times)
-        print(f"{len(all_times)} images dumped in {total_time} seconds: {mean_time} fps")
+        lenia_video.dump_video(all_cells, render_params, media_dir, colormap)
 
 
 if __name__ == '__main__':

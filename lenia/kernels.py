@@ -1,5 +1,6 @@
 import os
 import jax.numpy as jnp
+from jax import lax
 from dataclasses import dataclass
 from typing import List, Dict, Tuple
 
@@ -26,23 +27,16 @@ class KernelMapping(object):
         }
 
 
-def poly_quad4(x: jnp.ndarray):
-    out = 4 * x * (1 - x)
-    out = out**4
-
-    return out
-
-
-def poly_quad2(x: jnp.ndarray):
-    out = 2 * x * (1 - x)
-    out = out**2
-
-    return out
-
-
-def gauss_bump4(x: jnp.ndarray):
+def gauss_bump4(x: jnp.ndarray, q: float = 1):
     out = 4 - 1 / (x * (1 - x))
-    out = jnp.exp(out)
+    out = jnp.exp(q * out)
+
+    return out
+
+
+def poly_quad4(x: jnp.ndarray, q: float = 4):
+    out = 4 * x * (1 - x)
+    out = out**q
 
     return out
 
@@ -55,7 +49,7 @@ def staircase(x: jnp.ndarray, q: float = 1 / 4):
     return (x >= q) * (x <= 1 - q) + (x < q) * 0.5
 
 
-kernel_core = {0: poly_quad4, 1: poly_quad2, 2: gauss_bump4, 3: step4, 4: staircase}
+kernel_core = {0: poly_quad4, 1: gauss_bump4, 2: step4, 3: staircase}
 
 
 def get_kernels_and_mapping(kernels_params: Dict, world_size: List[int], nb_channels: int,
@@ -133,7 +127,6 @@ def get_kernel(kernel_params: Dict, world_size: list, R: float) -> jnp.ndarray:
 
 
 def kernel_shell(distances: jnp.ndarray, kernel_params: Dict) -> jnp.ndarray:
-    kernel_func = kernel_core[kernel_params['k_id']]
 
     bs = jnp.asarray(lenia_utils.st2fracs2float(kernel_params['b']))
     nb_b = bs.shape[0]
@@ -142,7 +135,9 @@ def kernel_shell(distances: jnp.ndarray, kernel_params: Dict) -> jnp.ndarray:
     bs_mat = bs[jnp.minimum(jnp.floor(B_dist).astype(int), nb_b - 1)]  # Define postions for each mode
 
     # All kernel functions are defined in [0, 1] so we keep only value with distance under 1
-    kernel = (distances < 1) * kernel_func(jnp.minimum(B_dist % 1, 1)) * bs_mat  # type: ignore
+    kernel_func = kernel_core[kernel_params['k_id']]
+    kernel_q = kernel_params['q']
+    kernel = (distances < 1) * kernel_func(jnp.minimum(B_dist % 1, 1), kernel_q) * bs_mat  # type: ignore
 
     return kernel
 
@@ -162,10 +157,23 @@ def remove_zero_dims(kernels: jnp.ndarray) -> jnp.ndarray:
 
 
 def draw_kernels(K, save_dir, colormap):
-    for i in range(K.shape[0]):
-        current_k = K[i:i + 1, 0, 0]
+    nb_dims = len(K.shape[3:])
+    data = jnp.ones(K.shape[3:])
+    padding = [(dim, dim) for dim in data.shape]
+    data = jnp.pad(data, padding, mode='constant')
+
+    pixel_size = 1
+    pixel_border_size = 0
+    for i in range(K.shape[1]):
+        id = str(i).zfill(2)
+        current_k = K[0, i:i + 1, 0]
         img = lenia_utils.get_image(
-            lenia_utils.normalize(current_k, jnp.min(current_k), jnp.max(current_k)), 1, 0, colormap
+            lenia_utils.normalize(current_k, 0, jnp.max(current_k)), pixel_size, pixel_border_size, colormap
         )
-        with open(os.path.join(save_dir, f"kernel{i}.png"), 'wb') as f:
+        with open(os.path.join(save_dir, f"kernel{id}.png"), 'wb') as f:
+            img.save(f, format='png')
+
+        out = lax.conv(data[jnp.newaxis, jnp.newaxis], current_k[jnp.newaxis], [1] * nb_dims, 'valid')
+        img = lenia_utils.get_image(out[0], pixel_size, pixel_border_size, colormap)
+        with open(os.path.join(save_dir, f"kernel{id}_conv.png"), 'wb') as f:
             img.save(f, format='png')

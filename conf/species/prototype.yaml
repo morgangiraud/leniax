@@ -40,6 +40,7 @@ kernels_params:
     gf_id: 0
     h: 1
     k_id: 0
+    q: 4
     m: 0.15
     r: 1
     s: 0.015

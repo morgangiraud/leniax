@@ -288,7 +288,7 @@ def normalize(v: jnp.ndarray, vmin: float, vmax: float, is_square: bool = False,
 def plot_gfunction(save_dir: str, id: int, fn: Callable, m: float, s: float, T: float):
     fullpath = os.path.join(save_dir, f"growth_function{str(id).zfill(2)}.{image_ext}")
 
-    x_t = jnp.linspace(0., 1., 100)
+    x_t = jnp.linspace(0., 1., 200)
     dt = 1. / T
     y = fn(x_t, m, s)
     dty = dt * y
@@ -327,7 +327,7 @@ def plot_gfunction(save_dir: str, id: int, fn: Callable, m: float, s: float, T: 
     for i in range(len(axs)):
         x_0 = x_t = 1 / len(axs) + i * 1 / len(axs)
         vals = [x_t]
-        for _ in range(50):
+        for _ in range(25):
             x_t = x_t + dt * fn(x_t, m, s)
             x_t = max(0, min(1., x_t))
             vals.append(x_t)
@@ -372,6 +372,19 @@ def plot_stats(save_dir: str, all_stats: List[Dict]):
     plt.xticks(np.arange(0, nb_steps, ticks))
     fig.savefig(os.path.join(save_dir, 'stats_running_means.png'))
     plt.close(fig)
+
+    # Remove init transition
+    if len(stats_dict[all_keys[0]]) > 50:
+        fig, axs = plt.subplots(len(all_keys), sharex=True)
+        fig.set_size_inches(10, 10)
+        for i, k in enumerate(all_keys):
+            axs[i].set_title(k.capitalize())
+            axs[i].plot(jnp.convolve(stats_dict[k][50:], jnp.ones(24) / 24, mode='valid'))
+
+        plt.tight_layout()
+        plt.xticks(np.arange(0, nb_steps, ticks))
+        fig.savefig(os.path.join(save_dir, 'stats_no_init.png'))
+        plt.close(fig)
 
 
 ###

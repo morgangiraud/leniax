@@ -11,7 +11,7 @@ cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
 
 # final_dir = os.path.join(cdir, '..', 'outputs', '2021-07-05', '17-12-21')
-final_dir = os.path.join(cdir, '..', 'outputs', '2021-07-09', '10-52-51')
+final_dir = os.path.join(cdir, '..', 'outputs', '2021-07-13', '16-02-23')
 final_filename = os.path.join(final_dir, 'final.p')
 
 

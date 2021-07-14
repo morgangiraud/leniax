@@ -11,7 +11,7 @@ def interpolant(t):
     return t * t * t * (t * (t * 6 - 15) + 10)
 
 
-def generate_perlin_noise_2d(rng_key, shape, res, tileable=(False, False), interpolant=interpolant):
+def generate_perlin_noise_2d(rng_key, shape, res, interpolant=interpolant):
     """Generate a 2D numpy array of perlin noise.
 
     Args:
@@ -31,28 +31,24 @@ def generate_perlin_noise_2d(rng_key, shape, res, tileable=(False, False), inter
     Raises:
         ValueError: If shape is not a multiple of res.
     """
-    key, subkey = jax.random.split(rng_key)
-
-    delta = (res[0] / shape[0], res[1] / shape[1])
-    d = (shape[0] // res[0], shape[1] // res[1])
-    grid = jnp.mgrid[0:res[0]:delta[0], 0:res[1]:delta[1]].transpose(1, 2, 0) % 1
+    rng_key, subkey = jax.random.split(rng_key)
 
     # Gradients
-    d0 = res[0] + 1
-    d1 = res[1] + 1
-    angles = 2 * jnp.pi * jnp.random.uniform(subkey, shape=[d0, d1])
-    gradients = jnp.dstack((jnp.cos(angles), jnp.sin(angles)))
-    if tileable[0]:
-        gradients[-1, :] = gradients[0, :]
-    if tileable[1]:
-        gradients[:, -1] = gradients[:, 0]
-    gradients = gradients.repeat(d[0], 0).repeat(d[1], 1)
-    g00 = gradients[:-d[0], :-d[1]]
-    g10 = gradients[d[0]:, :-d[1]]
-    g01 = gradients[:-d[0], d[1]:]
-    g11 = gradients[d[0]:, d[1]:]
+    d = (shape[0] // res[0], shape[1] // res[1])
+    angles = 2 * jnp.pi * jax.random.uniform(subkey, shape=res)  # [H_res, W_res]
+    gradients = jnp.dstack((jnp.cos(angles), jnp.sin(angles)))  # [H_res, W_res, 2]
+    gradients = jnp.pad(gradients, [(0, 1), (0, 1), (0, 0)], mode='wrap')  # [H_res + 1, W_res + 1, 2]
+    gradients = gradients.repeat(d[0], 0).repeat(d[1], 1)  # []
+
+    diff = [gradients.shape[0] - shape[0], gradients.shape[1] - shape[1]]
+    g00 = gradients[:-diff[0], :-diff[1]]
+    g10 = gradients[diff[0]:, :-diff[1]]
+    g01 = gradients[:-diff[0], diff[1]:]
+    g11 = gradients[diff[0]:, diff[1]:]
 
     # Ramps
+    delta = (res[0] / shape[0], res[1] / shape[1])
+    grid = jnp.mgrid[0:res[0]:delta[0], 0:res[1]:delta[1]].transpose(1, 2, 0) % 1
     n00 = jnp.sum(jnp.dstack((grid[:, :, 0], grid[:, :, 1])) * g00, 2)
     n10 = jnp.sum(jnp.dstack((grid[:, :, 0] - 1, grid[:, :, 1])) * g10, 2)
     n01 = jnp.sum(jnp.dstack((grid[:, :, 0], grid[:, :, 1] - 1)) * g01, 2)
@@ -63,4 +59,4 @@ def generate_perlin_noise_2d(rng_key, shape, res, tileable=(False, False), inter
     n0 = n00 * (1 - t[:, :, 0]) + t[:, :, 0] * n10
     n1 = n01 * (1 - t[:, :, 0]) + t[:, :, 0] * n11
 
-    return key, jnp.sqrt(2) * ((1 - t[:, :, 1]) * n0 + t[:, :, 1] * n1)
+    return rng_key, jnp.sqrt(2) * ((1 - t[:, :, 1]) * n0 + t[:, :, 1] * n1)

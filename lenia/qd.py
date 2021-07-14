@@ -1,4 +1,5 @@
 import json
+import math
 import matplotlib.pyplot as plt
 import os
 from multiprocessing import get_context
@@ -162,7 +163,11 @@ def update_config(old_config, to_update):
     return new_config
 
 
-def debug_eval(ind: LeniaIndividual, neg_fitness=False, qdpy=False):
+def rastrigin(*X, **kwargs):
+    A = kwargs.get('A', 10)
+    return A + sum([(x**2 - A * np.cos(2 * math.pi * x)) for x in X])
+
+def eval_debug(ind: LeniaIndividual, neg_fitness=False, qdpy=False):
     if neg_fitness is True:
         fitness = -random.random()
     else:

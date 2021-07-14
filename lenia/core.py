@@ -228,7 +228,7 @@ def run_init_search(rng_key: jnp.ndarray, config: Dict, with_stats: bool = True)
     else:
         compute_stats_fn = None
 
-    rng_key, noises = initializations.random_uniform(rng_key, nb_init_search, nb_channels)
+    rng_key, noises = initializations.perlin(rng_key, nb_init_search, world_size, R, kernels_params[0])
 
     runs = []
     for i in range(nb_init_search):
@@ -262,7 +262,8 @@ def run_init_search_parralel(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.nd
     update_fn = build_update_fn(world_params, K, mapping)
     compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
-    rng_key, noises = initializations.random_uniform(rng_key, nb_init_search, nb_channels)
+    # rng_key, noises = initializations.random_uniform(rng_key, nb_init_search, world_size, nb_channels)
+    rng_key, noises = initializations.perlin(rng_key, nb_init_search, world_size, R, kernels_params[0])
     cells_0 = init_cells(world_size, nb_channels, [noises], nb_init_search)
 
     # prevent any gradient-related operations from downstream operations, including tracing / graph building

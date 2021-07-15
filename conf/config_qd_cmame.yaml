@@ -6,9 +6,9 @@ defaults:
 kernels_params:
   k:
     - k_id: 0
+      q: 4
       r: 1
       b: '1'
-      q: 4
       gf_id: 0
       m: 0.17
       s: 0.015

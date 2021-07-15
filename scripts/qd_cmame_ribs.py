@@ -14,11 +14,10 @@ from lenia.api import get_container
 from lenia import qd as lenia_qd
 from lenia import utils as lenia_utils
 from lenia import helpers as lenia_helpers
+from lenia import video  as lenia_video
 
-# We are not using matmul on huge matrix, so we can avoid parallelising every operation
-# This allow us to increase the numbre of parallel process
-# https://github.com/google/jax/issues/743
-os.environ["XLA_FLAGS"] = ("--xla_cpu_multi_thread_eigen=false " "intra_op_parallelism_threads=1")
+# Disable JAX logging https://abseil.io/docs/python/guides/logging
+logging.set_verbosity(logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
@@ -30,9 +29,6 @@ config_path = os.path.join(cdir, '..', 'conf')
 def run(omegaConf: DictConfig) -> None:
     config = get_container(omegaConf)
     print(config)
-
-    # Disable JAX logging https://abseil.io/docs/python/guides/logging
-    logging.set_verbosity(logging.ERROR)
 
     seed = config['run_params']['seed']
     rng_key = lenia_utils.seed_everything(seed)
@@ -78,22 +74,23 @@ def run(omegaConf: DictConfig) -> None:
 
     nb_iter = config['algo']['budget'] // (batch_size * len(emitters))
     eval_fn = lenia_qd.eval_lenia_config
-    metrics = lenia_qd.run_qd_ribs_search(
-        eval_fn, nb_iter, lenia_generator, optimizer, fitness_domain, log_freq
-    )
+    metrics = lenia_qd.run_qd_ribs_search(eval_fn, nb_iter, lenia_generator, optimizer, fitness_domain, log_freq)
 
     # Save results
     save_dir = os.getcwd()
     with open(f"{save_dir}/final.p", 'wb') as handle:
         pickle.dump(archive, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    lenia_utils.save_config(save_dir, archive.base_config)
 
     lenia_qd.save_ccdf(optimizer.archive, f"{save_dir}/archive_ccdf.png")
-    lenia_qd.save_metrics(metrics, f"{save_dir}/archive_metrics.png")
+    lenia_qd.save_metrics(metrics, save_dir)
     lenia_qd.save_heatmap(optimizer.archive, fitness_domain, f"{save_dir}/archive_heatmap.png")
+    lenia_qd.save_parallel_axes_plot(optimizer.archive, fitness_domain, f"{save_dir}/archive_parralel_plot.png")
+    lenia_video.dump_qd_ribs_result(os.path.join(save_dir, 'qd_search.mp4'))
 
     if config['other']['dump_bests'] is True:
         fitness_threshold = 0.7 * fitness_domain[1]
-        lenia_helpers.dump_best(optimizer.archive, fitness_threshold, lenia_generator)
+        lenia_helpers.dump_best(optimizer.archive, fitness_threshold)
 
 
 if __name__ == '__main__':

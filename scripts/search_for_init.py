@@ -19,12 +19,11 @@ cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
 config_path_1c1k = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
 
-
-@hydra.main(config_path=config_path, config_name="config_init_search")
+# # @hydra.main(config_path=config_path, config_name="config_init_search")
 # @hydra.main(config_path=config_path_1c1k, config_name="prototype")
 def launch(omegaConf: DictConfig) -> None:
     config = get_container(omegaConf)
-
+    config['run_params']['nb_init_search'] = 256
     print(config)
 
     rng_key = lenia_utils.seed_everything(config['run_params']['seed'])
@@ -66,4 +65,9 @@ def launch(omegaConf: DictConfig) -> None:
 
 
 if __name__ == '__main__':
-    launch()
+    # launch()
+    for i in range(49):
+        config_path_qd = os.path.join('..', 'outputs', 'good-search-2', str(i))
+        decorator = hydra.main(config_path=config_path_qd, config_name="config")
+        decorator(launch)()
+        

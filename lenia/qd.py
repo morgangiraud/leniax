@@ -2,7 +2,6 @@ import os
 import psutil
 import json
 import math
-import matplotlib
 import matplotlib.pyplot as plt
 from multiprocessing import get_context
 from absl import logging
@@ -16,7 +15,7 @@ from alive_progress import alive_bar
 from qdpy.phenotype import Individual
 
 from ribs.archives import GridArchive, CVTArchive
-from ribs.visualize import grid_archive_heatmap, cvt_archive_heatmap
+from ribs.visualize import grid_archive_heatmap, cvt_archive_heatmap, parallel_axes_plot
 
 from .api import search_for_init
 from . import utils as lenia_utils
@@ -31,6 +30,9 @@ class genBaseIndividual(object):
     def __init__(self, config: Dict, rng_key: jnp.ndarray):
         self.config = config
         self.rng_key = rng_key
+
+        self.fitness = None
+        self.features = None
 
     def __iter__(self):
         return self
@@ -171,11 +173,12 @@ def rastrigin(pos: jnp.ndarray, A: float = 10.):
     assert pos.shape[-1] == 2
 
     pi2 = 2 * math.pi
-    
-    pos = 8 * pos - 4
-    z = jnp.sum(pos**2 - A * np.cos(pi2 * pos), axis=-1)
+
+    scaled_pos = 8 * pos - 4
+    z = jnp.sum(scaled_pos**2 - A * np.cos(pi2 * scaled_pos), axis=-1)
 
     return 2 * A + z
+
 
 def eval_debug(ind: LeniaIndividual, neg_fitness=False, qdpy=False):
     # This function is usually called in forked processes, before launching any JAX code
@@ -192,9 +195,11 @@ def eval_debug(ind: LeniaIndividual, neg_fitness=False, qdpy=False):
     if qdpy is True:
         ind.fitness.values = [fitness]
         ind.features.values = features
-        return ind
+    else:
+        ind.fitness = fitness
+        ind.features = features
 
-    return fitness, features
+    return ind
 
 
 def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False, qdpy=False) -> Tuple:
@@ -229,12 +234,14 @@ def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False, qdpy=False) -> Tu
     if qdpy is True:
         ind.fitness.values = [fitness]
         ind.features.values = features
-        return ind
+    else:
+        ind.fitness = fitness
+        ind.features = features
 
-    return fitness, features
+    return ind
 
 
-def eval_lenia_init(ind: LeniaIndividual, neg_fitness=False) -> Tuple:
+def eval_lenia_init(ind: LeniaIndividual, neg_fitness=False, qdpy=False) -> Tuple:
     # This function is usually called un sub-process, before launching any JAX code
     # We silent it
     # Disable JAX logging https://abseil.io/docs/python/guides/logging
@@ -276,7 +283,14 @@ def eval_lenia_init(ind: LeniaIndividual, neg_fitness=False) -> Tuple:
         fitness = nb_steps
     features = [noise.mean(), noise.stddev()]
 
-    return fitness, features
+    if qdpy is True:
+        ind.fitness.values = [fitness]
+        ind.features.values = features
+    else:
+        ind.fitness = fitness
+        ind.features = features
+
+    return ind
 
 
 def run_qd_ribs_search(
@@ -302,7 +316,7 @@ def run_qd_ribs_search(
     }
     nb_total_bins = optimizer.archive._bins
     # See https://stackoverflow.com/questions/40217873/multiprocessing-use-only-the-physical-cores
-    n_workers = psutil.cpu_count(logical = False) - 1
+    n_workers = psutil.cpu_count(logical=False) - 1
     DEBUG = False
     if DEBUG is True:
         print('!!!! DEBUGGING MODE !!!!')
@@ -320,7 +334,7 @@ def run_qd_ribs_search(
                 lenial_sols.append(lenia)
 
             # Evaluate the models and record the objectives and BCs.
-            fits, bcs = [], []
+            fits, bcs, metadata = [], [], []
             results: List
             if DEBUG:
                 results = list(map(eval_fn, lenial_sols))
@@ -333,12 +347,13 @@ def run_qd_ribs_search(
                 #     bcs.append(feat)
                 with get_context("spawn").Pool(processes=n_workers) as pool:
                     results = pool.map(eval_fn, lenial_sols)
-            for fit, feat in results:
-                fits.append(fit)
-                bcs.append(feat)
+            for i, ind in enumerate(results):
+                fits.append(ind.fitness)
+                bcs.append(ind.features)
+                metadata.append(ind.get_config())
 
             # Send the results back to the optimizer.
-            optimizer.tell(fits, bcs)
+            optimizer.tell(fits, bcs, metadata)
 
             if itr % log_freq == 0 or itr == nb_iter:
                 df = optimizer.archive.as_pandas(include_solutions=False)
@@ -359,7 +374,7 @@ def run_qd_ribs_search(
                 metrics["Archive Coverage"]["x"].append(itr)
                 coverage = len(df) / nb_total_bins * 100
                 metrics["Archive Coverage"]["y"].append(coverage)
-                
+
                 save_all(itr, optimizer, fitness_domain, sols, fits, bcs)
 
                 print(
@@ -403,18 +418,18 @@ def save_ccdf(archive, fullpath):
     plt.close(fig)
 
 
-def save_metrics(metrics, fullpath):
+def save_metrics(metrics, save_dir):
     # Plots.
     for metric in metrics:
         fig, ax = plt.subplots()
         ax.plot(metrics[metric]["x"], metrics[metric]["y"])
         ax.set_title(metric)
         ax.set_xlabel("Iteration")
-        fig.savefig(fullpath)
+        fig.savefig(os.path.join(save_dir, f"{metric}.png"))
         plt.close(fig)
 
     # JSON file.
-    with open(fullpath, "w") as file:
+    with open(os.path.join(save_dir, 'metrics.json'), "w") as file:
         json.dump(metrics, file, indent=2)
 
 
@@ -425,7 +440,7 @@ def save_heatmap(archive, fitness_domain, fullpath):
     elif isinstance(archive, CVTArchive):
         fig, ax = plt.subplots(figsize=(16, 12))
         cvt_archive_heatmap(archive, vmin=fitness_domain[0], vmax=fitness_domain[1], ax=ax)
-    
+
     ax.set_title("heatmap")
     ax.set_xlabel("x")
     ax.set_ylabel("y")
@@ -433,6 +448,17 @@ def save_heatmap(archive, fitness_domain, fullpath):
     plt.tight_layout()
     fig.savefig(fullpath)
     plt.close(fig)
+
+
+def save_parallel_axes_plot(archive, fitness_domain, fullpath):
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    parallel_axes_plot(archive, vmin=fitness_domain[0], vmax=fitness_domain[1], ax=ax, sort_archive=True)
+
+    plt.tight_layout()
+    fig.savefig(fullpath)
+    plt.close(fig)
+
 
 def save_emitter_samples(archive, fitness_domain, sols, fits, bcs, fullpath, title):
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -455,6 +481,7 @@ def save_emitter_samples(archive, fitness_domain, sols, fits, bcs, fullpath, tit
     fig.savefig(fullpath)
     plt.close(fig)
 
+
 def save_all(current_iter: int, optimizer, fitness_domain, sols: List, fits: List, bcs: List):
     save_dir = os.getcwd()
     prefix_fullpath = os.path.join(save_dir, f"{str(current_iter).zfill(4)}-")
@@ -467,9 +494,9 @@ def save_all(current_iter: int, optimizer, fitness_domain, sols: List, fits: Lis
         save_emitter_samples(
             optimizer.archive,
             fitness_domain,
-            sols[pos:end], 
-            fits[pos:end], 
-            bcs[pos:end], 
+            sols[pos:end],
+            fits[pos:end],
+            bcs[pos:end],
             f"{prefix_fullpath}emitter_{emitter_id}.png",
             type(emitter).__name__
         )

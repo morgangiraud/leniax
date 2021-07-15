@@ -1,52 +1,48 @@
 import os
 import time
-import numpy as np
+# import numpy as np
 import matplotlib.pyplot as plt
 from qdpy.containers import Container
 from ribs.archives import ArchiveBase
 from typing import Union
 
 from . import utils as lenia_utils
-from .api import init_and_run, search_for_init
+from .api import init_and_run
 from .growth_functions import growth_fns
 from .core import init
+import lenia.qd as lenia_qd
 import lenia.video as lenia_video
 import lenia.kernels as lenia_kernels
 
 
-def dump_best(grid: Union[Container, ArchiveBase], fitness_threshold: float, lenia_generator=None):
-    is_ribs_archive = False
+def dump_best(grid: Union[Container, ArchiveBase], fitness_threshold: float):
     if isinstance(grid, Container):
         best_inds = grid._get_best_inds()
         real_bests = list(filter(lambda x: abs(x.fitness.values[0]) >= fitness_threshold, best_inds))
     else:
-        is_ribs_archive = True
+        base_config = grid.base_config
+        seed = base_config['run_params']['seed']
+        rng_key = lenia_utils.seed_everything(seed)
+        generator_builder = lenia_qd.genBaseIndividual(base_config, rng_key)
+        lenia_generator = generator_builder()
+
         real_bests = []
-        i = 0
         for idx in grid._occupied_indices:
             if abs(grid._objective_values[idx]) >= fitness_threshold:
                 lenia = next(lenia_generator)
+                lenia.base_config = grid._metadata[idx]
                 lenia[:] = grid._solutions[idx]
-                # print(i, idx, grid._solutions[idx], lenia.get_config()["kernels_params"]["k"][0]["m"], lenia.get_config()["kernels_params"]["k"][0]["s"])
                 real_bests.append(lenia)
-                i += 1
-    
+
     print(f"Found {len(real_bests)} beast!")
 
     for id_best, best in enumerate(real_bests):
         config = best.get_config()
-        print(config)
 
         render_params = config['render_params']
 
         start_time = time.time()
-        if is_ribs_archive is True:
-            _, runs = search_for_init(best.rng_key, config, with_stats=True)
-            best = runs[0]
-            all_cells = best['all_cells']
-            all_stats = best['all_stats']
-        else:
-            all_cells, _, _, all_stats = init_and_run(config)
+        all_cells, _, _, all_stats = init_and_run(config)
         total_time = time.time() - start_time
 
         nb_iter_done = len(all_cells)

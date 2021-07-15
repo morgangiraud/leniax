@@ -14,7 +14,7 @@ from ribs.optimizers import Optimizer
 from lenia.api import get_container
 from lenia import qd as lenia_qd
 from lenia import utils as lenia_utils
-from lenia import helpers as lenia_helpers
+from lenia import video as lenia_video
 
 # We are not using matmul on huge matrix, so we can avoid parallelising every operation
 # This allow us to increase the numbre of parallel process
@@ -40,7 +40,7 @@ def run(omegaConf: DictConfig) -> None:
     lenia_generator = generator_builder()
 
     fitness_domain = [-65, 0]  # negative rastrigin domain in(to maximise)
-    features_domain = [[-4, 4], [-4 ,4]]
+    features_domain = [[-4, 4], [-4, 4]]
     grid_shape = config['grid']['shape']
     assert len(grid_shape) == len(features_domain)
     if True:
@@ -78,18 +78,20 @@ def run(omegaConf: DictConfig) -> None:
 
     nb_iter = config['algo']['budget'] // (batch_size * len(emitters))
     eval_fn = partial(lenia_qd.eval_debug, neg_fitness=True)
-    metrics = lenia_qd.run_qd_ribs_search(
-        eval_fn, nb_iter, lenia_generator, optimizer, fitness_domain, log_freq
-    )
+    metrics = lenia_qd.run_qd_ribs_search(eval_fn, nb_iter, lenia_generator, optimizer, fitness_domain, log_freq)
 
     # Save results
     save_dir = os.getcwd()
     with open(f"{save_dir}/final.p", 'wb') as handle:
         pickle.dump(archive, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    lenia_utils.save_config(save_dir, archive.base_config)
 
     lenia_qd.save_ccdf(optimizer.archive, f"{save_dir}/archive_ccdf.png")
-    lenia_qd.save_metrics(metrics, f"{save_dir}/archive_metrics.png")
+    lenia_qd.save_metrics(metrics, save_dir)
     lenia_qd.save_heatmap(optimizer.archive, fitness_domain, f"{save_dir}/archive_heatmap.png")
+    lenia_qd.save_parallel_axes_plot(optimizer.archive, fitness_domain, f"{save_dir}/archive_parralel_plot.png")
+    lenia_video.dump_qd_ribs_result(os.path.join(save_dir, 'qd_search.mp4'))
+
 
 if __name__ == '__main__':
     run()

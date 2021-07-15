@@ -27,16 +27,16 @@ class KernelMapping(object):
         }
 
 
-def gauss_bump4(x: jnp.ndarray, q: float = 1):
-    out = 4 - 1 / (x * (1 - x))
-    out = jnp.exp(q * out)
+def poly_quad4(x: jnp.ndarray, q: float = 4):
+    out = 4 * x * (1 - x)
+    out = out**q
 
     return out
 
 
-def poly_quad4(x: jnp.ndarray, q: float = 4):
-    out = 4 * x * (1 - x)
-    out = out**q
+def gauss_bump4(x: jnp.ndarray, q: float = 1):
+    out = 4 - 1 / (x * (1 - x))
+    out = jnp.exp(q * out)
 
     return out
 

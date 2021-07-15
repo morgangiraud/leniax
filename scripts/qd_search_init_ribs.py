@@ -86,9 +86,9 @@ def run(omegaConf: DictConfig) -> None:
 
     save_dir = os.getcwd()
     optimizer.archive.as_pandas().to_csv(f"{save_dir}/archive.csv")
-    
+
     lenia_qd.save_ccdf(optimizer.archive, f"{save_dir}/archive_ccdf.png")
-    lenia_qd.save_metrics(metrics, f"{save_dir}/archive_metrics.png")
+    lenia_qd.save_metrics(metrics, save_dir)
     lenia_qd.save_heatmap(optimizer.archive, fitness_domain, f"{save_dir}/archive_heatmap.png")
 
 

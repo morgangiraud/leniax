@@ -22,16 +22,20 @@ def dump_best(grid: Union[Container, ArchiveBase], fitness_threshold: float, len
     else:
         is_ribs_archive = True
         real_bests = []
-        for i in grid._occupied_indices:
-            if abs(grid._objective_values[i]) >= fitness_threshold:
+        i = 0
+        for idx in grid._occupied_indices:
+            if abs(grid._objective_values[idx]) >= fitness_threshold:
                 lenia = next(lenia_generator)
-                lenia[:] = grid._solutions[i]
+                lenia[:] = grid._solutions[idx]
+                # print(i, idx, grid._solutions[idx], lenia.get_config()["kernels_params"]["k"][0]["m"], lenia.get_config()["kernels_params"]["k"][0]["s"])
                 real_bests.append(lenia)
+                i += 1
+    
     print(f"Found {len(real_bests)} beast!")
 
     for id_best, best in enumerate(real_bests):
         config = best.get_config()
-        # print(config)
+        print(config)
 
         render_params = config['render_params']
 
@@ -56,11 +60,11 @@ def dump_best(grid: Union[Container, ArchiveBase], fitness_threshold: float, len
         config['run_params']['cells'] = lenia_utils.compress_array(first_cells)
         lenia_utils.save_config(save_dir, config)
 
-        print('Dumping cells')
-        with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
-            np.save(f, np.array(all_cells)[:, 0, 0, ...])
+        # print('Dumping cells')
+        # with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
+        #     np.save(f, np.array(all_cells)[:, 0, 0, ...])
 
-        # print('Plotting stats and functions')
+        print('Plotting stats and functions')
         colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
 
         lenia_utils.plot_stats(save_dir, all_stats)

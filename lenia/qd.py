@@ -1,7 +1,9 @@
+import os
+import psutil
 import json
 import math
+import matplotlib
 import matplotlib.pyplot as plt
-import os
 from multiprocessing import get_context
 from absl import logging
 import random
@@ -163,16 +165,29 @@ def update_config(old_config, to_update):
     return new_config
 
 
-def rastrigin(*X, **kwargs):
-    A = kwargs.get('A', 10)
-    return A + sum([(x**2 - A * np.cos(2 * math.pi * x)) for x in X])
+def rastrigin(pos: jnp.ndarray, A: float = 10.):
+    """Valu are expected to be between [0, 1]"""
+    assert len(pos.shape) == 3
+    assert pos.shape[-1] == 2
+
+    pi2 = 2 * math.pi
+    
+    pos = 8 * pos - 4
+    z = jnp.sum(pos**2 - A * np.cos(pi2 * pos), axis=-1)
+
+    return 2 * A + z
 
 def eval_debug(ind: LeniaIndividual, neg_fitness=False, qdpy=False):
+    # This function is usually called in forked processes, before launching any JAX code
+    # We silent it
+    # Disable JAX logging https://abseil.io/docs/python/guides/logging
+    logging.set_verbosity(logging.ERROR)
+
     if neg_fitness is True:
-        fitness = -random.random()
+        fitness = -rastrigin(jnp.array(ind)[jnp.newaxis, jnp.newaxis, :]).squeeze()
     else:
-        fitness = random.random()
-    features = [random.random() for _ in ind.base_config['phenotype']]
+        fitness = rastrigin(jnp.array(ind)[jnp.newaxis, jnp.newaxis, :]).squeeze()
+    features = [ind[0] * 8 - 4, ind[1] * 8 - 4]
 
     if qdpy is True:
         ind.fitness.values = [fitness]
@@ -286,11 +301,8 @@ def run_qd_ribs_search(
         },
     }
     nb_total_bins = optimizer.archive._bins
-    cpu_count = os.cpu_count()
-    if isinstance(cpu_count, int):
-        n_workers = max(cpu_count - 1, 1)
-    else:
-        n_workers = 1
+    # See https://stackoverflow.com/questions/40217873/multiprocessing-use-only-the-physical-cores
+    n_workers = psutil.cpu_count(logical = False) - 1
     DEBUG = False
     if DEBUG is True:
         print('!!!! DEBUGGING MODE !!!!')
@@ -331,7 +343,8 @@ def run_qd_ribs_search(
             if itr % log_freq == 0 or itr == nb_iter:
                 df = optimizer.archive.as_pandas(include_solutions=False)
                 metrics["QD Score"]["x"].append(itr)
-                qd_score = df['objective'].sum() / fitness_domain[1]
+                qd_score = (df['objective'] - fitness_domain[0]).sum() / (fitness_domain[1] - fitness_domain[0])
+                qd_score /= optimizer.archive.dims.prod()
                 metrics["QD Score"]["y"].append(qd_score)
 
                 metrics["Max Score"]["x"].append(itr)
@@ -346,6 +359,8 @@ def run_qd_ribs_search(
                 metrics["Archive Coverage"]["x"].append(itr)
                 coverage = len(df) / nb_total_bins * 100
                 metrics["Archive Coverage"]["y"].append(coverage)
+                
+                save_all(itr, optimizer, fitness_domain, sols, fits, bcs)
 
                 print(
                     f"{len(df):>24}/{nb_total_bins:<6}{mean_score:>20.6f}"
@@ -360,7 +375,7 @@ def run_qd_ribs_search(
 
 
 # QD Utils
-def save_ccdf(archive, filename):
+def save_ccdf(archive, fullpath):
     """Saves a CCDF showing the distribution of the archive's objective values.
 
     CCDF = Complementary Cumulative Distribution Function (see
@@ -371,9 +386,9 @@ def save_ccdf(archive, filename):
 
     Args:
         archive (GridArchive): Archive with results from an experiment.
-        filename (str): Path to an image file.
+        fullpath (str): Path to an image file.
     """
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(8, 6))
     ax.hist(
         archive.as_pandas(include_solutions=False)["objective"],
         50,  # Number of bins.
@@ -384,38 +399,78 @@ def save_ccdf(archive, filename):
     ax.set_xlabel("Objective Value")
     ax.set_ylabel("Num. Entries")
     ax.set_title("Distribution of Archive Objective Values")
-    fig.savefig(filename)
+    fig.savefig(fullpath)
+    plt.close(fig)
 
 
-def save_metrics(outdir, metrics):
-    """Saves metrics to png plots and a JSON file.
-
-    Args:
-        outdir (Path): output directory for saving files.
-        metrics (dict): Metrics as output by run_search.
-    """
+def save_metrics(metrics, fullpath):
     # Plots.
     for metric in metrics:
         fig, ax = plt.subplots()
         ax.plot(metrics[metric]["x"], metrics[metric]["y"])
         ax.set_title(metric)
         ax.set_xlabel("Iteration")
-        fig.savefig(f"{outdir}/{metric.lower().replace(' ', '_')}.png")
+        fig.savefig(fullpath)
+        plt.close(fig)
 
     # JSON file.
-    with open(f"{outdir}/metrics.json", "w") as file:
+    with open(fullpath, "w") as file:
         json.dump(metrics, file, indent=2)
 
 
-def save_heatmap(archive, fitness_domain, save_dir):
+def save_heatmap(archive, fitness_domain, fullpath):
     if isinstance(archive, GridArchive):
         fig, ax = plt.subplots(figsize=(8, 6))
-        grid_archive_heatmap(archive, vmin=fitness_domain[0], vmax=fitness_domain[1], ax=ax)
+        grid_archive_heatmap(archive, square=False, vmin=fitness_domain[0], vmax=fitness_domain[1], ax=ax)
     elif isinstance(archive, CVTArchive):
         fig, ax = plt.subplots(figsize=(16, 12))
         cvt_archive_heatmap(archive, vmin=fitness_domain[0], vmax=fitness_domain[1], ax=ax)
-    plt.ylabel("y")
-    plt.xlabel("x")
+    
+    ax.set_title("heatmap")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+
     plt.tight_layout()
-    fig.savefig(os.path.join(save_dir, 'heatmap.png'))
+    fig.savefig(fullpath)
     plt.close(fig)
+
+def save_emitter_samples(archive, fitness_domain, sols, fits, bcs, fullpath, title):
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    bcs_jnp = jnp.array(bcs)
+
+    lower_bounds = archive.lower_bounds
+    upper_bounds = archive.upper_bounds
+    ax.set_xlim(lower_bounds[0], upper_bounds[0])
+    ax.set_ylim(lower_bounds[1], upper_bounds[1])
+
+    t = ax.scatter(bcs_jnp.T[0], bcs_jnp.T[1], c=fits, cmap="magma", vmin=fitness_domain[0], vmax=fitness_domain[1])
+    ax.figure.colorbar(t, ax=ax, pad=0.1)
+
+    ax.set_title(title)
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+
+    plt.tight_layout()
+    fig.savefig(fullpath)
+    plt.close(fig)
+
+def save_all(current_iter: int, optimizer, fitness_domain, sols: List, fits: List, bcs: List):
+    save_dir = os.getcwd()
+    prefix_fullpath = os.path.join(save_dir, f"{str(current_iter).zfill(4)}-")
+    save_ccdf(optimizer.archive, f"{prefix_fullpath}archive_ccdf.png")
+    save_heatmap(optimizer.archive, fitness_domain, f"{prefix_fullpath}archive_heatmap.png")
+
+    pos = 0
+    for emitter_id, emitter in enumerate(optimizer.emitters):
+        end = pos + emitter.batch_size
+        save_emitter_samples(
+            optimizer.archive,
+            fitness_domain,
+            sols[pos:end], 
+            fits[pos:end], 
+            bcs[pos:end], 
+            f"{prefix_fullpath}emitter_{emitter_id}.png",
+            type(emitter).__name__
+        )
+        pos = end

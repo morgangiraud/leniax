@@ -11,7 +11,7 @@ cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
 
 # final_dir = os.path.join(cdir, '..', 'outputs', '2021-07-05', '17-12-21')
-final_dir = os.path.join(cdir, '..', 'outputs', '2021-07-13', '16-02-23')
+final_dir = os.path.join(cdir, '..', 'outputs', 'good-search')
 final_filename = os.path.join(final_dir, 'final.p')
 
 
@@ -34,7 +34,7 @@ def run() -> None:
                 breakpoint()
             base_config = grid[0].base_config
             lenia_generator = None
-    max_val = base_config['run_params']['max_run_iter'] // 2
+    max_val = base_config['run_params']['max_run_iter']
 
     os.chdir(final_dir)
     lenia_helpers.dump_best(grid, max_val, lenia_generator)

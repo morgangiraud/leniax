@@ -1,4 +1,5 @@
 import os
+from functools import partial
 from absl import logging
 from omegaconf import DictConfig
 import hydra
@@ -29,7 +30,6 @@ config_path = os.path.join(cdir, '..', 'conf')
 @hydra.main(config_path=config_path, config_name="config_qd_cmame")
 def run(omegaConf: DictConfig) -> None:
     config = get_container(omegaConf)
-    print(config)
 
     # Disable JAX logging https://abseil.io/docs/python/guides/logging
     logging.set_verbosity(logging.ERROR)
@@ -39,8 +39,8 @@ def run(omegaConf: DictConfig) -> None:
     generator_builder = lenia_qd.genBaseIndividual(config, rng_key)
     lenia_generator = generator_builder()
 
-    fitness_domain = [0, config['run_params']['max_run_iter']]
-    features_domain = config['grid']['features_domain']
+    fitness_domain = [-65, 0]  # negative rastrigin domain in(to maximise)
+    features_domain = [[-4, 4], [-4 ,4]]
     grid_shape = config['grid']['shape']
     assert len(grid_shape) == len(features_domain)
     if True:
@@ -77,7 +77,7 @@ def run(omegaConf: DictConfig) -> None:
     optimizer = Optimizer(archive, emitters)
 
     nb_iter = config['algo']['budget'] // (batch_size * len(emitters))
-    eval_fn = lenia_qd.eval_lenia_config
+    eval_fn = partial(lenia_qd.eval_debug, neg_fitness=True)
     metrics = lenia_qd.run_qd_ribs_search(
         eval_fn, nb_iter, lenia_generator, optimizer, fitness_domain, log_freq
     )
@@ -90,11 +90,6 @@ def run(omegaConf: DictConfig) -> None:
     lenia_qd.save_ccdf(optimizer.archive, f"{save_dir}/archive_ccdf.png")
     lenia_qd.save_metrics(metrics, f"{save_dir}/archive_metrics.png")
     lenia_qd.save_heatmap(optimizer.archive, fitness_domain, f"{save_dir}/archive_heatmap.png")
-
-    if config['other']['dump_bests'] is True:
-        fitness_threshold = 0.7 * fitness_domain[1]
-        lenia_helpers.dump_best(optimizer.archive, fitness_threshold, lenia_generator)
-
 
 if __name__ == '__main__':
     run()

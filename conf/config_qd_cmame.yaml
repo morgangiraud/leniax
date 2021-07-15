@@ -8,7 +8,7 @@ kernels_params:
     - k_id: 0
       r: 1
       b: '1'
-      q: 1
+      q: 4
       gf_id: 0
       m: 0.17
       s: 0.015
@@ -33,13 +33,13 @@ genotype:
   #   type: choice
   - key: kernels_params.k.0.m
     domain: 
-      - 0.
-      - 1.
+      - .1
+      - .5
     type: float
   - key: kernels_params.k.0.s
     domain: 
       - 0.
-      - 1.
+      - .1
     type: float
   # - key: kernels_params.k.0.k_id
   #   domain: 
@@ -59,10 +59,10 @@ phenotype:
 
 grid:
   features_domain:
+    - - .1
+      - .5
     - - 0.
-      - 1.
-    - - 0.
-      - 1.
+      - .1
     # - - 0.
     #   - 0.5
   shape: [20, 20]
@@ -79,8 +79,9 @@ algo:
   sel_pb: 0.9
   mut_pb: 0.4
   eta: 20.
-  # cmaes 
-  sigma0: 0.5
+  # cmaes
+  mut_sigma0: 0.01
+  sigma0: 0.15
   separable_cma: false
   ignore_if_not_added_to_container: false
   # MEMAPElitesUCB1

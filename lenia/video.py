@@ -2,6 +2,7 @@ import os
 import time
 import ffmpeg
 import numpy as np
+from typing import List
 
 import lenia.utils as lenia_utils
 
@@ -12,11 +13,13 @@ def dump_video(all_cells, render_params, media_dir, colormap):
     nb_iter_done = len(all_cells)
     width = all_cells[0].shape[-1] * render_params['pixel_size']
     height = all_cells[0].shape[-2] * render_params['pixel_size']
+    output_fullpath = os.path.join(media_dir, 'beast.mp4')
     process = (
-        ffmpeg.input('pipe:', format='rawvideo', pix_fmt='rgb24', s=f"{width}x{height}").output(
-            os.path.join(media_dir, 'beast.mp4'),
-            pix_fmt='yuv420p',
-        ).overwrite_output().run_async(pipe_stdin=True)
+        ffmpeg
+            .input('pipe:', format='rawvideo', pix_fmt='rgb24', s=f"{width}x{height}", framerate=24)
+            .output(output_fullpath, crf=20, preset='slower', movflags='faststart', pix_fmt='yuv420p')
+            .overwrite_output()
+            .run_async(pipe_stdin=True)
     )
     all_times = []
     for i in range(nb_iter_done):
@@ -33,3 +36,41 @@ def dump_video(all_cells, render_params, media_dir, colormap):
     total_time = np.sum(all_times)
     mean_time = np.mean(all_times)
     print(f"{len(all_times)} images dumped in {total_time} seconds: {mean_time} fps")
+
+def dump_qd_ribs_result(inputs: List[str]):
+    """
+        ffmpeg  -framerate 10 -i '%4d-emitter_0.png' \
+            -framerate 10 -i '%4d-emitter_1.png' \
+            -framerate 10 -i '%4d-emitter_2.png' \
+            -framerate 10 -i '%4d-emitter_3.png' \
+            -framerate 10 -i '%4d-archive_ccdf.png' \
+            -framerate 10 -i '%4d-archive_heatmap.png' \
+            -filter_complex "[0:v][1:v]hstack[h1];\
+                [2:v][3:v]hstack[h2];\
+                [4:v][5:v]hstack[h3];\
+                [h1][h2]vstack[v1];\
+                [v1][h3]vstack[o]"\
+            -map "[o]"\
+            out.mp4
+    """
+    # ffmpeg_inputs = []
+    # for i_str in inputs:
+    #     ffmpeg_inputs.append(ffmpeg.input(i_str))
+    # process = (
+    #     ffmpeg.input('pipe:', format='rawvideo', pix_fmt='rgb24', s=f"{width}x{height}").output(
+    #         os.path.join(media_dir, 'beast.mp4'),
+    #         pix_fmt='yuv420p',
+    #     ).overwrite_output().run_async(pipe_stdin=True)
+    # )
+    # all_times = []
+    # for i in range(nb_iter_done):
+    #     start_time = time.time()
+    #     img = lenia_utils.get_image(
+    #         all_cells[i][:, 0, 0, ...], render_params['pixel_size'], render_params['pixel_border_size'], colormap
+    #     )
+    #     process.stdin.write(img.tobytes())
+
+    #     all_times.append(time.time() - start_time)
+    # process.stdin.close()
+    # process.wait()
+

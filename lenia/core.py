@@ -359,8 +359,7 @@ def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: List[bo
 
 
 def build_get_field_fn(mapping: KernelMapping) -> Callable:
-    cout_kernels = jnp.array(mapping.cout_kernels)
-    cout_kernels_h = jnp.array(mapping.cout_kernels_h)
+    cout_kernels_weight = jnp.array(mapping.cout_kernels_weight)
 
     cin_growth_fns = mapping.cin_growth_fns
     growth_fn_l = []
@@ -379,11 +378,12 @@ def build_get_field_fn(mapping: KernelMapping) -> Callable:
                 - potential: jnp.ndarray[nb_kernels, world_dims...] shape must be kept constant to avoid recompiling
 
             Implicit closure args:
-                - nb_kernels must be kept contantn to avoid recompiling
+                - nb_kernels must be kept contant to avoid recompiling
                 - cout_kernels must be of shape [nb_channels]
         """
         fields = []
-        for i in range(len(cin_growth_fns['gf_id'])):
+        nb_kernels = len(cin_growth_fns['gf_id'])
+        for i in range(nb_kernels):
             sub_potential = potential[i]
             growth_fn = growth_fn_l[i]
 
@@ -392,8 +392,8 @@ def build_get_field_fn(mapping: KernelMapping) -> Callable:
             fields.append(sub_field)
         fields_jnp = jnp.stack(fields)  # [nb_kernels, world_dims...]
 
-        fields_jnp = weighted_select_average(fields_jnp, cout_kernels, cout_kernels_h)  # [C, H, W]
-        fields_jnp = fields_jnp[:, jnp.newaxis, jnp.newaxis]
+        fields_jnp = weighted_select_average(fields_jnp, cout_kernels_weight)  # [C, H, W]
+        fields_jnp = fields_jnp[:, jnp.newaxis, jnp.newaxis]  # [C, N=1, c=1, H, W]
 
         return fields_jnp
 
@@ -401,10 +401,20 @@ def build_get_field_fn(mapping: KernelMapping) -> Callable:
 
 
 @jit
-@jax.partial(vmap, in_axes=(None, 0, 0), out_axes=0)
-def weighted_select_average(field: jnp.ndarray, channel_list: jnp.ndarray, weights: jnp.ndarray) -> jnp.ndarray:
-    out_fields = field[channel_list]
-    out_field = jnp.average(out_fields, axis=0, weights=weights)
+@jax.partial(vmap, in_axes=(None, 0), out_axes=0)
+def weighted_select_average(fields: jnp.ndarray, weights: jnp.ndarray) -> jnp.ndarray:
+    """
+        Args:
+            - fields: jnp.ndarray[nb_kernels, world_dims...] shape must be kept constant to avoid recompiling
+            - weights: jnp.ndarray[nb_channels, nb_kernels] shape must be kept constant to avoid recompiling
+                0. values are used to indicate that a given channels does not receive inputs from this kernel
+
+        Outputs:
+            - fields: jnp.ndarray[nb_channels, world_dims...]
+
+        ! This function must be vmap-ed to get the dimensions right !
+    """
+    out_field = jnp.average(fields, axis=0, weights=weights)
 
     return out_field
 

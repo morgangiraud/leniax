@@ -10,15 +10,13 @@ import lenia.utils as lenia_utils
 @dataclass()
 class KernelMapping(object):
     cin_kernels: List[List[int]]
-    cout_kernels: List[List[int]]
-    cout_kernels_h: List[List[float]]
+    cout_kernels_weight: List[List[float]]
     true_channels: List[bool]
     cin_growth_fns: Dict[str, List]
 
-    def __init__(self, nb_channels: int):
-        self.cin_kernels = [[] for i in range(nb_channels)]
-        self.cout_kernels = [[] for i in range(nb_channels)]
-        self.cout_kernels_h = [[] for i in range(nb_channels)]
+    def __init__(self, nb_channels: int, nb_kernels: int):
+        self.cin_kernels = [[] for _ in range(nb_channels)]
+        self.cout_kernels_weight = [[0.] * nb_kernels for _ in range(nb_channels)]
         self.true_channels = []
         self.cin_growth_fns = {
             'gf_id': [],
@@ -62,15 +60,14 @@ def get_kernels_and_mapping(kernels_params: Dict, world_size: List[int], nb_chan
     """
 
     kernels_list = []
-    mapping = KernelMapping(nb_channels)
+    mapping = KernelMapping(nb_channels, len(kernels_params))
     for kernel_idx, param in enumerate(kernels_params):
         kernels_list.append(get_kernel(param, world_size, R))
 
         channel_in = param["c_in"]
         channel_out = param["c_out"]
         mapping.cin_kernels[channel_in].append(kernel_idx)
-        mapping.cout_kernels[channel_out].append(kernel_idx)
-        mapping.cout_kernels_h[channel_out].append(param["h"])
+        mapping.cout_kernels_weight[channel_out][kernel_idx] = param["h"]
 
         mapping.cin_growth_fns["gf_id"].append(param["gf_id"])
         mapping.cin_growth_fns["m"].append(param["m"])
@@ -100,12 +97,7 @@ def get_kernels_and_mapping(kernels_params: Dict, world_size: List[int], nb_chan
     assert K.shape[0] == nb_channels
 
     mapping.true_channels = jnp.concatenate(mapping.true_channels)
-    mapping.cout_kernels = jnp.array(
-        list(map(lambda arr: arr + [-1] * (max_k_per_channel - len(arr)), mapping.cout_kernels))
-    )
-    mapping.cout_kernels_h = jnp.array(
-        list(map(lambda arr: arr + [0] * (max_k_per_channel - len(arr)), mapping.cout_kernels_h))
-    )
+    mapping.cout_kernels_weight = jnp.array(mapping.cout_kernels_weight)
 
     return K, mapping
 

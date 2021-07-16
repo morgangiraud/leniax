@@ -7,12 +7,12 @@ from .perlin import generate_perlin_noise_2d
 
 
 def random_uniform(rng_key, nb_noise: int, world_size: List[int], nb_channels: int):
-    key, subkey = jax.random.split(rng_key)
+    rng_key, subkey = jax.random.split(rng_key)
     maxvals = jnp.linspace(0.4, 1., nb_noise)[:, jnp.newaxis, jnp.newaxis, jnp.newaxis]
     rand_shape = [nb_noise] + [nb_channels] + world_size
     noises = jax.random.uniform(subkey, rand_shape, minval=0, maxval=maxvals)
 
-    return key, noises
+    return rng_key, noises
 
 
 def random_uniform_1k(rng_key, nb_noise: int, world_size, nb_channels: int, kernel_params):

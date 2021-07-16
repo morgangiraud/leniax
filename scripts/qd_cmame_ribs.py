@@ -14,7 +14,7 @@ from lenia.api import get_container
 from lenia import qd as lenia_qd
 from lenia import utils as lenia_utils
 from lenia import helpers as lenia_helpers
-from lenia import video  as lenia_video
+from lenia import video as lenia_video
 
 # Disable JAX logging https://abseil.io/docs/python/guides/logging
 logging.set_verbosity(logging.ERROR)

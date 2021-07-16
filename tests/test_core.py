@@ -157,3 +157,43 @@ class TestCore(unittest.TestCase):
 
         assert idx == 0
         np.testing.assert_array_equal(best, best_par)
+
+    # def test_weighted_select_average_jit_perf(self):
+    #     field1 = jnp.ones([3, 25, 25]) * .5
+    #     channel_list1 = jnp.array([[0, 1], [1, 2], [0, 2]])
+    #     weights1 = jnp.array([.5, .4, .7])
+
+    #     t0 = time.time()
+    #     out1 = lenia_core.weighted_select_average(field1, channel_list1, weights1)
+    #     delta_t = time.time() - t0
+
+    #     field2 = jnp.ones([25, 25]) * .2
+    #     channel_list2 = jnp.array([[0, 1], [1, 2], [0, 2]])
+    #     weights2 = jnp.array([.5, .4, .7])
+
+    #     t0 = time.time()
+    #     out2 = lenia_core.weighted_select_average(field2, channel_list2, weights2)
+    #     delta_t_compiled = time.time() - t0
+
+    #     assert 0.01 * delta_t > delta_t_compiled
+
+    def test_update_cells_jit_perf(self):
+        cells1 = jnp.ones([25, 25]) * .5
+        field1 = jnp.ones([25, 25]) * 3
+        dt1 = 1. / 3.
+
+        t0 = time.time()
+        out1 = lenia_core.update_cells(cells1, field1, dt1)
+        delta_t = time.time() - t0
+
+        cells2 = jnp.ones([25, 25], ) * .2
+        field2 = jnp.ones([25, 25]) * 3
+        dt2 = 1. / 6.
+
+        t0 = time.time()
+        out2 = lenia_core.update_cells(cells2, field2, dt2)
+        delta_t_compiled = time.time() - t0
+
+        assert 0.01 * delta_t > delta_t_compiled
+        np.testing.assert_array_almost_equal(out1, jnp.ones([25, 25]))
+        np.testing.assert_array_almost_equal(out2, jnp.ones([25, 25]) * .7)

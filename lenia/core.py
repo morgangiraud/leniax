@@ -302,6 +302,7 @@ def run_init_search_parralel(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.nd
 
 def build_update_fn(world_params: Dict, K: jnp.ndarray, mapping: KernelMapping) -> Callable:
     T = world_params['T']
+    dt = 1 / T
 
     get_potential_fn = build_get_potential_fn(K.shape, mapping.true_channels)
     get_field_fn = build_get_field_fn(mapping)
@@ -310,7 +311,25 @@ def build_update_fn(world_params: Dict, K: jnp.ndarray, mapping: KernelMapping) 
     def update(cells: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         potential = get_potential_fn(cells, K)
         field = get_field_fn(potential)
-        cells = update_cells(cells, field, T)
+        cells = update_cells(cells, field, dt)
+
+        return cells, field, potential
+
+    return update
+
+
+def build_update_fn_2(world_params: Dict, K_shape: Tuple[int], mapping: KernelMapping) -> Callable:
+    T = world_params['T']
+    dt = 1 / T
+
+    get_potential_fn = build_get_potential_fn(K_shape, mapping.true_channels)
+    get_field_fn = build_get_field_fn(mapping)
+
+    @jit
+    def update(cells: jnp.ndarray, K: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+        potential = get_potential_fn(cells, K)
+        field = get_field_fn(potential)
+        cells = update_cells(cells, field, dt)
 
         return cells, field, potential
 
@@ -355,6 +374,14 @@ def build_get_field_fn(mapping: KernelMapping) -> Callable:
 
     @jit
     def get_field(potential: jnp.ndarray) -> jnp.ndarray:
+        """
+            Args:
+                - potential: jnp.ndarray[nb_kernels, world_dims...] shape must be kept constant to avoid recompiling
+
+            Implicit closure args:
+                - nb_kernels must be kept contantn to avoid recompiling
+                - cout_kernels must be of shape [nb_channels]
+        """
         fields = []
         for i in range(len(cin_growth_fns['gf_id'])):
             sub_potential = potential[i]
@@ -363,7 +390,7 @@ def build_get_field_fn(mapping: KernelMapping) -> Callable:
             sub_field = growth_fn(sub_potential)
 
             fields.append(sub_field)
-        fields_jnp = jnp.stack(fields)  # Add a dimension
+        fields_jnp = jnp.stack(fields)  # [nb_kernels, world_dims...]
 
         fields_jnp = weighted_select_average(fields_jnp, cout_kernels, cout_kernels_h)  # [C, H, W]
         fields_jnp = fields_jnp[:, jnp.newaxis, jnp.newaxis]
@@ -382,12 +409,16 @@ def weighted_select_average(field: jnp.ndarray, channel_list: jnp.ndarray, weigh
     return out_field
 
 
-@jax.partial(jit, static_argnums=2)
-def update_cells(cells: jnp.ndarray, field: jnp.ndarray, T: float) -> jnp.ndarray:
-    dt = 1 / T
-
+@jit
+def update_cells(cells: jnp.ndarray, field: jnp.ndarray, dt: float) -> jnp.ndarray:
+    """
+        Args:
+            - cells: jnp.ndarray, shape must be kept constant to avoid recompiling
+            - field: jnp.ndarray, shape must be kept constant to avoid recompiling
+            - float: can change without recompiling
+    """
     cells_new = cells + dt * field
-    cells_new = jnp.clip(cells_new, 0, 1)
+    cells_new = jnp.clip(cells_new, 0., 1.)
     # smoothstep(x)
     # cells_new = 3 * cells_new ** 2 - 2 * cells_new ** 3
 

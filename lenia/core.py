@@ -359,9 +359,9 @@ def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: List[bo
 
 
 def build_get_field_fn(mapping: KernelMapping) -> Callable:
-    cout_kernels_weight = jnp.array(mapping.cout_kernels_weight)
-
+    kernels_weight_per_channel = mapping.kernels_weight_per_channel
     cin_growth_fns = mapping.cin_growth_fns
+
     growth_fn_l = []
     for i in range(len(cin_growth_fns['gf_id'])):
         gf_id = cin_growth_fns['gf_id'][i]
@@ -392,7 +392,7 @@ def build_get_field_fn(mapping: KernelMapping) -> Callable:
             fields.append(sub_field)
         fields_jnp = jnp.stack(fields)  # [nb_kernels, world_dims...]
 
-        fields_jnp = weighted_select_average(fields_jnp, cout_kernels_weight)  # [C, H, W]
+        fields_jnp = weighted_select_average(fields_jnp, kernels_weight_per_channel)  # [C, H, W]
         fields_jnp = fields_jnp[:, jnp.newaxis, jnp.newaxis]  # [C, N=1, c=1, H, W]
 
         return fields_jnp

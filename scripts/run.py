@@ -7,7 +7,7 @@ from omegaconf import DictConfig
 import hydra
 import numpy as np
 
-from lenia.api import get_container, init_and_run
+from lenia.helpers import get_container, init_and_run
 import lenia.utils as lenia_utils
 from lenia.growth_functions import growth_fns
 from lenia.core import init

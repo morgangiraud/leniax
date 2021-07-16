@@ -7,10 +7,10 @@ from qdpy import plots as qdpy_plots
 from qdpy.base import ParallelismManager
 from qdpy.algorithms.search import Sobol
 
-from lenia.api import get_container
+from lenia.helpers import get_container
 from lenia.qd import genBaseIndividual, eval_lenia_config
 from lenia import utils as lenia_utils
-from lenia import helpers as lenia_helpers
+from lenia import qd as lenia_qd
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
@@ -76,7 +76,7 @@ def run(omegaConf: DictConfig) -> None:
     qdpy_plots.default_plots_grid(logger, output_dir=save_dir)
 
     if config['other']['dump_bests'] is True:
-        lenia_helpers.dump_best(grid, config['run_params']['max_run_iter'])
+        lenia_qd.dump_best(grid, config['run_params']['max_run_iter'])
 
 
 if __name__ == '__main__':

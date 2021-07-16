@@ -1,5 +1,4 @@
 import math
-from functools import partial
 import jax
 from jax import vmap, lax, jit
 import jax.numpy as jnp
@@ -7,7 +6,6 @@ import jax.numpy as jnp
 from typing import Callable, List, Dict, Tuple, Optional
 
 from . import utils
-from . import initializations
 from . import statistics as lenia_stat
 from .kernels import get_kernels_and_mapping, KernelMapping
 from .growth_functions import growth_fns
@@ -57,10 +55,14 @@ def init_cells(
     return cells
 
 
-def run(cells: jnp.ndarray,
-        max_run_iter: int,
-        update_fn: Callable,
-        compute_stats_fn: Optional[Callable] = None) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, List]:
+def run(
+    cells: jnp.ndarray,
+    K: jnp.ndarray,
+    gfn_params: jnp.ndarray,
+    max_run_iter: int,
+    update_fn: Callable,
+    compute_stats_fn: Optional[Callable] = None
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, List]:
     assert max_run_iter > 0, f"max_run_iter must be positive, value given: {max_run_iter}"
 
     # cells shape: [C, N=1, c=1, dims...]
@@ -81,7 +83,7 @@ def run(cells: jnp.ndarray,
     nb_too_much_percent_step = 0
     should_continue = True
     for current_iter in range(max_run_iter):
-        new_cells, field, potential = update_fn(cells)
+        new_cells, field, potential = update_fn(cells, K, gfn_params)
 
         if compute_stats_fn:
             # To compute stats, the world (cells, field, potential) has to be centered and taken from the same timestep
@@ -164,14 +166,18 @@ def run(cells: jnp.ndarray,
     return all_cells_jnp, all_fields_jnp, all_potentials_jnp, all_stats
 
 
-# @jax.partial(jit, static_argnums=(1, 2, 3))
-# @jax.partial(vmap, in_axes=(0, None, None, None), out_axes=(0, 0, 0, None))
-def run_parralel(cells: jnp.ndarray, max_run_iter: int, update_fn: Callable,
-                 compute_stats_fn: Callable) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, List]:
-
-    # This function should be vmapped
-    # cells shape for the vmapped input: [N_init, C, N=1, c=1, dims...]
-    # actual cells shape: [C, N=1, c=1, dims...]
+@jax.partial(jit, static_argnums=(3, 4, 5))
+def run_jit(
+    cells: jnp.ndarray,
+    K: jnp.ndarray,
+    gfn_params: jnp.ndarray,
+    max_run_iter: int,
+    update_fn: Callable,
+    compute_stats_fn: Callable
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, List]:
+    """
+        center_world calls are expensive like hell!
+    """
     nb_dims = len(cells.shape) - 3
     axes = tuple(range(-nb_dims, 0, 1))
 
@@ -182,7 +188,7 @@ def run_parralel(cells: jnp.ndarray, max_run_iter: int, update_fn: Callable,
     total_shift_idx = 0
 
     for _ in range(max_run_iter):
-        new_cells, field, potential = update_fn(cells)
+        new_cells, field, potential = update_fn(cells, K, gfn_params)
         # To compute stats, the world (cells, field, potential) has to be centered and taken from the same timestep
         stats, shift_idx = compute_stats_fn(cells, field, potential)
         all_stats.append(stats)
@@ -191,12 +197,12 @@ def run_parralel(cells: jnp.ndarray, max_run_iter: int, update_fn: Callable,
         total_shift_idx += shift_idx
         cells, field, potential = utils.center_world(new_cells, field, potential, shift_idx, axes)
 
-        # To have a nice viz, it's much nicer to NOT have the world centered
+        # # To have a nice viz, it's much nicer to NOT have the world centered
         all_cells.append(jnp.roll(cells, total_shift_idx, axes))
         all_fields.append(jnp.roll(field, total_shift_idx, axes))
         all_potentials.append(jnp.roll(potential, total_shift_idx, axes))
 
-    # To keep the same number of elements per array
+    # # To keep the same number of elements per array
     all_cells.pop()
 
     all_cells_jnp = jnp.array(all_cells)
@@ -206,119 +212,7 @@ def run_parralel(cells: jnp.ndarray, max_run_iter: int, update_fn: Callable,
     return all_cells_jnp, all_fields_jnp, all_potentials_jnp, all_stats
 
 
-def run_init_search(rng_key: jnp.ndarray, config: Dict, with_stats: bool = True) -> Tuple[jnp.ndarray, List]:
-    world_params = config['world_params']
-    nb_channels = world_params['nb_channels']
-    R = world_params['R']
-
-    render_params = config['render_params']
-    world_size = render_params['world_size']
-
-    kernels_params = config['kernels_params']['k']
-
-    run_params = config['run_params']
-    nb_init_search = run_params['nb_init_search']
-    max_run_iter = run_params['max_run_iter']
-
-    K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
-    update_fn = build_update_fn(world_params, K, mapping)
-    compute_stats_fn: Optional[Callable]
-    if with_stats:
-        compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
-    else:
-        compute_stats_fn = None
-
-    rng_key, noises = initializations.perlin(rng_key, nb_init_search, world_size, R, kernels_params[0])
-
-    runs = []
-    for i in range(nb_init_search):
-        cells_0 = init_cells(world_size, nb_channels, [noises[i]])
-
-        all_cells, _, _, all_stats = run(cells_0, max_run_iter, update_fn, compute_stats_fn)
-        nb_iter_done = len(all_cells)
-
-        runs.append({"N": nb_iter_done, "all_cells": all_cells, "all_stats": all_stats})
-        if nb_iter_done >= max_run_iter:
-            break
-
-    return rng_key, runs
-
-
-def run_init_search_parralel(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, List]:
-    world_params = config['world_params']
-    nb_channels = world_params['nb_channels']
-    R = world_params['R']
-
-    render_params = config['render_params']
-    world_size = render_params['world_size']
-
-    kernels_params = config['kernels_params']['k']
-
-    run_params = config['run_params']
-    nb_init_search = run_params['nb_init_search']
-    max_run_iter = run_params['max_run_iter']
-
-    K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
-    update_fn = build_update_fn(world_params, K, mapping)
-    compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
-
-    # rng_key, noises = initializations.random_uniform(rng_key, nb_init_search, world_size, nb_channels)
-    rng_key, noises = initializations.perlin(rng_key, nb_init_search, world_size, R, kernels_params[0])
-    cells_0 = init_cells(world_size, nb_channels, [noises], nb_init_search)
-
-    # prevent any gradient-related operations from downstream operations, including tracing / graph building
-    cells_0 = lax.stop_gradient(cells_0)
-    run_parralel_partial = partial(
-        run_parralel, max_run_iter=max_run_iter, update_fn=update_fn, compute_stats_fn=compute_stats_fn
-    )
-    vrun = vmap(run_parralel_partial, 0, 0)
-
-    # v_all_cells: list of N_iter ndarray with shape [N_init, C, N=1, c=1, H, W]
-    # v_all_stats: list of N_iter stat object with N_init values
-    v_all_cells, _, _, v_all_stats = vrun(cells_0)
-
-    all_should_continue = []
-    should_continue = jnp.ones(v_all_cells.shape[0])
-    init_mass = v_all_cells[:, 0].sum(axis=tuple(range(1, len(v_all_cells.shape) - 1)))
-    mass = init_mass.copy()
-    sign = jnp.ones_like(init_mass)
-    counters = {
-        'nb_slow_mass_step': jnp.zeros_like(init_mass),
-        'nb_monotone_step': jnp.zeros_like(init_mass),
-        'nb_too_much_percent_step': jnp.zeros_like(init_mass),
-    }
-    for i in range(len(v_all_stats)):
-        stats = v_all_stats[i]
-        should_continue, mass, sign = lenia_stat.check_heuristics(
-            stats, should_continue, init_mass, mass, sign, counters
-        )
-        all_should_continue.append(should_continue)
-    all_should_continue_jnp = jnp.array(all_should_continue)
-    idx = all_should_continue_jnp.sum(axis=0).argmax()
-    best = v_all_cells[idx, :, :, 0, 0, ...]
-
-    return rng_key, best
-
-
-def build_update_fn(world_params: Dict, K: jnp.ndarray, mapping: KernelMapping) -> Callable:
-    T = world_params['T']
-    dt = 1 / T
-
-    get_potential_fn = build_get_potential_fn(K.shape, mapping.true_channels)
-    get_field_fn = build_get_field_fn(mapping)
-
-    @jit
-    def update(cells: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-        potential = get_potential_fn(cells, K)
-        field = get_field_fn(potential)
-        cells = update_cells(cells, field, dt)
-
-        return cells, field, potential
-
-    return update
-
-
-def build_update_fn_2(world_params: Dict, K_shape: Tuple[int], mapping: KernelMapping) -> Callable:
+def build_update_fn(world_params: Dict, K_shape: Tuple[int, ...], mapping: KernelMapping) -> Callable:
     T = world_params['T']
     dt = 1 / T
 
@@ -326,9 +220,10 @@ def build_update_fn_2(world_params: Dict, K_shape: Tuple[int], mapping: KernelMa
     get_field_fn = build_get_field_fn(mapping)
 
     @jit
-    def update(cells: jnp.ndarray, K: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    def update(cells: jnp.ndarray, K: jnp.ndarray,
+               gfn_params: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         potential = get_potential_fn(cells, K)
-        field = get_field_fn(potential)
+        field = get_field_fn(potential, gfn_params)
         cells = update_cells(cells, field, dt)
 
         return cells, field, potential
@@ -338,19 +233,27 @@ def build_update_fn_2(world_params: Dict, K_shape: Tuple[int], mapping: KernelMa
 
 def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: List[bool]) -> Callable:
     true_channels_jnp = jnp.array(true_channels)
-    vconv = vmap(lax.conv, (0, 0, None, None), 0)
     nb_channels = kernel_shape[0]
     depth = kernel_shape[1]
-    pad_w = kernel_shape[-1] // 2
-    pad_h = kernel_shape[-2] // 2
+    # First 3 dimensions are for nb_channels, fake batch dim and fake channel dim
+    padding = jnp.array([[0, 0]] * 3 + [[dim // 2, dim // 2] for dim in kernel_shape[3:]])
+
+    vconv = vmap(lax.conv, (0, 0, None, None), 0)
 
     @jit
     def get_potential(cells: jnp.ndarray, K: jnp.ndarray) -> jnp.ndarray:
-        padded_cells = jnp.pad(cells, [(0, 0), (0, 0), (0, 0), (pad_h, pad_h), (pad_w, pad_w)], mode='wrap')
+        """
+            Args:
+                - cells: jnp.ndarray[C, N=1, c=1, world_dims...]
+                - K: jnp.ndarray[C, K_o, K_i=1, kernel_dims...]
+
+            The first dimension of cells and K is the vmap dimension
+        """
+
+        padded_cells = jnp.pad(cells, padding, mode='wrap')
         conv_out = vconv(padded_cells, K, (1, 1), 'VALID')  # [C, N=1, c=O, H, W]
 
-        H, W = cells.shape[-2:]
-        conv_out_reshaped = conv_out.reshape(nb_channels * depth, H, W)
+        conv_out_reshaped = conv_out.reshape(nb_channels * depth, *cells.shape[3:])
         potential = conv_out_reshaped[true_channels_jnp]  # [nb_kernels, H, W]
 
         return potential
@@ -365,17 +268,19 @@ def build_get_field_fn(mapping: KernelMapping) -> Callable:
     growth_fn_l = []
     for i in range(len(cin_growth_fns['gf_id'])):
         gf_id = cin_growth_fns['gf_id'][i]
-        m = cin_growth_fns['m'][i]
-        s = cin_growth_fns['s'][i]
+        # m = cin_growth_fns['m'][i]
+        # s = cin_growth_fns['s'][i]
 
         growth_fn = growth_fns[gf_id]
-        growth_fn_l.append(partial(growth_fn, m=m, s=s))
+        # growth_fn_l.append(partial(growth_fn, m=m, s=s))
+        growth_fn_l.append(growth_fn)
 
     @jit
-    def get_field(potential: jnp.ndarray) -> jnp.ndarray:
+    def get_field(potential: jnp.ndarray, gfn_params: jnp.ndarray) -> jnp.ndarray:
         """
             Args:
                 - potential: jnp.ndarray[nb_kernels, world_dims...] shape must be kept constant to avoid recompiling
+                - fn_params: jnp.ndarray[nb_kernels, 2] shape must be kept constant to avoid recompiling
 
             Implicit closure args:
                 - nb_kernels must be kept contant to avoid recompiling
@@ -385,9 +290,10 @@ def build_get_field_fn(mapping: KernelMapping) -> Callable:
         nb_kernels = len(cin_growth_fns['gf_id'])
         for i in range(nb_kernels):
             sub_potential = potential[i]
+            current_gfn_params = gfn_params[i]
             growth_fn = growth_fn_l[i]
 
-            sub_field = growth_fn(sub_potential)
+            sub_field = growth_fn(sub_potential, current_gfn_params[0], current_gfn_params[1])
 
             fields.append(sub_field)
         fields_jnp = jnp.stack(fields)  # [nb_kernels, world_dims...]

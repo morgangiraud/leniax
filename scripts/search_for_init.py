@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 from omegaconf import DictConfig
 import hydra
 
-from lenia.api import search_for_init, get_container
-# from lenia.api import search_for_init_parallel
+from lenia.helpers import search_for_init, get_container
+# from lenia.helpers import search_for_init_parallel
 from lenia import utils as lenia_utils
 from lenia.growth_functions import growth_fns
 from lenia.core import init

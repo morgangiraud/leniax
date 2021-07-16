@@ -24,6 +24,9 @@ class KernelMapping(object):
             's': [],
         }
 
+    def get_gfn_params(self):
+        return jnp.vstack([self.cin_growth_fns['m'], self.cin_growth_fns['s']]).T
+
 
 def poly_quad4(x: jnp.ndarray, q: float = 4):
     out = 4 * x * (1 - x)

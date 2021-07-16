@@ -10,7 +10,7 @@ from ribs.archives import GridArchive, CVTArchive
 from ribs.emitters import GaussianEmitter, ImprovementEmitter, OptimizingEmitter, RandomDirectionEmitter
 from ribs.optimizers import Optimizer
 
-from lenia.api import get_container
+from lenia.helpers import get_container
 from lenia import utils as lenia_utils
 from lenia import qd as lenia_qd
 from lenia.kernels import get_kernels_and_mapping

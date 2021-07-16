@@ -10,10 +10,9 @@ from qdpy import algorithms
 from qdpy import plots as qdpy_plots
 from qdpy.base import ParallelismManager
 
-from lenia.api import get_container
+from lenia.helpers import get_container
 from lenia import qd as lenia_qd
 from lenia import utils as lenia_utils
-from lenia import helpers as lenia_helpers
 
 # We are not using matmul on huge matrix, so we can avoid parallelising every operation
 # This allow us to increase the numbre of parallel process
@@ -101,7 +100,7 @@ def run(omegaConf: DictConfig) -> None:
     qdpy_plots.default_plots_grid(logger, output_dir=save_dir)
 
     if config['other']['dump_bests'] is True:
-        lenia_helpers.dump_best(archive, config['run_params']['max_run_iter'])
+        lenia_qd.dump_best(archive, config['run_params']['max_run_iter'])
 
 
 if __name__ == '__main__':

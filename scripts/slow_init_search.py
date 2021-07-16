@@ -3,7 +3,7 @@ import os
 from omegaconf import DictConfig
 import hydra
 
-from lenia.api import slow_init_search, get_container
+from lenia.helpers import slow_init_search, get_container
 from lenia import utils as lenia_utils
 
 cdir = os.path.dirname(os.path.realpath(__file__))

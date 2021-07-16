@@ -3,15 +3,77 @@ import os
 import unittest
 import jax.numpy as jnp
 import numpy as np
+from hydra import compose, initialize
 
+from lenia.helpers import get_container
 from lenia import core as lenia_core
+from lenia import kernels as lenia_kernel
+from lenia import statistics as lenia_stat
 
 cfd = os.path.dirname(os.path.realpath(__file__))
 fixture_dir = os.path.join(cfd, 'fixtures')
 
 
 class TestCore(unittest.TestCase):
-    def test_get_potential(self):
+    def test_run_jit_perf(self):
+        with initialize(config_path='fixtures'):
+            omegaConf = compose(config_name="orbium-test")
+            config = get_container(omegaConf)
+
+        max_run_iter = 4
+        cells, K, mapping = lenia_core.init(config)
+        update_fn = lenia_core.build_update_fn(config['world_params'], K.shape, mapping)
+        compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
+
+        cells1 = jnp.ones(cells.shape) * 0.2
+        K1 = jnp.ones(K.shape) * 0.3
+        gfn_params1 = mapping.get_gfn_params()
+
+        t0 = time.time()
+        _ = lenia_core.run_jit(cells1, K1, gfn_params1, max_run_iter, update_fn, compute_stats_fn)
+        delta_t = time.time() - t0
+        print(delta_t)
+
+        cells2 = jnp.ones(cells.shape) * 0.5
+        K2 = jnp.ones(K.shape) * 0.5
+        mapping.cin_growth_fns['m'][0] = .3
+        gfn_params2 = mapping.get_gfn_params()
+
+        t0 = time.time()
+        _ = lenia_core.run_jit(cells2, K2, gfn_params2, max_run_iter, update_fn, compute_stats_fn)
+        delta_t_compiled = time.time() - t0
+        print(delta_t_compiled)
+
+        assert 0.0001 * delta_t > delta_t_compiled
+
+    def test_update_fn_jit_perf(self):
+        with initialize(config_path='fixtures'):
+            omegaConf = compose(config_name="orbium-test")
+            config = get_container(omegaConf)
+
+        cells, K, mapping = lenia_core.init(config)
+        update_fn = lenia_core.build_update_fn(config['world_params'], K.shape, mapping)
+
+        cells1 = jnp.ones(cells.shape) * 0.2
+        K1 = jnp.ones(K.shape) * 0.3
+        gfn_params1 = mapping.get_gfn_params()
+
+        t0 = time.time()
+        _ = update_fn(cells1, K1, gfn_params1)
+        delta_t = time.time() - t0
+
+        cells2 = jnp.ones(cells.shape) * 0.5
+        K2 = jnp.ones(K.shape) * 0.5
+        mapping.cin_growth_fns['m'][0] = .3
+        gfn_params2 = mapping.get_gfn_params()
+
+        t0 = time.time()
+        _ = update_fn(cells2, K2, gfn_params2)
+        delta_t_compiled = time.time() - t0
+
+        assert 0.01 * delta_t > delta_t_compiled
+
+    def test_get_potential_jit_perf(self):
         H = 2
         W = 2
         C = 2
@@ -31,10 +93,19 @@ class TestCore(unittest.TestCase):
         K = K.at[1, 0].set(0.3)
         K = K.at[1, 1].set(0)
 
-        true_channels = jnp.array([True, True, True, False])
+        true_channels = [True, True, True, False]
 
         get_potential = lenia_core.build_get_potential_fn(K.shape, true_channels)
+
+        t0 = time.time()
         potential = get_potential(cells, K)
+        delta_t = time.time() - t0
+
+        cells2 = jnp.ones([C, 1, 1, H, W])
+        K2 = jnp.ones([C, K_o, K_i, K_h, K_w]) * 0.2
+        t0 = time.time()
+        _ = get_potential(cells2, K2)
+        delta_t_compiled = time.time() - t0
 
         assert len(potential.shape) == 3
         assert potential.shape[0] == nb_kernels
@@ -46,6 +117,36 @@ class TestCore(unittest.TestCase):
         true_potential = true_potential.at[1].set(0.18)
         true_potential = true_potential.at[2].set(0.54)
         np.testing.assert_array_equal(potential, true_potential)
+
+        assert 0.01 * delta_t > delta_t_compiled
+
+    def test_get_field_jit_perf(self):
+        nb_channels = 2
+        nb_kernels = 3
+        mapping = lenia_kernel.KernelMapping(nb_channels, nb_kernels)
+        mapping.kernels_weight_per_channel = jnp.array([[.5, .4, .0], [.5, .2, .0]])
+        mapping.cin_growth_fns['gf_id'] = [0, 0, 0]
+        mapping.cin_growth_fns['m'] = [0.1, 0.2, 0.3]
+        mapping.cin_growth_fns['s'] = [0.1, 0.2, 0.3]
+
+        get_field = lenia_core.build_get_field_fn(mapping)
+
+        potential1 = jnp.ones([nb_kernels, 25, 25]) * .5
+        gfn_params1 = mapping.get_gfn_params()
+        t0 = time.time()
+        _ = get_field(potential1, gfn_params1)
+        delta_t = time.time() - t0
+
+        potential2 = jnp.ones([nb_kernels, 25, 25]) * .5
+        mapping.cin_growth_fns['m'] = [0.2, 0.3, 0.4]
+        mapping.cin_growth_fns['s'] = [0.8, 0.7, 0.6]
+        gfn_params2 = mapping.get_gfn_params()
+
+        t0 = time.time()
+        _ = get_field(potential2, gfn_params2)
+        delta_t_compiled = time.time() - t0
+
+        assert 0.01 * delta_t > delta_t_compiled
 
     def test_weighted_select_average_jit_perf(self):
         nb_kernels = 3

@@ -10,10 +10,9 @@ from ribs.archives import GridArchive, CVTArchive
 from ribs.emitters import GaussianEmitter, ImprovementEmitter, OptimizingEmitter, RandomDirectionEmitter
 from ribs.optimizers import Optimizer
 
-from lenia.api import get_container
+from lenia.helpers import get_container
 from lenia import qd as lenia_qd
 from lenia import utils as lenia_utils
-from lenia import helpers as lenia_helpers
 from lenia import video as lenia_video
 
 # Disable JAX logging https://abseil.io/docs/python/guides/logging
@@ -90,7 +89,7 @@ def run(omegaConf: DictConfig) -> None:
 
     if config['other']['dump_bests'] is True:
         fitness_threshold = 0.7 * fitness_domain[1]
-        lenia_helpers.dump_best(optimizer.archive, fitness_threshold)
+        lenia_qd.dump_best(optimizer.archive, fitness_threshold)
 
 
 if __name__ == '__main__':

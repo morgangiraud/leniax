@@ -23,8 +23,6 @@ config_path_1c1k = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
 # @hydra.main(config_path=config_path_1c1k, config_name="prototype")
 def launch(omegaConf: DictConfig) -> None:
     config = get_container(omegaConf)
-    config['run_params']['nb_init_search'] = 256
-    config['run_params']['max_run_iter'] = 128
     print(config)
 
     rng_key = lenia_utils.seed_everything(config['run_params']['seed'])

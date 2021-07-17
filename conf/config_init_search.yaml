@@ -4,7 +4,7 @@ defaults:
   - run_params: init_search
 
 run_params:
-  nb_init_search: 64
+  nb_init_search: 256
   max_run_iter: 1024
 
 kernels_params:

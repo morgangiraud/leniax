@@ -168,12 +168,13 @@ def run_scan(
     world_shape = jnp.array(cells.shape[3:])
     nb_dims = len(world_shape)
     axes = tuple(range(-nb_dims, 0, 1))
-    total_shift_idx = jnp.zeros([nb_dims], dtype=jnp.int32)
 
     def fn(carry, x):
-        cells, K, gfn_params, total_shift_idx = carry
-
+        cells, K, gfn_params = carry['fn_params']
         new_cells, field, potential = update_fn(cells, K, gfn_params)
+
+        stat_props = carry['stats_properties']
+        total_shift_idx = stat_props['total_shift_idx']
         # To compute stats, the world (cells, field, potential) has to be centered and taken from the same timestep
         centered_cells, centered_field, centered_potential = utils.center_world(
             new_cells, field, potential, total_shift_idx, axes
@@ -184,11 +185,21 @@ def run_scan(
         y = {'cells': cells, 'field': field, 'potential': potential, 'stats': stats}
 
         cells = new_cells
-        new_carry = (cells, K, gfn_params, total_shift_idx)
+        new_carry = {
+            'fn_params': (cells, K, gfn_params), 'stats_properties': {
+                'total_shift_idx': total_shift_idx,
+            }
+        }
 
         return new_carry, y
 
-    init_carry = (cells, K, gfn_params, total_shift_idx)
+    total_shift_idx = jnp.zeros([nb_dims], dtype=jnp.int32)
+    init_carry = {
+        'fn_params': (cells, K, gfn_params), 'stats_properties': {
+            'total_shift_idx': total_shift_idx,
+        }
+    }
+
     final_carry, ys = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
 
     return ys['cells'], ys['field'], ys['potential'], ys['stats']

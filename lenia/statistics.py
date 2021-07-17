@@ -69,44 +69,56 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
 # Heuristics
 ###
 # @jit
-def check_heuristics(
-    stats: Dict[str, jnp.ndarray],
-    prev_should_continue: jnp.ndarray,
-    init_mass: jnp.ndarray,
-    previous_mass: jnp.ndarray,
-    previous_sign: jnp.ndarray,
-    counters: Dict[str, jnp.ndarray]
-):
-    mass = stats['mass']
-    cond = min_mass_heuristic(EPSILON, mass)
-    should_continue_cond = cond
-    cond = max_mass_heuristic(init_mass, mass)
-    should_continue_cond *= cond
+def check_heuristics(stats: Dict[str, jnp.ndarray]):
+    should_continue = True
+    init_mass = stats['mass'][0]
+    previous_mass = stats['mass'][0]
+    previous_sign = 0.
+    counters = init_counters()
 
-    sign = jnp.sign(mass - previous_mass)
-    monotone_counter = counters['nb_monotone_step']
-    cond, counters['nb_monotone_step'] = monotonic_heuristic(sign, previous_sign, monotone_counter)
-    should_continue_cond *= cond
+    length = len(stats['mass'])
+    for i in range(1, length + 1):
+        mass = stats['mass'][i - 1]
+        cond = min_mass_heuristic(EPSILON, mass)
+        should_continue_cond = cond
+        cond = max_mass_heuristic(init_mass, mass)
+        should_continue_cond *= cond
 
-    # growth = stats['growth']
-    # cond = max_growth_heuristic(growth)
-    # should_continue_cond *= cond
+        sign = jnp.sign(mass - previous_mass)
+        monotone_counter = counters['nb_monotone_step']
+        cond, counters['nb_monotone_step'] = monotonic_heuristic_seq(sign, previous_sign, monotone_counter)
+        should_continue_cond *= cond
 
-    mass_speed = stats['mass_speed']
-    mass_speed_counter = counters['nb_slow_mass_step']
-    cond, counters['nb_slow_mass_step'] = max_mass_speed_heuristic(mass_speed, mass_speed_counter)
-    should_continue_cond *= cond
+        # growth = stats['growth'][i - 1]
+        # cond = max_growth_heuristic(growth)
+        # should_continue_cond *= cond
 
-    percent_activated = stats['percent_activated']
-    percent_activated_counter = counters['nb_too_much_percent_step']
-    cond, counters['nb_too_much_percent_step'] = percent_activated_heuristic(
-        percent_activated, percent_activated_counter
-    )
-    should_continue_cond *= cond
+        mass_speed = stats['mass_speed'][i - 1]
+        mass_speed_counter = counters['nb_slow_mass_step']
+        cond, counters['nb_slow_mass_step'] = max_mass_speed_heuristic_seq(mass_speed, mass_speed_counter)
+        should_continue_cond *= cond
 
-    should_continue = jax.ops.index_update(prev_should_continue, ~should_continue_cond, 0.)
+        percent_activated = stats['percent_activated'][i - 1]
+        percent_activated_counter = counters['nb_too_much_percent_step']
+        cond, counters['nb_too_much_percent_step'] = percent_activated_heuristic_seq(
+            percent_activated, percent_activated_counter
+        )
+        should_continue_cond *= cond
 
-    return should_continue, mass, sign
+        should_continue *= should_continue_cond
+        if not should_continue:
+            break
+
+    continue_stat = jnp.array([1.] * i + [0.] * (length - i))
+    return continue_stat
+
+
+def init_counters() -> Dict[str, int]:
+    return {
+        'nb_monotone_step': 0,
+        'nb_slow_mass_step': 0,
+        'nb_too_much_percent_step': 0,
+    }
 
 
 def min_mass_heuristic(epsilon: float, mass: jnp.ndarray):
@@ -121,11 +133,27 @@ def max_mass_heuristic(init_mass: jnp.ndarray, mass: jnp.ndarray):
     return should_continue_cond
 
 
+MONOTONIC_STOP_STEP = 80
+
+
 def monotonic_heuristic(sign: jnp.ndarray, previous_sign: jnp.ndarray, monotone_counter: jnp.ndarray):
     sign_cond = (sign == previous_sign)
     monotone_counter = jax.ops.index_add(monotone_counter, sign_cond, 1.)
     monotone_counter = jax.ops.index_update(monotone_counter, ~sign_cond, 0.)
-    should_continue_cond = monotone_counter <= 80
+    should_continue_cond = monotone_counter <= MONOTONIC_STOP_STEP
+
+    return should_continue_cond, monotone_counter
+
+
+def monotonic_heuristic_seq(sign: float, previous_sign: float, monotone_counter: int) -> Tuple[bool, int]:
+    should_continue_cond = True
+    sign_cond = (sign == previous_sign)
+    if sign_cond:
+        monotone_counter += 1
+        if monotone_counter > MONOTONIC_STOP_STEP:
+            should_continue_cond = False
+    else:
+        monotone_counter = 0
 
     return should_continue_cond, monotone_counter
 

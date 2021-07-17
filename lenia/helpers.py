@@ -1,9 +1,8 @@
-import logging
 import time
 import uuid
 import jax
 import jax.numpy as jnp
-from typing import Callable, List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple
 from omegaconf import DictConfig, OmegaConf
 
 import lenia.initializations as initializations
@@ -49,7 +48,6 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Li
     K, mapping = lenia_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
     gfn_params = mapping.get_gfn_params()
     update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping)
-    compute_stats_fn: Optional[Callable]
     compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     rng_key, noises = initializations.perlin(rng_key, nb_init_search, world_size, R, kernels_params[0])
@@ -57,15 +55,22 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Li
     runs = []
     for i in range(nb_init_search):
         t0 = time.time()
+
         cells_0 = lenia_core.init_cells(world_size, nb_channels, [noises[i]])
-        all_cells, _, _, all_stats = lenia_core.run(
+        all_cells, _, _, all_stats = lenia_core.run_scan(
             cells_0, K, gfn_params, max_run_iter, update_fn, compute_stats_fn
         )
-        nb_iter_done = len(all_cells)
 
+        t1 = time.time()
+
+        continue_stat = lenia_stat.check_heuristics(all_stats)
+        all_stats['continue_stat'] = continue_stat
+
+        nb_iter_done = continue_stat.sum()
         runs.append({"N": nb_iter_done, "all_cells": all_cells, "all_stats": all_stats})
-        print(time.time() - t0)
-        breakpoint()
+
+        print(t1 - t0, time.time() - t1)
+
         if nb_iter_done >= max_run_iter:
             break
 

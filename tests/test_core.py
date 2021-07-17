@@ -15,12 +15,12 @@ fixture_dir = os.path.join(cfd, 'fixtures')
 
 
 class TestCore(unittest.TestCase):
-    def test_run_jit_perf(self):
+    def test_run_scan_perf(self):
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="orbium-test")
             config = get_container(omegaConf)
 
-        max_run_iter = 4
+        max_run_iter = 32
         cells, K, mapping = lenia_core.init(config)
         update_fn = lenia_core.build_update_fn(config['world_params'], K.shape, mapping)
         compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
@@ -30,7 +30,7 @@ class TestCore(unittest.TestCase):
         gfn_params1 = mapping.get_gfn_params()
 
         t0 = time.time()
-        _ = lenia_core.run_jit(cells1, K1, gfn_params1, max_run_iter, update_fn, compute_stats_fn)
+        _ = lenia_core.run_scan(cells1, K1, gfn_params1, max_run_iter, update_fn, compute_stats_fn)
         delta_t = time.time() - t0
         print(delta_t)
 
@@ -40,11 +40,11 @@ class TestCore(unittest.TestCase):
         gfn_params2 = mapping.get_gfn_params()
 
         t0 = time.time()
-        _ = lenia_core.run_jit(cells2, K2, gfn_params2, max_run_iter, update_fn, compute_stats_fn)
+        _ = lenia_core.run_scan(cells2, K2, gfn_params2, max_run_iter, update_fn, compute_stats_fn)
         delta_t_compiled = time.time() - t0
         print(delta_t_compiled)
 
-        assert 0.0001 * delta_t > delta_t_compiled
+        assert 0.001 * delta_t > delta_t_compiled
 
     def test_update_fn_jit_perf(self):
         with initialize(config_path='fixtures'):

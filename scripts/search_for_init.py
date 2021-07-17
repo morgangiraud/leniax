@@ -6,7 +6,6 @@ from omegaconf import DictConfig
 import hydra
 
 from lenia.helpers import search_for_init, get_container
-# from lenia.helpers import search_for_init_parallel
 from lenia import utils as lenia_utils
 from lenia.growth_functions import growth_fns
 from lenia.core import init
@@ -20,18 +19,18 @@ config_path = os.path.join(cdir, '..', 'conf')
 config_path_1c1k = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
 
 
-# # @hydra.main(config_path=config_path, config_name="config_init_search")
+@hydra.main(config_path=config_path, config_name="config_init_search")
 # @hydra.main(config_path=config_path_1c1k, config_name="prototype")
 def launch(omegaConf: DictConfig) -> None:
     config = get_container(omegaConf)
     config['run_params']['nb_init_search'] = 256
+    config['run_params']['max_run_iter'] = 128
     print(config)
 
     rng_key = lenia_utils.seed_everything(config['run_params']['seed'])
 
     t0 = time.time()
-    _, runs = search_for_init(rng_key, config, with_stats=True)
-    # _, runs = search_for_init_parallel(rng_key, config)
+    _, runs = search_for_init(rng_key, config)
     print(f"Init search done in {time.time() - t0} (nb_inits done: {len(runs) })")
 
     if len(runs) > 0:
@@ -66,8 +65,8 @@ def launch(omegaConf: DictConfig) -> None:
 
 
 if __name__ == '__main__':
-    # launch()
-    for i in range(49):
-        config_path_qd = os.path.join('..', 'outputs', 'good-search-2', str(i))
-        decorator = hydra.main(config_path=config_path_qd, config_name="config")
-        decorator(launch)()
+    launch()
+    # for i in range(49):
+    #     config_path_qd = os.path.join('..', 'outputs', 'good-search-2', str(i))
+    #     decorator = hydra.main(config_path=config_path_qd, config_name="config")
+    #     decorator(launch)()

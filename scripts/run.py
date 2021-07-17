@@ -21,8 +21,8 @@ config_path = os.path.join(cdir, '..', 'conf', 'species')
 config_path_1c1k = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
 
 
-# @hydra.main(config_path=config_path_1c1k, config_name="orbium")
-@hydra.main(config_path=config_path, config_name="orbium-scutium")
+@hydra.main(config_path=config_path_1c1k, config_name="orbium")
+# @hydra.main(config_path=config_path, config_name="orbium-scutium")
 def run(omegaConf: DictConfig) -> None:
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
@@ -31,7 +31,7 @@ def run(omegaConf: DictConfig) -> None:
     render_params = config['render_params']
 
     start_time = time.time()
-    all_cells, all_fields, all_potentials, all_stats = init_and_run(config)
+    all_cells, all_fields, all_potentials, all_stats = init_and_run(config, True)
     total_time = time.time() - start_time
 
     nb_iter_done = len(all_cells)

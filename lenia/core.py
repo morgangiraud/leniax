@@ -3,7 +3,7 @@ import jax
 from jax import vmap, lax, jit
 import jax.numpy as jnp
 # import numpy as np
-from typing import Callable, List, Dict, Tuple, Optional
+from typing import Callable, List, Dict, Tuple
 
 from . import utils
 from . import statistics as lenia_stat
@@ -61,19 +61,20 @@ def run(
     gfn_params: jnp.ndarray,
     max_run_iter: int,
     update_fn: Callable,
-    compute_stats_fn: Optional[Callable] = None
+    compute_stats_fn: Callable
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, List]:
     assert max_run_iter > 0, f"max_run_iter must be positive, value given: {max_run_iter}"
 
     # cells shape: [C, N=1, c=1, dims...]
-    nb_dims = len(cells.shape) - 3
+    world_shape = jnp.array(cells.shape[3:])
+    nb_dims = len(world_shape)
     axes = tuple(range(-nb_dims, 0, 1))
 
     all_cells = [cells]
     all_fields = []
     all_potentials = []
     all_stats = []
-    total_shift_idx = 0
+    total_shift_idx = jnp.zeros([nb_dims], dtype=jnp.int32)
     init_mass = cells.sum()
 
     previous_mass = init_mass
@@ -85,43 +86,32 @@ def run(
     for current_iter in range(max_run_iter):
         new_cells, field, potential = update_fn(cells, K, gfn_params)
 
-        if compute_stats_fn:
-            # To compute stats, the world (cells, field, potential) has to be centered and taken from the same timestep
-            stats, shift_idx = compute_stats_fn(cells, field, potential)
-            all_stats.append(stats)
+        # To compute stats, the world (cells, field, potential) has to be centered and taken from the same timestep
+        centered_cells, centered_field, centered_potential = utils.center_world(
+            new_cells, field, potential, total_shift_idx, axes
+        )
+        stats, shift_idx = compute_stats_fn(centered_cells, centered_field, centered_potential)
+        total_shift_idx = (total_shift_idx + shift_idx) % world_shape
+        all_stats.append(stats)
 
-            # centering
-            total_shift_idx += shift_idx
-            cells, field, potential = utils.center_world(new_cells, field, potential, shift_idx, axes)
+        cells = new_cells
+        all_cells.append(cells)
+        all_fields.append(field)
+        all_potentials.append(potential)
 
-            # To visualize, it's nicer to keep the world uncentered
-            all_cells.append(jnp.roll(cells, total_shift_idx, axes))
-            all_fields.append(jnp.roll(field, total_shift_idx, axes))
-            all_potentials.append(jnp.roll(potential, total_shift_idx, axes))
+        # Heuristics
+        # Looking for non-static species
+        mass_speed = stats['mass_speed']
+        should_continue_cond, nb_slow_mass_step = lenia_stat.max_mass_speed_heuristic_seq(mass_speed, nb_slow_mass_step)
+        should_continue = should_continue and should_continue_cond
 
-            # Heuristics
-            # Looking for non-static species
-            mass_speed = stats['mass_speed']
-            should_continue_cond, nb_slow_mass_step = lenia_stat.max_mass_speed_heuristic_seq(
-                mass_speed, nb_slow_mass_step
-            )
-            should_continue = should_continue and should_continue_cond
+        # Checking if it is a kind of cosmic soup
+        # growth = stats['growth']
+        # should_continue_cond = lenia_stat.max_growth_heuristics_sec(growth)
+        # should_continue = should_continue and should_continue_cond
 
-            # Checking if it is a kind of cosmic soup
-            # growth = stats['growth']
-            # should_continue_cond = lenia_stat.max_growth_heuristics_sec(growth)
-            # should_continue = should_continue and should_continue_cond
-
-            current_mass = stats['mass']
-            percent_activated = stats['percent_activated']
-        else:
-            cells = new_cells
-            all_cells.append(cells)
-            all_fields.append(field)
-            all_potentials.append(potential)
-
-            current_mass = cells.sum()
-            percent_activated = (cells > EPSILON).sum()
+        current_mass = stats['mass']
+        percent_activated = stats['percent_activated']
 
         # Heuristics
         # Stops when there is no more mass in the system
@@ -167,49 +157,41 @@ def run(
 
 
 @jax.partial(jit, static_argnums=(3, 4, 5))
-def run_jit(
+def run_scan(
     cells: jnp.ndarray,
     K: jnp.ndarray,
     gfn_params: jnp.ndarray,
     max_run_iter: int,
     update_fn: Callable,
     compute_stats_fn: Callable
-) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, List]:
-    """
-        center_world calls are expensive like hell!
-    """
-    nb_dims = len(cells.shape) - 3
+):
+    world_shape = jnp.array(cells.shape[3:])
+    nb_dims = len(world_shape)
     axes = tuple(range(-nb_dims, 0, 1))
+    total_shift_idx = jnp.zeros([nb_dims], dtype=jnp.int32)
 
-    all_cells = [cells]
-    all_fields = []
-    all_potentials = []
-    all_stats = []
-    total_shift_idx = 0
+    def fn(carry, x):
+        cells, K, gfn_params, total_shift_idx = carry
 
-    for _ in range(max_run_iter):
         new_cells, field, potential = update_fn(cells, K, gfn_params)
         # To compute stats, the world (cells, field, potential) has to be centered and taken from the same timestep
-        stats, shift_idx = compute_stats_fn(cells, field, potential)
-        all_stats.append(stats)
+        centered_cells, centered_field, centered_potential = utils.center_world(
+            new_cells, field, potential, total_shift_idx, axes
+        )
+        stats, shift_idx = compute_stats_fn(centered_cells, centered_field, centered_potential)
+        total_shift_idx = (total_shift_idx + shift_idx) % world_shape
 
-        # centering
-        total_shift_idx += shift_idx
-        cells, field, potential = utils.center_world(new_cells, field, potential, shift_idx, axes)
+        y = {'cells': cells, 'field': field, 'potential': potential, 'stats': stats}
 
-        # # To have a nice viz, it's much nicer to NOT have the world centered
-        all_cells.append(jnp.roll(cells, total_shift_idx, axes))
-        all_fields.append(jnp.roll(field, total_shift_idx, axes))
-        all_potentials.append(jnp.roll(potential, total_shift_idx, axes))
+        cells = new_cells
+        new_carry = (cells, K, gfn_params, total_shift_idx)
 
-    # # To keep the same number of elements per array
-    all_cells.pop()
+        return new_carry, y
 
-    all_cells_jnp = jnp.array(all_cells)
-    all_fields_jnp = jnp.array(all_fields)
-    all_potentials_jnp = jnp.array(all_potentials)
+    init_carry = (cells, K, gfn_params, total_shift_idx)
+    final_carry, ys = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
 
-    return all_cells_jnp, all_fields_jnp, all_potentials_jnp, all_stats
+    return ys['cells'], ys['field'], ys['potential'], ys['stats']
 
 
 def build_update_fn(world_params: Dict, K_shape: Tuple[int, ...], mapping: KernelMapping) -> Callable:
@@ -268,11 +250,7 @@ def build_get_field_fn(mapping: KernelMapping) -> Callable:
     growth_fn_l = []
     for i in range(len(cin_growth_fns['gf_id'])):
         gf_id = cin_growth_fns['gf_id'][i]
-        # m = cin_growth_fns['m'][i]
-        # s = cin_growth_fns['s'][i]
-
         growth_fn = growth_fns[gf_id]
-        # growth_fn_l.append(partial(growth_fn, m=m, s=s))
         growth_fn_l.append(growth_fn)
 
     @jit

@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 from jax import jit
-from typing import Dict, Callable, List, Tuple
+from typing import Dict, Callable, Tuple
 from .constant import EPSILON
 
 
@@ -41,6 +41,15 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
         mass_growth_dist = jnp.linalg.norm(mass_center - growth_center)
 
         shift_idx = (mass_center * R).astype(int)
+        # stats = jnp.array([
+        #     mass,
+        #     growth,
+        #     inertia,
+        #     mass_growth_dist,
+        #     mass_speed,
+        #     mass_angle,
+        #     percent_activated
+        # ])
         stats = {
             'mass': jnp.array(mass),
             'growth': jnp.array(growth),
@@ -54,22 +63,6 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
         return (stats, shift_idx)
 
     return compute_stats
-
-
-def stats_list_to_dict(all_stats: List[Dict]) -> Dict[str, jnp.ndarray]:
-    if len(all_stats) == 0:
-        return {}
-
-    stats_dict_list: Dict[str, List[float]] = {}
-    all_keys = list(all_stats[0].keys())
-    for k in all_keys:
-        stats_dict_list[k] = []
-    for stat in all_stats:
-        for k, v in stat.items():
-            stats_dict_list[k].append(v)
-    stats_dict = {k: jnp.array(stats_dict_list[k]) for k in all_keys}
-
-    return stats_dict
 
 
 ###

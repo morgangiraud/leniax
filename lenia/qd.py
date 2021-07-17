@@ -24,7 +24,7 @@ from .growth_functions import growth_fns
 from .helpers import search_for_init, init_and_run
 from . import utils as lenia_utils
 from .kernels import get_kernels_and_mapping, draw_kernels
-from .statistics import stats_list_to_dict, build_compute_stats_fn
+from .statistics import build_compute_stats_fn
 from .core import build_update_fn, run, init_cells, init
 import lenia.video as lenia_video
 
@@ -222,11 +222,11 @@ def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False, qdpy=False) -> Tu
     np.random.seed(ind.rng_key[0])
     random.seed(ind.rng_key[0])
 
-    _, runs = search_for_init(ind.rng_key, config, with_stats=True)
+    _, runs = search_for_init(ind.rng_key, config)
 
     best = runs[0]
     nb_steps = best['N']
-    config['behaviours'] = stats_list_to_dict(best['all_stats'])
+    config['behaviours'] = best['all_stats']
     init_cells = best['all_cells'][0][:, 0, 0, ...]
     ind.set_init_cells(lenia_utils.compress_array(init_cells))
 
@@ -281,7 +281,7 @@ def eval_lenia_init(ind: LeniaIndividual, neg_fitness=False, qdpy=False) -> Tupl
     all_cells, _, _, all_stats = run(cells_0, K, gfn_params, max_run_iter, update_fn, compute_stats_fn)
 
     nb_steps = len(all_cells)
-    config['behaviours'] = stats_list_to_dict(all_stats)
+    config['behaviours'] = all_stats
 
     if neg_fitness is True:
         fitness = -nb_steps

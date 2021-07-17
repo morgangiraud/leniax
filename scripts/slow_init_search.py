@@ -18,7 +18,7 @@ def launch(omegaConf: DictConfig) -> None:
     rng_key = lenia_utils.seed_everything(config['run_params']['seed'])
 
     t0 = time.time()
-    _, runs = slow_init_search(rng_key, config, with_stats=True)
+    _, runs = slow_init_search(rng_key, config)
     # _, runs = search_for_init_parallel(rng_key, config)
     print(f"Init search done in {time.time() - t0}")
 

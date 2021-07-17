@@ -1,4 +1,5 @@
 import logging
+import time
 import uuid
 import jax
 import jax.numpy as jnp
@@ -10,56 +11,6 @@ import lenia.statistics as lenia_stat
 import lenia.core as lenia_core
 
 import lenia.kernels as lenia_kernels
-
-
-def run_init_search(rng_key: jnp.ndarray, config: Dict, with_stats: bool = True) -> Tuple[jnp.ndarray, List]:
-    world_params = config['world_params']
-    nb_channels = world_params['nb_channels']
-    R = world_params['R']
-
-    render_params = config['render_params']
-    world_size = render_params['world_size']
-
-    kernels_params = config['kernels_params']['k']
-
-    run_params = config['run_params']
-    nb_init_search = run_params['nb_init_search']
-    max_run_iter = run_params['max_run_iter']
-
-    K, mapping = lenia_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
-    gfn_params = mapping.get_gfn_params()
-    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping)
-    compute_stats_fn: Optional[Callable]
-    if with_stats:
-        compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
-    else:
-        compute_stats_fn = None
-
-    rng_key, noises = initializations.perlin(rng_key, nb_init_search, world_size, R, kernels_params[0])
-
-    runs = []
-    for i in range(nb_init_search):
-        cells_0 = lenia_core.init_cells(world_size, nb_channels, [noises[i]])
-
-        all_cells, _, _, all_stats = lenia_core.run(cells_0, K, gfn_params, max_run_iter, update_fn, compute_stats_fn)
-        nb_iter_done = len(all_cells)
-
-        runs.append({"N": nb_iter_done, "all_cells": all_cells, "all_stats": all_stats})
-        if nb_iter_done >= max_run_iter:
-            break
-
-    return rng_key, runs
-
-
-def search_for_init(rng_key: jnp.ndarray, config: Dict, with_stats: bool = True) -> Tuple[jnp.ndarray, List[Dict]]:
-    logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
-
-    rng_key, runs = run_init_search(rng_key, config, with_stats)
-
-    if len(runs) > 0:
-        runs.sort(key=lambda run: run["N"], reverse=True)
-
-    return rng_key, runs
 
 
 def get_container(omegaConf: DictConfig) -> Dict:
@@ -81,39 +32,66 @@ def get_container(omegaConf: DictConfig) -> Dict:
     return config
 
 
-def init_and_run(config: Dict, with_stats: bool = True) -> Tuple:
+def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, List[Dict]]:
+    world_params = config['world_params']
+    nb_channels = world_params['nb_channels']
+    R = world_params['R']
+
+    render_params = config['render_params']
+    world_size = render_params['world_size']
+
+    kernels_params = config['kernels_params']['k']
+
+    run_params = config['run_params']
+    nb_init_search = run_params['nb_init_search']
+    max_run_iter = run_params['max_run_iter']
+
+    K, mapping = lenia_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
+    gfn_params = mapping.get_gfn_params()
+    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping)
+    compute_stats_fn: Optional[Callable]
+    compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
+
+    rng_key, noises = initializations.perlin(rng_key, nb_init_search, world_size, R, kernels_params[0])
+
+    runs = []
+    for i in range(nb_init_search):
+        t0 = time.time()
+        cells_0 = lenia_core.init_cells(world_size, nb_channels, [noises[i]])
+        all_cells, _, _, all_stats = lenia_core.run(
+            cells_0, K, gfn_params, max_run_iter, update_fn, compute_stats_fn
+        )
+        nb_iter_done = len(all_cells)
+
+        runs.append({"N": nb_iter_done, "all_cells": all_cells, "all_stats": all_stats})
+        print(time.time() - t0)
+        breakpoint()
+        if nb_iter_done >= max_run_iter:
+            break
+
+    if len(runs) > 0:
+        runs.sort(key=lambda run: run["N"], reverse=True)
+
+    return rng_key, runs
+
+
+def init_and_run(config: Dict, with_jit: bool = False) -> Tuple:
     cells, K, mapping = lenia_core.init(config)
     gfn_params = mapping.get_gfn_params()
+
     update_fn = lenia_core.build_update_fn(config['world_params'], K.shape, mapping)
-    compute_stats_fn: Optional[Callable]
-    if with_stats:
-        compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
-    else:
-        compute_stats_fn = None
+    compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     max_run_iter = config['run_params']['max_run_iter']
-    outputs = lenia_core.run(cells, K, gfn_params, max_run_iter, update_fn, compute_stats_fn)
+    if with_jit is True:
+        outputs = lenia_core.run_scan(cells, K, gfn_params, max_run_iter, update_fn, compute_stats_fn)
+    else:
+        outputs = lenia_core.run(cells, K, gfn_params, max_run_iter, update_fn, compute_stats_fn)
 
     return outputs
 
 
-def init_and_run_jit(config: Dict, with_stats: bool = False) -> Tuple:
-    cells, K, mapping = lenia_core.init(config)
-    gfn_params = mapping.get_gfn_params()
-    update_fn = lenia_core.build_update_fn(config['world_params'], K.shape, mapping)
-    compute_stats_fn: Optional[Callable]
-    if with_stats:
-        compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
-    else:
-        compute_stats_fn = None
-
-    max_run_iter = config['run_params']['max_run_iter']
-    outputs = lenia_core.run_jit(cells, K, gfn_params, max_run_iter, update_fn, compute_stats_fn)
-
-    return outputs
-
-
-def slow_init_search(rng_key: jnp.ndarray, config: Dict, with_stats: bool = True) -> Tuple[jnp.ndarray, Dict]:
+def slow_init_search(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Dict]:
     """
         Slow_init_search is a debugging fuction used to explore in a grid-like fashion some initialization scheme
 
@@ -134,13 +112,10 @@ def slow_init_search(rng_key: jnp.ndarray, config: Dict, with_stats: bool = True
     max_run_iter = run_params['max_run_iter']
 
     K, mapping = lenia_core.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
-    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping)
     gfn_params = mapping.get_gfn_params()
-    compute_stats_fn: Optional[Callable]
-    if with_stats:
-        compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
-    else:
-        compute_stats_fn = None
+
+    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping)
+    compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     runs: Dict[str, list] = {}
     min_bound = 128

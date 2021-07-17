@@ -122,7 +122,6 @@ def get_kernel(kernel_params: Dict, world_size: list, R: float) -> jnp.ndarray:
 
 
 def kernel_shell(distances: jnp.ndarray, kernel_params: Dict) -> jnp.ndarray:
-
     bs = jnp.asarray(lenia_utils.st2fracs2float(kernel_params['b']))
     nb_b = bs.shape[0]
 

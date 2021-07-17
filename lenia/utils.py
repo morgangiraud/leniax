@@ -11,8 +11,6 @@ from fractions import Fraction
 from PIL import Image
 from typing import List, Callable, Dict, Any
 
-from .statistics import stats_list_to_dict
-
 cdir = os.path.dirname(os.path.realpath(__file__))
 save_dir = os.path.join(cdir, 'save')
 image_ext = "png"
@@ -343,8 +341,7 @@ def plot_gfunction(save_dir: str, id: int, fn: Callable, m: float, s: float, T: 
     plt.close(fig)
 
 
-def plot_stats(save_dir: str, all_stats: List[Dict]):
-    stats_dict = stats_list_to_dict(all_stats)
+def plot_stats(save_dir: str, stats_dict: Dict):
     all_keys = list(stats_dict.keys())
 
     nb_steps = len(stats_dict[all_keys[0]])

@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 from jax import jit
-from typing import Dict, Callable, Tuple
+from typing import List, Dict, Callable, Tuple
 from .constant import EPSILON
 
 
@@ -68,17 +68,16 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
 ###
 # Heuristics
 ###
-# @jit
+@jit
 def check_heuristics(stats: Dict[str, jnp.ndarray]):
-    should_continue = True
-    init_mass = stats['mass'][0]
-    previous_mass = stats['mass'][0]
-    previous_sign = 0.
-    counters = init_counters()
+    def fn(carry, stat_t):
+        should_continue = carry['should_continue']
+        init_mass = carry['init_mass']
+        previous_mass = carry['previous_mass']
+        previous_sign = carry['previous_sign']
+        counters = carry['counters']
 
-    length = len(stats['mass'])
-    for i in range(1, length + 1):
-        mass = stats['mass'][i - 1]
+        mass = stat_t['mass']
         cond = min_mass_heuristic(EPSILON, mass)
         should_continue_cond = cond
         cond = max_mass_heuristic(init_mass, mass)
@@ -89,16 +88,16 @@ def check_heuristics(stats: Dict[str, jnp.ndarray]):
         cond, counters['nb_monotone_step'] = monotonic_heuristic_seq(sign, previous_sign, monotone_counter)
         should_continue_cond *= cond
 
-        # growth = stats['growth'][i - 1]
+        # growth = stat_t['growth']
         # cond = max_growth_heuristic(growth)
         # should_continue_cond *= cond
 
-        mass_speed = stats['mass_speed'][i - 1]
+        mass_speed = stat_t['mass_speed']
         mass_speed_counter = counters['nb_slow_mass_step']
         cond, counters['nb_slow_mass_step'] = max_mass_speed_heuristic_seq(mass_speed, mass_speed_counter)
         should_continue_cond *= cond
 
-        percent_activated = stats['percent_activated'][i - 1]
+        percent_activated = stat_t['percent_activated']
         percent_activated_counter = counters['nb_too_much_percent_step']
         cond, counters['nb_too_much_percent_step'] = percent_activated_heuristic_seq(
             percent_activated, percent_activated_counter
@@ -106,10 +105,25 @@ def check_heuristics(stats: Dict[str, jnp.ndarray]):
         should_continue_cond *= cond
 
         should_continue *= should_continue_cond
-        if not should_continue:
-            break
+        new_carry = {
+            'should_continue': should_continue,
+            'init_mass': init_mass,
+            'previous_mass': mass,
+            'previous_sign': sign,
+            'counters': counters,
+        }
 
-    continue_stat = jnp.array([1.] * i + [0.] * (length - i))
+        return new_carry, should_continue
+
+    init_carry = {
+        'should_continue': True,
+        'init_mass': stats['mass'][0],
+        'previous_mass': stats['mass'][0],
+        'previous_sign': 0.,
+        'counters': init_counters(),
+    }
+    final_carry, continue_stat = jax.lax.scan(fn, init_carry, stats, unroll=1)
+
     return continue_stat
 
 
@@ -146,14 +160,9 @@ def monotonic_heuristic(sign: jnp.ndarray, previous_sign: jnp.ndarray, monotone_
 
 
 def monotonic_heuristic_seq(sign: float, previous_sign: float, monotone_counter: int) -> Tuple[bool, int]:
-    should_continue_cond = True
     sign_cond = (sign == previous_sign)
-    if sign_cond:
-        monotone_counter += 1
-        if monotone_counter > MONOTONIC_STOP_STEP:
-            should_continue_cond = False
-    else:
-        monotone_counter = 0
+    monotone_counter = monotone_counter * sign_cond + 1
+    should_continue_cond = monotone_counter <= MONOTONIC_STOP_STEP
 
     return should_continue_cond, monotone_counter
 
@@ -171,16 +180,12 @@ def max_mass_speed_heuristic(mass_speed: jnp.ndarray, mass_speed_counter: jnp.nd
     return should_continue_cond, mass_speed_counter
 
 
-def max_mass_speed_heuristic_seq(mass_speed: float, nb_slow_mass_step: int) -> Tuple[bool, int]:
-    should_continue_cond = True
-    if mass_speed < MASS_SPEED_THRESHOLD:
-        nb_slow_mass_step += 1
-        if nb_slow_mass_step > MASS_SPEED_STOP_STEP:
-            should_continue_cond = False
-    else:
-        nb_slow_mass_step = 0
+def max_mass_speed_heuristic_seq(mass_speed: float, mass_speed_counter: int) -> Tuple[bool, int]:
+    mass_speed_cond = (mass_speed < MASS_SPEED_THRESHOLD)
+    mass_speed_counter = mass_speed_counter * mass_speed_cond + 1
+    should_continue_cond = mass_speed_counter <= MASS_SPEED_STOP_STEP
 
-    return should_continue_cond, nb_slow_mass_step
+    return should_continue_cond, mass_speed_counter
 
 
 GROWTH_THRESHOLD = 500
@@ -211,16 +216,30 @@ def percent_activated_heuristic(percent_activated: jnp.ndarray, percent_activate
     return should_continue_cond, percent_activated_counter
 
 
-def percent_activated_heuristic_seq(percent_activated: float, nb_too_much_percent_step: int) -> Tuple[bool, int]:
+def percent_activated_heuristic_seq(percent_activated: float, percent_activated_counter: int) -> Tuple[bool, int]:
     # Stops when the world is N% covered
     # Hopefully, no species takes so much space
-    should_continue_cond = True
-    if percent_activated > PERCENT_ACTIVATED_THRESHOLD:
-        nb_too_much_percent_step += 1
-        if nb_too_much_percent_step > PERCENT_ACTIVATED_STOP_STEP:
-            # print("nb_too_much_percent_step > should_stop")
-            should_continue_cond = False
-    else:
-        nb_too_much_percent_step = 0
+    percent_cond = (percent_activated > PERCENT_ACTIVATED_THRESHOLD)
+    percent_activated_counter = percent_activated_counter * percent_cond + 1
+    should_continue_cond = percent_activated_counter <= PERCENT_ACTIVATED_STOP_STEP
 
-    return should_continue_cond, nb_too_much_percent_step
+    return should_continue_cond, percent_activated_counter
+
+
+###
+# Utils
+###
+def stats_list_to_dict(all_stats: List[Dict]) -> Dict[str, jnp.ndarray]:
+    if len(all_stats) == 0:
+        return {}
+
+    stats_dict_list: Dict[str, List[float]] = {}
+    all_keys = list(all_stats[0].keys())
+    for k in all_keys:
+        stats_dict_list[k] = []
+    for stat in all_stats:
+        for k, v in stat.items():
+            stats_dict_list[k].append(v)
+    stats_dict = {k: jnp.array(stats_dict_list[k]) for k in all_keys}
+
+    return stats_dict

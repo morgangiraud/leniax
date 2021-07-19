@@ -342,9 +342,10 @@ def plot_gfunction(save_dir: str, id: int, fn: Callable, m: float, s: float, T: 
 
 
 def plot_stats(save_dir: str, stats_dict: Dict):
-    all_keys = list(stats_dict.keys())
+    nb_steps = stats_dict['N']
+    del stats_dict['N']
 
-    nb_steps = len(stats_dict[all_keys[0]])
+    all_keys = list(stats_dict.keys())
     ticks = max(nb_steps // 20, 1)
     fig, axs = plt.subplots(len(all_keys), sharex=True)
     fig.set_size_inches(10, 10)
@@ -364,24 +365,21 @@ def plot_stats(save_dir: str, stats_dict: Dict):
     for i, k in enumerate(all_keys):
         axs[i].set_title(k.capitalize())
         axs[i].plot(jnp.convolve(stats_dict[k], jnp.ones(24) / 24, mode='valid'))
-
     plt.tight_layout()
     plt.xticks(np.arange(0, nb_steps, ticks))
     fig.savefig(os.path.join(save_dir, 'stats_running_means.png'))
     plt.close(fig)
 
     # Remove init transition
-    if len(stats_dict[all_keys[0]]) > 50:
-        fig, axs = plt.subplots(len(all_keys), sharex=True)
-        fig.set_size_inches(10, 10)
-        for i, k in enumerate(all_keys):
-            axs[i].set_title(k.capitalize())
-            axs[i].plot(jnp.convolve(stats_dict[k][50:], jnp.ones(24) / 24, mode='valid'))
-
-        plt.tight_layout()
-        plt.xticks(np.arange(0, nb_steps, ticks))
-        fig.savefig(os.path.join(save_dir, 'stats_no_init.png'))
-        plt.close(fig)
+    fig, axs = plt.subplots(len(all_keys), sharex=True)
+    fig.set_size_inches(10, 10)
+    for i, k in enumerate(all_keys):
+        axs[i].set_title(k.capitalize())
+        axs[i].plot(stats_dict[k][-64:])
+    plt.tight_layout()
+    plt.xticks(np.arange(max(nb_steps - 64, 0), nb_steps, ticks))
+    fig.savefig(os.path.join(save_dir, 'stats_last_64.png'))
+    plt.close(fig)
 
 
 ###
@@ -423,3 +421,15 @@ def generate_mask(shape, max_h, max_w):
     mask = np.pad(mask, padding, mode='constant')
 
     return mask
+
+
+###
+# Memory
+###
+def get_needed_memory_per_sequence(config):
+    bytes_per_world = config['world_params']['nb_channels'] * np.prod(config['render_params']['world_size']) * 4
+    bytes_per_sequence = bytes_per_world * config['run_params']['max_run_iter']
+
+    bytes_per_sequence_mb = bytes_per_sequence * 8 / 1024 / 1024
+
+    return bytes_per_sequence_mb

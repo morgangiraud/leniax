@@ -30,8 +30,9 @@ def run(omegaConf: DictConfig) -> None:
 
     render_params = config['render_params']
 
+    print('Initialiazing and running')
     start_time = time.time()
-    all_cells, all_fields, all_potentials, all_stats = init_and_run(config, True)
+    all_cells, _, _, stats_dict = init_and_run(config, True)
     total_time = time.time() - start_time
 
     nb_iter_done = len(all_cells)
@@ -49,10 +50,11 @@ def run(omegaConf: DictConfig) -> None:
     with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
         np.save(f, np.array(all_cells)[:, 0, 0, ...])
 
-    print('Plotting stats and functions')
     colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
+    print('Plotting stats')
+    lenia_utils.plot_stats(save_dir, stats_dict)
 
-    lenia_utils.plot_stats(save_dir, all_stats)
+    print('Plotting kernels and functions')
     _, K, _ = init(config)
     lenia_kernels.draw_kernels(K, save_dir, colormap)
     for i, kernel in enumerate(config['kernels_params']['k']):

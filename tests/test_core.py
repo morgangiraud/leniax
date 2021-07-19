@@ -30,9 +30,9 @@ class TestCore(unittest.TestCase):
         gfn_params1 = mapping.get_gfn_params()
 
         t0 = time.time()
-        _ = lenia_core.run_scan(cells1, K1, gfn_params1, max_run_iter, update_fn, compute_stats_fn)
+        out1, _, _, _ = lenia_core.run_scan(cells1, K1, gfn_params1, max_run_iter, update_fn, compute_stats_fn)
+        out1.block_until_ready()
         delta_t = time.time() - t0
-        print(delta_t)
 
         cells2 = jnp.ones(cells.shape) * 0.5
         K2 = jnp.ones(K.shape) * 0.5
@@ -40,11 +40,11 @@ class TestCore(unittest.TestCase):
         gfn_params2 = mapping.get_gfn_params()
 
         t0 = time.time()
-        _ = lenia_core.run_scan(cells2, K2, gfn_params2, max_run_iter, update_fn, compute_stats_fn)
+        out2, _, _, _ = lenia_core.run_scan(cells2, K2, gfn_params2, max_run_iter, update_fn, compute_stats_fn)
+        out2.block_until_ready()
         delta_t_compiled = time.time() - t0
-        print(delta_t_compiled)
 
-        assert 0.001 * delta_t > delta_t_compiled
+        assert delta_t_compiled < 1 / 20 * delta_t
 
     def test_update_fn_jit_perf(self):
         with initialize(config_path='fixtures'):
@@ -59,7 +59,8 @@ class TestCore(unittest.TestCase):
         gfn_params1 = mapping.get_gfn_params()
 
         t0 = time.time()
-        _ = update_fn(cells1, K1, gfn_params1)
+        out1 = update_fn(cells1, K1, gfn_params1)
+        out1[0].block_until_ready()
         delta_t = time.time() - t0
 
         cells2 = jnp.ones(cells.shape) * 0.5
@@ -68,10 +69,11 @@ class TestCore(unittest.TestCase):
         gfn_params2 = mapping.get_gfn_params()
 
         t0 = time.time()
-        _ = update_fn(cells2, K2, gfn_params2)
+        out2 = update_fn(cells2, K2, gfn_params2)
+        out2[0].block_until_ready()
         delta_t_compiled = time.time() - t0
 
-        assert 0.01 * delta_t > delta_t_compiled
+        assert delta_t_compiled < 1 / 20 * delta_t
 
     def test_get_potential_jit_perf(self):
         H = 2
@@ -99,12 +101,14 @@ class TestCore(unittest.TestCase):
 
         t0 = time.time()
         potential = get_potential(cells, K)
+        potential.block_until_ready()
         delta_t = time.time() - t0
 
         cells2 = jnp.ones([C, 1, 1, H, W])
         K2 = jnp.ones([C, K_o, K_i, K_h, K_w]) * 0.2
         t0 = time.time()
-        _ = get_potential(cells2, K2)
+        potential2 = get_potential(cells2, K2)
+        potential2.block_until_ready()
         delta_t_compiled = time.time() - t0
 
         assert len(potential.shape) == 3
@@ -118,7 +122,7 @@ class TestCore(unittest.TestCase):
         true_potential = true_potential.at[2].set(0.54)
         np.testing.assert_array_equal(potential, true_potential)
 
-        assert 0.01 * delta_t > delta_t_compiled
+        assert delta_t_compiled < 1 / 100 * delta_t
 
     def test_get_field_jit_perf(self):
         nb_channels = 2
@@ -134,7 +138,8 @@ class TestCore(unittest.TestCase):
         potential1 = jnp.ones([nb_kernels, 25, 25]) * .5
         gfn_params1 = mapping.get_gfn_params()
         t0 = time.time()
-        _ = get_field(potential1, gfn_params1)
+        out1 = get_field(potential1, gfn_params1)
+        out1.block_until_ready()
         delta_t = time.time() - t0
 
         potential2 = jnp.ones([nb_kernels, 25, 25]) * .5
@@ -143,10 +148,11 @@ class TestCore(unittest.TestCase):
         gfn_params2 = mapping.get_gfn_params()
 
         t0 = time.time()
-        _ = get_field(potential2, gfn_params2)
+        out2 = get_field(potential2, gfn_params2)
+        out2.block_until_ready()
         delta_t_compiled = time.time() - t0
 
-        assert 0.01 * delta_t > delta_t_compiled
+        assert delta_t_compiled < 1 / 100 * delta_t
 
     def test_weighted_select_average_jit_perf(self):
         nb_kernels = 3
@@ -154,17 +160,19 @@ class TestCore(unittest.TestCase):
         weights1 = jnp.array([[.5, .4, .0], [.5, .2, .0]])
 
         t0 = time.time()
-        _ = lenia_core.weighted_select_average(field1, weights1)
+        out1 = lenia_core.weighted_select_average(field1, weights1)
+        out1.block_until_ready()
         delta_t = time.time() - t0
 
         field2 = jnp.ones([nb_kernels, 25, 25]) * .5
         weights2 = jnp.array([[.1, .2, .0], [.5, .2, .0]])
 
         t0 = time.time()
-        _ = lenia_core.weighted_select_average(field2, weights2)
+        out2 = lenia_core.weighted_select_average(field2, weights2)
+        out2.block_until_ready()
         delta_t_compiled = time.time() - t0
 
-        assert 0.01 * delta_t > delta_t_compiled
+        assert delta_t_compiled < 1 / 100 * delta_t
 
     def test_update_cells_jit_perf(self):
         cells1 = jnp.ones([25, 25]) * .5
@@ -173,6 +181,7 @@ class TestCore(unittest.TestCase):
 
         t0 = time.time()
         out1 = lenia_core.update_cells(cells1, field1, dt1)
+        out1.block_until_ready()
         delta_t = time.time() - t0
 
         cells2 = jnp.ones([25, 25], ) * .2
@@ -181,8 +190,9 @@ class TestCore(unittest.TestCase):
 
         t0 = time.time()
         out2 = lenia_core.update_cells(cells2, field2, dt2)
+        out2.block_until_ready()
         delta_t_compiled = time.time() - t0
 
-        assert 0.01 * delta_t > delta_t_compiled
+        assert delta_t_compiled < 1 / 20 * delta_t
         np.testing.assert_array_almost_equal(out1, jnp.ones([25, 25]))
         np.testing.assert_array_almost_equal(out2, jnp.ones([25, 25]) * .7)

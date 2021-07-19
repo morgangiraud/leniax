@@ -19,7 +19,6 @@ def launch(omegaConf: DictConfig) -> None:
 
     t0 = time.time()
     _, runs = slow_init_search(rng_key, config)
-    # _, runs = search_for_init_parallel(rng_key, config)
     print(f"Init search done in {time.time() - t0}")
 
 

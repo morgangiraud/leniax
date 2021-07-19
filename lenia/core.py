@@ -62,7 +62,7 @@ def run(
     max_run_iter: int,
     update_fn: Callable,
     compute_stats_fn: Callable
-) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, List]:
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
     assert max_run_iter > 0, f"max_run_iter must be positive, value given: {max_run_iter}"
 
     # cells shape: [C, N=1, c=1, dims...]
@@ -153,7 +153,9 @@ def run(
     all_fields_jnp = jnp.array(all_fields)
     all_potentials_jnp = jnp.array(all_potentials)
 
-    return all_cells_jnp, all_fields_jnp, all_potentials_jnp, all_stats
+    stats_dict = lenia_stat.stats_list_to_dict(all_stats)
+
+    return all_cells_jnp, all_fields_jnp, all_potentials_jnp, stats_dict
 
 
 @jax.partial(jit, static_argnums=(3, 4, 5))
@@ -164,7 +166,7 @@ def run_scan(
     max_run_iter: int,
     update_fn: Callable,
     compute_stats_fn: Callable
-):
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
     world_shape = jnp.array(cells.shape[3:])
     nb_dims = len(world_shape)
     axes = tuple(range(-nb_dims, 0, 1))
@@ -202,7 +204,61 @@ def run_scan(
 
     final_carry, ys = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
 
+    continue_stat = lenia_stat.check_heuristics(ys['stats'])
+    ys['stats']['N'] = continue_stat.sum()
+
     return ys['cells'], ys['field'], ys['potential'], ys['stats']
+
+
+@jax.partial(jit, static_argnums=(3, 4, 5))
+@jax.partial(vmap, in_axes=(0, None, None, None, None, None))
+def run_scan_mem_optimized(
+    cells: jnp.ndarray,
+    K: jnp.ndarray,
+    gfn_params: jnp.ndarray,
+    max_run_iter: int,
+    update_fn: Callable,
+    compute_stats_fn: Callable
+) -> int:
+    world_shape = jnp.array(cells.shape[3:])
+    nb_dims = len(world_shape)
+    axes = tuple(range(-nb_dims, 0, 1))
+
+    def fn(carry, x):
+        cells, K, gfn_params = carry['fn_params']
+        new_cells, field, potential = update_fn(cells, K, gfn_params)
+
+        stat_props = carry['stats_properties']
+        total_shift_idx = stat_props['total_shift_idx']
+        # To compute stats, the world (cells, field, potential) has to be centered and taken from the same timestep
+        centered_cells, centered_field, centered_potential = utils.center_world(
+            new_cells, field, potential, total_shift_idx, axes
+        )
+        stats, shift_idx = compute_stats_fn(centered_cells, centered_field, centered_potential)
+        total_shift_idx = (total_shift_idx + shift_idx) % world_shape
+
+        cells = new_cells
+        new_carry = {
+            'fn_params': (cells, K, gfn_params), 'stats_properties': {
+                'total_shift_idx': total_shift_idx,
+            }
+        }
+
+        return new_carry, stats
+
+    total_shift_idx = jnp.zeros([nb_dims], dtype=jnp.int32)
+    init_carry = {
+        'fn_params': (cells, K, gfn_params), 'stats_properties': {
+            'total_shift_idx': total_shift_idx,
+        }
+    }
+
+    final_carry, stats = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
+
+    continue_stat = lenia_stat.check_heuristics(stats)
+    N = continue_stat.sum()
+
+    return N
 
 
 def build_update_fn(world_params: Dict, K_shape: Tuple[int, ...], mapping: KernelMapping) -> Callable:

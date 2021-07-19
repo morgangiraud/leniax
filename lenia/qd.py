@@ -222,9 +222,8 @@ def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False, qdpy=False) -> Tu
     np.random.seed(ind.rng_key[0])
     random.seed(ind.rng_key[0])
 
-    _, runs = search_for_init(ind.rng_key, config)
+    _, best, _ = search_for_init(ind.rng_key, config)
 
-    best = runs[0]
     nb_steps = best['N']
     config['behaviours'] = best['all_stats']
     init_cells = best['all_cells'][0][:, 0, 0, ...]

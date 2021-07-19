@@ -2,7 +2,7 @@ import time
 import uuid
 import jax
 import jax.numpy as jnp
-from typing import List, Dict, Tuple
+from typing import Dict, Tuple
 from omegaconf import DictConfig, OmegaConf
 
 import lenia.initializations as initializations
@@ -31,7 +31,7 @@ def get_container(omegaConf: DictConfig) -> Dict:
     return config
 
 
-def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, List[Dict]]:
+def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Dict, int]:
     world_params = config['world_params']
     nb_channels = world_params['nb_channels']
     R = world_params['R']
@@ -51,33 +51,36 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Li
     compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     rng_key, noises = initializations.perlin(rng_key, nb_init_search, world_size, R, kernels_params[0])
+    all_cells_0 = []
+    for i in range(nb_init_search):
+        cells_0 = lenia_core.init_cells(world_size, nb_channels, [noises[i]])
+        all_cells_0.append(cells_0)
+    all_cells_0_jnp = jnp.array(all_cells_0)
 
-    runs = []
+    best_run = {}
+    current_max = 0
     for i in range(nb_init_search):
         t0 = time.time()
 
-        cells_0 = lenia_core.init_cells(world_size, nb_channels, [noises[i]])
         all_cells, _, _, all_stats = lenia_core.run_scan(
-            cells_0, K, gfn_params, max_run_iter, update_fn, compute_stats_fn
+            all_cells_0_jnp[i], K, gfn_params, max_run_iter, update_fn, compute_stats_fn
         )
+        # https://jax.readthedocs.io/en/latest/async_dispatch.html
+        all_stats['N'].block_until_ready()
 
         t1 = time.time()
 
-        continue_stat = lenia_stat.check_heuristics(all_stats)
-        all_stats['continue_stat'] = continue_stat
-
-        nb_iter_done = continue_stat.sum()
-        runs.append({"N": nb_iter_done, "all_cells": all_cells, "all_stats": all_stats})
-
-        print(t1 - t0, time.time() - t1)
+        nb_iter_done = all_stats['N']
+        if current_max < nb_iter_done:
+            current_max = nb_iter_done
+            best_run = {"N": nb_iter_done, "all_cells": all_cells, "all_stats": all_stats}
 
         if nb_iter_done >= max_run_iter:
             break
 
-    if len(runs) > 0:
-        runs.sort(key=lambda run: run["N"], reverse=True)
+        print(t1 - t0, nb_iter_done)
 
-    return rng_key, runs
+    return rng_key, best_run, i
 
 
 def init_and_run(config: Dict, with_jit: bool = False) -> Tuple:

@@ -1,5 +1,6 @@
 import os
 import time
+import pickle
 import psutil
 import json
 import math
@@ -8,14 +9,12 @@ from multiprocessing import get_context
 from absl import logging
 import random
 import copy
-from typing import Union, Dict, Any, Tuple, Callable, List
+from typing import Dict, Any, Tuple, Callable, List
 import jax
 import jax.numpy as jnp
 import numpy as np
 from alive_progress import alive_bar
 
-from qdpy.phenotype import Individual
-from qdpy.containers import Container
 from ribs.archives import ArchiveBase
 from ribs.archives import GridArchive, CVTArchive
 from ribs.visualize import grid_archive_heatmap, cvt_archive_heatmap, parallel_axes_plot
@@ -52,7 +51,7 @@ class genBaseIndividual(object):
             yield self.__next__()
 
 
-class LeniaIndividual(Individual):
+class LeniaIndividual(list):
     # Individual inherits from list
     # The raw parameters can then be set with ind[:] = [param1,  ...]
     #
@@ -66,6 +65,10 @@ class LeniaIndividual(Individual):
     #       2. You create the configuration from those parameters
     #       3. You evaluate the configuration
     #       4. you set fitness and features
+
+    fitness: float
+    features: List[float]
+
     def __init__(self, config: Dict, rng_key: jnp.ndarray):
         super().__init__()
 
@@ -185,7 +188,7 @@ def rastrigin(pos: jnp.ndarray, A: float = 10.):
     return 2 * A + z
 
 
-def eval_debug(ind: LeniaIndividual, neg_fitness=False, qdpy=False):
+def eval_debug(ind: LeniaIndividual, neg_fitness=False):
     # This function is usually called in forked processes, before launching any JAX code
     # We silent it
     # Disable JAX logging https://abseil.io/docs/python/guides/logging
@@ -197,17 +200,13 @@ def eval_debug(ind: LeniaIndividual, neg_fitness=False, qdpy=False):
         fitness = rastrigin(jnp.array(ind)[jnp.newaxis, jnp.newaxis, :]).squeeze()
     features = [ind[0] * 8 - 4, ind[1] * 8 - 4]
 
-    if qdpy is True:
-        ind.fitness.values = [fitness]
-        ind.features.values = features
-    else:
-        ind.fitness = fitness
-        ind.features = features
+    ind.fitness = fitness
+    ind.features = features
 
     return ind
 
 
-def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False, qdpy=False) -> Tuple:
+def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividual:
     # This function is usually called in forked processes, before launching any JAX code
     # We silent it
     # Disable JAX logging https://abseil.io/docs/python/guides/logging
@@ -235,17 +234,13 @@ def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False, qdpy=False) -> Tu
         fitness = nb_steps
     features = [get_param(config, key_string) for key_string in ind.base_config['phenotype']]
 
-    if qdpy is True:
-        ind.fitness.values = [fitness]
-        ind.features.values = features
-    else:
-        ind.fitness = fitness
-        ind.features = features
+    ind.fitness = fitness
+    ind.features = features
 
     return ind
 
 
-def eval_lenia_init(ind: LeniaIndividual, neg_fitness=False, qdpy=False) -> Tuple:
+def eval_lenia_init(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividual:
     # This function is usually called un sub-process, before launching any JAX code
     # We silent it
     # Disable JAX logging https://abseil.io/docs/python/guides/logging
@@ -288,17 +283,13 @@ def eval_lenia_init(ind: LeniaIndividual, neg_fitness=False, qdpy=False) -> Tupl
         fitness = nb_steps
     features = [noise.mean(), noise.stddev()]
 
-    if qdpy is True:
-        ind.fitness.values = [fitness]
-        ind.features.values = features
-    else:
-        ind.fitness = fitness
-        ind.features = features
+    ind.fitness = fitness
+    ind.features = features
 
     return ind
 
 
-def run_qd_ribs_search(
+def run_qd_search(
     eval_fn: Callable, nb_iter: int, lenia_generator, optimizer, fitness_domain, log_freq: int = 1
 ) -> QDMetrics:
     metrics: QDMetrics = {
@@ -327,7 +318,7 @@ def run_qd_ribs_search(
         print('!!!! DEBUGGING MODE !!!!')
 
     # ray_eval_fn = ray.remote(eval_fn)
-    print(f"{'iter'}{'coverage':>32}{'mean':>20}{'std':>20}{'min':>8}{'max':>8}{'QD Score':>20}")
+    print(f"{'iter'}{'coverage':>32}{'mean':>20}{'std':>20}{'min':>16}{'max':>16}{'QD Score':>20}")
     with alive_bar(nb_iter) as update_bar:
         for itr in range(1, nb_iter + 1):
             # Request models from the optimizer.
@@ -344,12 +335,6 @@ def run_qd_ribs_search(
             if DEBUG:
                 results = list(map(eval_fn, lenial_sols))
             else:
-                # result_ids = [ray_eval_fn.remote(sol) for sol in lenial_sols]
-                # while len(result_ids):
-                #     done_id, result_ids = ray.wait(result_ids)
-                #     fit, feat = ray.get(done_id[0])
-                #     fits.append(fit)
-                #     bcs.append(feat)
                 with get_context("spawn").Pool(processes=n_workers) as pool:
                     results = pool.map(eval_fn, lenial_sols)
             for i, ind in enumerate(results):
@@ -364,7 +349,7 @@ def run_qd_ribs_search(
                 df = optimizer.archive.as_pandas(include_solutions=False)
                 metrics["QD Score"]["x"].append(itr)
                 qd_score = (df['objective'] - fitness_domain[0]).sum() / (fitness_domain[1] - fitness_domain[0])
-                qd_score /= optimizer.archive.dims.prod()
+                qd_score /= nb_total_bins
                 metrics["QD Score"]["y"].append(qd_score)
 
                 metrics["Max Score"]["x"].append(itr)
@@ -383,8 +368,8 @@ def run_qd_ribs_search(
                 save_all(itr, optimizer, fitness_domain, sols, fits, bcs)
 
                 print(
-                    f"{len(df):>24}/{nb_total_bins:<6}{mean_score:>20.6f}"
-                    f"{std_score:>20.6f}{min_score:>8}{max_score:>8}{qd_score:>20.6f}"
+                    f"{len(df):>23}/{nb_total_bins:<6}{mean_score:>20.6f}"
+                    f"{std_score:>20.6f}{min_score:>16.6f}{max_score:>16.6f}{qd_score:>20.6f}"
                 )
 
             # Logging.
@@ -443,7 +428,7 @@ def save_heatmap(archive, fitness_domain, fullpath):
         fig, ax = plt.subplots(figsize=(8, 6))
         grid_archive_heatmap(archive, square=False, vmin=fitness_domain[0], vmax=fitness_domain[1], ax=ax)
     elif isinstance(archive, CVTArchive):
-        fig, ax = plt.subplots(figsize=(16, 12))
+        fig, ax = plt.subplots(figsize=(8, 6))
         cvt_archive_heatmap(archive, vmin=fitness_domain[0], vmax=fitness_domain[1], ax=ax)
 
     ax.set_title("heatmap")
@@ -507,25 +492,24 @@ def save_all(current_iter: int, optimizer, fitness_domain, sols: List, fits: Lis
         )
         pos = end
 
+    with open(f"{prefix_fullpath}final.p", 'wb') as handle:
+        pickle.dump(optimizer.archive, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-def dump_best(grid: Union[Container, ArchiveBase], fitness_threshold: float):
-    if isinstance(grid, Container):
-        best_inds = grid._get_best_inds()
-        real_bests = list(filter(lambda x: abs(x.fitness.values[0]) >= fitness_threshold, best_inds))
-    else:
-        base_config = grid.base_config
-        seed = base_config['run_params']['seed']
-        rng_key = lenia_utils.seed_everything(seed)
-        generator_builder = genBaseIndividual(base_config, rng_key)
-        lenia_generator = generator_builder()
 
-        real_bests = []
-        for idx in grid._occupied_indices:
-            if abs(grid._objective_values[idx]) >= fitness_threshold:
-                lenia = next(lenia_generator)
-                lenia.base_config = grid._metadata[idx]
-                lenia[:] = grid._solutions[idx]
-                real_bests.append(lenia)
+def dump_best(grid: ArchiveBase, fitness_threshold: float):
+    base_config = grid.base_config
+    seed = base_config['run_params']['seed']
+    rng_key = lenia_utils.seed_everything(seed)
+    generator_builder = genBaseIndividual(base_config, rng_key)
+    lenia_generator = generator_builder()
+
+    real_bests = []
+    for idx in grid._occupied_indices:
+        if abs(grid._objective_values[idx]) >= fitness_threshold:
+            lenia = next(lenia_generator)
+            lenia.base_config = grid._metadata[idx]
+            lenia[:] = grid._solutions[idx]
+            real_bests.append(lenia)
 
     print(f"Found {len(real_bests)} beast!")
 

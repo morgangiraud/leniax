@@ -65,28 +65,20 @@ grid:
       - .1
     # - - 0.
     #   - 0.5
-  shape: [20, 20]
+  shape: [25, 25]
   
 algo:
   # Generic
   budget: 2048
   batch_size: 8
-  # QDPY
   sampling_domain:
     - 0.
     - 1.
-  # Mut search
-  sel_pb: 0.9
-  mut_pb: 0.4
-  eta: 20.
   # cmaes
   mut_sigma0: 0.01
   sigma0: 0.15
   separable_cma: false
   ignore_if_not_added_to_container: false
-  # MEMAPElitesUCB1
-  zeta: 0.0005
-  initial_expected_rwds: 1.
 
 other:
   dump_bests: True

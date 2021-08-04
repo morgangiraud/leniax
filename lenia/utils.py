@@ -427,9 +427,11 @@ def generate_mask(shape, max_h, max_w):
 # Memory
 ###
 def get_needed_memory_per_sequence(config):
-    bytes_per_world = config['world_params']['nb_channels'] * np.prod(config['render_params']['world_size']) * 4
+    nb_bytes_float_32 = 4
+    nb_cells = config['world_params']['nb_channels'] * np.prod(config['render_params']['world_size'])
+    bytes_per_world = nb_cells * nb_bytes_float_32
     bytes_per_sequence = bytes_per_world * config['run_params']['max_run_iter']
 
-    bytes_per_sequence_mb = bytes_per_sequence * 8 / 1024 / 1024
+    mb_per_sequence = bytes_per_sequence * 8 / 1024 / 1024
 
-    return bytes_per_sequence_mb
+    return mb_per_sequence

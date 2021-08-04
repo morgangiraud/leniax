@@ -1,7 +1,5 @@
 import os
 import unittest
-# from qdpy import containers
-# from qdpy.base import ParallelismManager
 
 from lenia.qd import LeniaIndividual, update_dict
 # from lenia.qd import LeniaEvo, genBaseIndividual, eval_lenia_config

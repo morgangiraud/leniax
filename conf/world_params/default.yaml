@@ -1,3 +1,4 @@
+update_fn_version: 'v1'
 nb_dims: 2
 nb_channels: 1
 R: 13

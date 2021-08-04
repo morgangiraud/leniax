@@ -34,6 +34,7 @@ def get_container(omegaConf: DictConfig) -> Dict:
 def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Dict, int]:
     world_params = config['world_params']
     nb_channels = world_params['nb_channels']
+    update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
     R = world_params['R']
 
     render_params = config['render_params']
@@ -47,7 +48,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Di
 
     K, mapping = lenia_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
     gfn_params = mapping.get_gfn_params()
-    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping)
+    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version)
     compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     rng_key, noises = initializations.perlin(rng_key, nb_init_search, world_size, R, kernels_params[0])

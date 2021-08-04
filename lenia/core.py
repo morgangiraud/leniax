@@ -261,19 +261,27 @@ def run_scan_mem_optimized(
     return N
 
 
-def build_update_fn(world_params: Dict, K_shape: Tuple[int, ...], mapping: KernelMapping) -> Callable:
+def build_update_fn(
+    world_params: Dict, K_shape: Tuple[int, ...], mapping: KernelMapping, update_fn_version: str = 'v1'
+) -> Callable:
     T = world_params['T']
     dt = 1 / T
 
     get_potential_fn = build_get_potential_fn(K_shape, mapping.true_channels)
     get_field_fn = build_get_field_fn(mapping)
+    if update_fn_version == 'v1':
+        update_fn = update_cells
+    elif update_fn_version == 'v2':
+        update_fn = update_cells_v2
+    else:
+        raise ValueError(f"version {update_fn_version} does not exist")
 
     @jit
     def update(cells: jnp.ndarray, K: jnp.ndarray,
                gfn_params: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         potential = get_potential_fn(cells, K)
         field = get_field_fn(potential, gfn_params)
-        cells = update_cells(cells, field, dt)
+        cells = update_fn(cells, field, dt)
 
         return cells, field, potential
 
@@ -380,7 +388,19 @@ def update_cells(cells: jnp.ndarray, field: jnp.ndarray, dt: float) -> jnp.ndarr
     """
     cells_new = cells + dt * field
     cells_new = jnp.clip(cells_new, 0., 1.)
-    # smoothstep(x)
-    # cells_new = 3 * cells_new ** 2 - 2 * cells_new ** 3
+
+    return cells_new
+
+
+@jit
+def update_cells_v2(cells: jnp.ndarray, field: jnp.ndarray, dt: float) -> jnp.ndarray:
+    """
+        Args:
+            - cells: jnp.ndarray, shape must be kept constant to avoid recompiling
+            - field: jnp.ndarray, shape must be kept constant to avoid recompiling
+            - float: can change without recompiling
+    """
+    rescaled_field = (field + 1) / 2
+    cells_new = jnp.array(cells * (1 - dt) + dt * rescaled_field)
 
     return cells_new

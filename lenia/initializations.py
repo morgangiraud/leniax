@@ -49,9 +49,8 @@ def perlin(rng_key, nb_noise: int, world_size: List[int], R: float, kernel_param
     """
     Perlin noise initialization which target the mean of the growth function
     """
-    kernel_res = int(R * kernel_params['r'])
-    kernel_size = kernel_res * 3  # 1.5 kernel size actually
-    res = [world_size[0] // kernel_size, world_size[1] // kernel_size]
+    kernel_radius = int(R * kernel_params['r'])
+    res = [world_size[0] // (kernel_radius * 3), world_size[1] // (kernel_radius * 2)]
     min_mean_bound = kernel_params['m']
     max_mean_bound = min(1, 2 * kernel_params['m'])
 

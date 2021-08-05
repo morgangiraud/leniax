@@ -4,28 +4,32 @@ from jax import lax
 from dataclasses import dataclass
 from typing import List, Dict, Tuple
 
-import lenia.utils as lenia_utils
+from . import utils as lenia_utils
 
 
 @dataclass()
 class KernelMapping(object):
     cin_kernels: List[List[int]]
+    cin_growth_fns: Dict[str, List]
     kernels_weight_per_channel: List[List[float]]
     true_channels: List[bool]
-    cin_growth_fns: Dict[str, List]
 
     def __init__(self, nb_channels: int, nb_kernels: int):
         self.cin_kernels = [[] for _ in range(nb_channels)]
-        self.kernels_weight_per_channel = [[0.] * nb_kernels for _ in range(nb_channels)]
-        self.true_channels = []
         self.cin_growth_fns = {
             'gf_id': [],
             'm': [],
             's': [],
         }
 
-    def get_gfn_params(self):
+        self.kernels_weight_per_channel = [[0.] * nb_kernels for _ in range(nb_channels)]
+        self.true_channels = []
+
+    def get_gfn_params(self) -> jnp.ndarray:
         return jnp.vstack([self.cin_growth_fns['m'], self.cin_growth_fns['s']]).T
+
+    def get_kernels_weight_per_channel(self) -> jnp.ndarray:
+        return jnp.array(self.kernels_weight_per_channel)
 
 
 def poly_quad4(x: jnp.ndarray, q: float = 4):
@@ -78,7 +82,7 @@ def get_kernels_and_mapping(kernels_params: Dict, world_size: List[int], nb_chan
     # ! vstack concantenate on the first dimension
     # Currently it works, because we only considere 1-channel kernels
     kernels = jnp.vstack(kernels_list)  # [nb_kernels, H, W]
-    kernels = remove_zero_dims(kernels)  # [nb_kernels, K_h=max_k_h, K_w=max_k_w]
+    kernels = crop_zero(kernels)  # [nb_kernels, K_h=max_k_h, K_w=max_k_w]
 
     K_h = kernels.shape[-2]
     K_w = kernels.shape[-1]
@@ -100,7 +104,6 @@ def get_kernels_and_mapping(kernels_params: Dict, world_size: List[int], nb_chan
     assert K.shape[0] == nb_channels
 
     mapping.true_channels = jnp.concatenate(mapping.true_channels)
-    mapping.kernels_weight_per_channel = jnp.array(mapping.kernels_weight_per_channel)
 
     return K, mapping
 
@@ -136,7 +139,7 @@ def kernel_shell(distances: jnp.ndarray, kernel_params: Dict) -> jnp.ndarray:
     return kernel
 
 
-def remove_zero_dims(kernels: jnp.ndarray) -> jnp.ndarray:
+def crop_zero(kernels: jnp.ndarray) -> jnp.ndarray:
     assert len(kernels.shape) == 3  # nb_dims == 2
 
     kernels = kernels[:, ~jnp.all(kernels == 0, axis=(0, 2))]  # remove 0 columns

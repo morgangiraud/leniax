@@ -19,13 +19,13 @@ from ribs.archives import ArchiveBase
 from ribs.archives import GridArchive, CVTArchive
 from ribs.visualize import grid_archive_heatmap, cvt_archive_heatmap, parallel_axes_plot
 
-from .growth_functions import growth_fns
-from .helpers import search_for_init, init_and_run
 from . import utils as lenia_utils
+from . import core as lenia_core
+from . import video as lenia_video
+from . import helpers as lenia_helpers
+from .growth_functions import growth_fns
 from .kernels import get_kernels_and_mapping, draw_kernels
 from .statistics import build_compute_stats_fn
-from .core import build_update_fn, run, init_cells, init
-import lenia.video as lenia_video
 
 QDMetrics = Dict[str, Dict[str, list]]
 
@@ -221,7 +221,7 @@ def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividua
     np.random.seed(ind.rng_key[0])
     random.seed(ind.rng_key[0])
 
-    _, best, _ = search_for_init(ind.rng_key, config)
+    _, best, _ = lenia_helpers.search_for_init(ind.rng_key, config)
 
     nb_steps = best['N']
     config['behaviours'] = best['all_stats']
@@ -267,12 +267,16 @@ def eval_lenia_init(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividual:
     random.seed(ind.rng_key[0])
 
     K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
-    update_fn = build_update_fn(world_params, K.shape, mapping)
+    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping)
     gfn_params = mapping.get_gfn_params()
+    kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
     compute_stats_fn = build_compute_stats_fn(config['world_params'], config['render_params'])
     noise = jnp.array(ind).reshape(K.shape)
-    cells_0 = init_cells(world_size, nb_channels, [noise])
-    all_cells, _, _, all_stats = run(cells_0, K, gfn_params, max_run_iter, update_fn, compute_stats_fn)
+    cells_0 = lenia_core.init_cells(world_size, nb_channels, [noise])
+
+    all_cells, _, _, all_stats = lenia_core.run(
+        cells_0, K, gfn_params, kernels_weight_per_channel, max_run_iter, update_fn, compute_stats_fn
+    )
 
     nb_steps = len(all_cells)
     config['behaviours'] = all_stats
@@ -317,26 +321,115 @@ def run_qd_search(
     if DEBUG is True:
         print('!!!! DEBUGGING MODE !!!!')
 
-    # ray_eval_fn = ray.remote(eval_fn)
     print(f"{'iter'}{'coverage':>32}{'mean':>20}{'std':>20}{'min':>16}{'max':>16}{'QD Score':>20}")
     with alive_bar(nb_iter) as update_bar:
         for itr in range(1, nb_iter + 1):
             # Request models from the optimizer.
             sols = optimizer.ask()
-            lenial_sols = []
+            lenia_sols = []
             for sol in sols:
                 lenia = next(lenia_generator)
                 lenia[:] = sol
-                lenial_sols.append(lenia)
+                lenia_sols.append(lenia)
 
             # Evaluate the models and record the objectives and BCs.
             fits, bcs, metadata = [], [], []
             results: List
             if DEBUG:
-                results = list(map(eval_fn, lenial_sols))
+                results = list(map(eval_fn, lenia_sols))
             else:
                 with get_context("spawn").Pool(processes=n_workers) as pool:
-                    results = pool.map(eval_fn, lenial_sols)
+                    results = pool.map(eval_fn, lenia_sols)
+            for i, ind in enumerate(results):
+                fits.append(ind.fitness)
+                bcs.append(ind.features)
+                metadata.append(ind.get_config())
+
+            # Send the results back to the optimizer.
+            optimizer.tell(fits, bcs, metadata)
+
+            if itr % log_freq == 0 or itr == nb_iter:
+                df = optimizer.archive.as_pandas(include_solutions=False)
+                metrics["QD Score"]["x"].append(itr)
+                qd_score = (df['objective'] - fitness_domain[0]).sum() / (fitness_domain[1] - fitness_domain[0])
+                qd_score /= nb_total_bins
+                metrics["QD Score"]["y"].append(qd_score)
+
+                metrics["Max Score"]["x"].append(itr)
+                min_score = df["objective"].min()
+                max_score = df["objective"].max()
+                mean_score = df["objective"].mean()
+                std_score = df["objective"].std()
+                metrics["Max Score"]["y"].append(max_score)
+
+                metrics["Archive Size"]["x"].append(itr)
+                metrics["Archive Size"]["y"].append(len(df))
+                metrics["Archive Coverage"]["x"].append(itr)
+                coverage = len(df) / nb_total_bins * 100
+                metrics["Archive Coverage"]["y"].append(coverage)
+
+                save_all(itr, optimizer, fitness_domain, sols, fits, bcs)
+
+                print(
+                    f"{len(df):>23}/{nb_total_bins:<6}{mean_score:>20.6f}"
+                    f"{std_score:>20.6f}{min_score:>16.6f}{max_score:>16.6f}{qd_score:>20.6f}"
+                )
+
+            # Logging.
+            if not DEBUG:
+                update_bar()
+
+    return metrics
+
+
+def run_qd_search_mem_optimized(
+    nb_iter: int, lenia_generator, optimizer, fitness_domain, log_freq: int = 1
+) -> QDMetrics:
+    metrics: QDMetrics = {
+        "QD Score": {
+            "x": [0],
+            "y": [0.0],
+        },
+        "Max Score": {
+            "x": [0],
+            "y": [0.0],
+        },
+        "Archive Size": {
+            "x": [0],
+            "y": [0],
+        },
+        "Archive Coverage": {
+            "x": [0],
+            "y": [0.0],
+        },
+    }
+    nb_total_bins = optimizer.archive._bins
+
+    DEBUG = False
+    if DEBUG is True:
+        print('!!!! DEBUGGING MODE !!!!')
+
+    print(f"{'iter'}{'coverage':>32}{'mean':>20}{'std':>20}{'min':>16}{'max':>16}{'QD Score':>20}")
+    with alive_bar(nb_iter) as update_bar:
+        for itr in range(1, nb_iter + 1):
+            # Request models from the optimizer.
+            sols = optimizer.ask()
+            lenia_sols = []
+            for sol in sols:
+                lenia = next(lenia_generator)
+                lenia[:] = sol
+                lenia_sols.append(lenia)
+
+            # Evaluate the models and record the objectives and BCs.
+            base_config = lenia_sols[0].base_config
+            rng_key = lenia_sols[0].rng_key
+            rng_key, run_scan_mem_optimized_parameters = lenia_helpers.get_mem_optimized_inputs(
+                rng_key, base_config, lenia_sols
+            )
+            Ns = lenia_core.run_scan_mem_optimized(*run_scan_mem_optimized_parameters)
+            results = lenia_helpers.update_individuals(base_config, lenia_sols, Ns)
+
+            fits, bcs, metadata = [], [], []
             for i, ind in enumerate(results):
                 fits.append(ind.fitness)
                 bcs.append(ind.features)
@@ -519,7 +612,7 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
         render_params = config['render_params']
 
         start_time = time.time()
-        all_cells, _, _, all_stats = init_and_run(config)
+        all_cells, _, _, all_stats = lenia_helpers.init_and_run(config)
         total_time = time.time() - start_time
 
         nb_iter_done = len(all_cells)
@@ -541,7 +634,7 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
         colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
 
         lenia_utils.plot_stats(save_dir, all_stats)
-        _, K, _ = init(config)
+        _, K, _ = lenia_core.init(config)
         draw_kernels(K, save_dir, colormap)
         for i, kernel in enumerate(config['kernels_params']['k']):
             lenia_utils.plot_gfunction(

@@ -99,7 +99,6 @@ class TestUtils(unittest.TestCase):
     #             }]
     #         },
     #         'render_params': {
-    #             'win_size_power2': 9,
     #             'pixel_size_power2': 2,
     #             'size_power2': 7,
     #             'pixel_border_size': 0,

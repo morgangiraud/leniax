@@ -28,9 +28,12 @@ class TestCore(unittest.TestCase):
         cells1 = jnp.ones(cells.shape) * 0.2
         K1 = jnp.ones(K.shape) * 0.3
         gfn_params1 = mapping.get_gfn_params()
+        kernels_weight_per_channel1 = mapping.get_kernels_weight_per_channel()
 
         t0 = time.time()
-        out1, _, _, _ = lenia_core.run_scan(cells1, K1, gfn_params1, max_run_iter, update_fn, compute_stats_fn)
+        out1, _, _, _ = lenia_core.run_scan(
+            cells1, K1, gfn_params1, kernels_weight_per_channel1, max_run_iter, update_fn, compute_stats_fn
+        )
         out1.block_until_ready()
         delta_t = time.time() - t0
 
@@ -38,9 +41,12 @@ class TestCore(unittest.TestCase):
         K2 = jnp.ones(K.shape) * 0.5
         mapping.cin_growth_fns['m'][0] = .3
         gfn_params2 = mapping.get_gfn_params()
+        kernels_weight_per_channel2 = mapping.get_kernels_weight_per_channel()
 
         t0 = time.time()
-        out2, _, _, _ = lenia_core.run_scan(cells2, K2, gfn_params2, max_run_iter, update_fn, compute_stats_fn)
+        out2, _, _, _ = lenia_core.run_scan(
+            cells2, K2, gfn_params2, kernels_weight_per_channel2, max_run_iter, update_fn, compute_stats_fn
+        )
         out2.block_until_ready()
         delta_t_compiled = time.time() - t0
 
@@ -57,9 +63,10 @@ class TestCore(unittest.TestCase):
         cells1 = jnp.ones(cells.shape) * 0.2
         K1 = jnp.ones(K.shape) * 0.3
         gfn_params1 = mapping.get_gfn_params()
+        kernels_weight_per_channel1 = mapping.get_kernels_weight_per_channel()
 
         t0 = time.time()
-        out1 = update_fn(cells1, K1, gfn_params1)
+        out1 = update_fn(cells1, K1, gfn_params1, kernels_weight_per_channel1)
         out1[0].block_until_ready()
         delta_t = time.time() - t0
 
@@ -67,9 +74,10 @@ class TestCore(unittest.TestCase):
         K2 = jnp.ones(K.shape) * 0.5
         mapping.cin_growth_fns['m'][0] = .3
         gfn_params2 = mapping.get_gfn_params()
+        kernels_weight_per_channel2 = mapping.get_kernels_weight_per_channel()
 
         t0 = time.time()
-        out2 = update_fn(cells2, K2, gfn_params2)
+        out2 = update_fn(cells2, K2, gfn_params2, kernels_weight_per_channel2)
         out2[0].block_until_ready()
         delta_t_compiled = time.time() - t0
 
@@ -128,17 +136,18 @@ class TestCore(unittest.TestCase):
         nb_channels = 2
         nb_kernels = 3
         mapping = lenia_kernel.KernelMapping(nb_channels, nb_kernels)
-        mapping.kernels_weight_per_channel = jnp.array([[.5, .4, .0], [.5, .2, .0]])
+        mapping.kernels_weight_per_channel = [[.5, .4, .0], [.5, .2, .0]]
         mapping.cin_growth_fns['gf_id'] = [0, 0, 0]
         mapping.cin_growth_fns['m'] = [0.1, 0.2, 0.3]
         mapping.cin_growth_fns['s'] = [0.1, 0.2, 0.3]
 
-        get_field = lenia_core.build_get_field_fn(mapping)
+        get_field = lenia_core.build_get_field_fn(mapping.cin_growth_fns)
 
         potential1 = jnp.ones([nb_kernels, 25, 25]) * .5
         gfn_params1 = mapping.get_gfn_params()
+        kernels_weight_per_channel1 = mapping.get_kernels_weight_per_channel()
         t0 = time.time()
-        out1 = get_field(potential1, gfn_params1)
+        out1 = get_field(potential1, gfn_params1, kernels_weight_per_channel1)
         out1.block_until_ready()
         delta_t = time.time() - t0
 
@@ -146,9 +155,10 @@ class TestCore(unittest.TestCase):
         mapping.cin_growth_fns['m'] = [0.2, 0.3, 0.4]
         mapping.cin_growth_fns['s'] = [0.8, 0.7, 0.6]
         gfn_params2 = mapping.get_gfn_params()
+        kernels_weight_per_channel2 = mapping.get_kernels_weight_per_channel()
 
         t0 = time.time()
-        out2 = get_field(potential2, gfn_params2)
+        out2 = get_field(potential2, gfn_params2, kernels_weight_per_channel2)
         out2.block_until_ready()
         delta_t_compiled = time.time() - t0
 

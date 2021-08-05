@@ -3,7 +3,7 @@ import time
 import ffmpeg
 import numpy as np
 
-import lenia.utils as lenia_utils
+from . import utils as lenia_utils
 
 
 def dump_video(all_cells, render_params, media_dir, colormap):

@@ -10,7 +10,7 @@ from jax.nn.initializers import glorot_normal
 from jax.experimental import stax, optimizers
 from jax._src.nn.initializers import _compute_fans
 
-from lenia import utils as lenia_utils
+from . import utils as lenia_utils
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 tmp_dir = os.path.join(cdir, '..', 'tmp')

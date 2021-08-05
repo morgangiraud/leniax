@@ -2,14 +2,15 @@ import time
 import uuid
 import jax
 import jax.numpy as jnp
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
 from omegaconf import DictConfig, OmegaConf
 
-import lenia.initializations as initializations
-import lenia.statistics as lenia_stat
-import lenia.core as lenia_core
+from .qd import LeniaIndividual
+from . import initializations as initializations
+from . import statistics as lenia_stat
+from . import core as lenia_core
 
-import lenia.kernels as lenia_kernels
+from . import kernels as lenia_kernels
 
 
 def get_container(omegaConf: DictConfig) -> Dict:
@@ -48,6 +49,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Di
 
     K, mapping = lenia_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
     gfn_params = mapping.get_gfn_params()
+    kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
     update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version)
     compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
@@ -64,7 +66,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Di
         t0 = time.time()
 
         all_cells, _, _, all_stats = lenia_core.run_scan(
-            all_cells_0_jnp[i], K, gfn_params, max_run_iter, update_fn, compute_stats_fn
+            all_cells_0_jnp[i], K, gfn_params, kernels_weight_per_channel, max_run_iter, update_fn, compute_stats_fn
         )
         # https://jax.readthedocs.io/en/latest/async_dispatch.html
         all_stats['N'].block_until_ready()
@@ -87,15 +89,20 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Di
 def init_and_run(config: Dict, with_jit: bool = False) -> Tuple:
     cells, K, mapping = lenia_core.init(config)
     gfn_params = mapping.get_gfn_params()
+    kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 
     update_fn = lenia_core.build_update_fn(config['world_params'], K.shape, mapping)
     compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     max_run_iter = config['run_params']['max_run_iter']
     if with_jit is True:
-        outputs = lenia_core.run_scan(cells, K, gfn_params, max_run_iter, update_fn, compute_stats_fn)
+        outputs = lenia_core.run_scan(
+            cells, K, gfn_params, kernels_weight_per_channel, max_run_iter, update_fn, compute_stats_fn
+        )
     else:
-        outputs = lenia_core.run(cells, K, gfn_params, max_run_iter, update_fn, compute_stats_fn)
+        outputs = lenia_core.run(
+            cells, K, gfn_params, kernels_weight_per_channel, max_run_iter, update_fn, compute_stats_fn
+        )
 
     return outputs
 
@@ -122,6 +129,7 @@ def slow_init_search(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, D
 
     K, mapping = lenia_core.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
     gfn_params = mapping.get_gfn_params()
+    kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 
     update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping)
     compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
@@ -142,7 +150,7 @@ def slow_init_search(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, D
             cells_0 = lenia_core.init_cells(world_size, nb_channels, [noise])
 
             all_cells, _, _, all_stats = lenia_core.run(
-                cells_0, K, gfn_params, max_run_iter, update_fn, compute_stats_fn
+                cells_0, K, gfn_params, kernels_weight_per_channel, max_run_iter, update_fn, compute_stats_fn
             )
             nb_iter_done = len(all_cells)
 
@@ -150,3 +158,70 @@ def slow_init_search(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, D
             print(f"{noise_h},{noise_w} : {nb_iter_done} / {max_run_iter} -> {nb_iter_done >= max_run_iter}")
 
     return rng_key, runs
+
+
+def get_mem_optimized_inputs(rng_key: jnp.ndarray, base_config: Dict, lenia_sols: List[LeniaIndividual]):
+    """
+        All critical parameters are taken from the base_config.
+        All non-critical parameters are taken from each potential lenia solutions
+    """
+    world_params = base_config['world_params']
+    nb_channels = world_params['nb_channels']
+    update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
+    R = world_params['R']
+
+    render_params = base_config['render_params']
+    world_size = render_params['world_size']
+
+    run_params = base_config['run_params']
+    nb_init_search = run_params['nb_init_search']
+    max_run_iter = run_params['max_run_iter']
+
+    all_cells_0 = []
+    all_Ks = []
+    all_gfn_params = []
+    all_kernels_weight_per_channel = []
+    for ind in lenia_sols:
+        config = ind.get_config()
+        kernels_params = config['kernels_params']['k']
+
+        rng_key, noises = initializations.perlin(rng_key, nb_init_search, world_size, R, kernels_params[0])
+        for i in range(nb_init_search):
+            cells_0 = lenia_core.init_cells(world_size, nb_channels, [noises[i]])
+            all_cells_0.append(cells_0)
+
+        K, mapping = lenia_core.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
+        gfn_params = mapping.get_gfn_params()
+        kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
+
+        all_Ks.append(K)
+        all_gfn_params.append(gfn_params)
+        all_kernels_weight_per_channel.append(kernels_weight_per_channel)
+    all_cells_0_jnp = jnp.stack(all_cells_0)  # add a dimension
+    all_Ks_jnp = jnp.stack(all_Ks)
+    all_gfn_params_jnp = jnp.stack(all_gfn_params)
+    all_kernels_weight_per_channel_jnp = jnp.stack(kernels_weight_per_channel)
+
+    # Critical parameters
+    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version)
+    compute_stats_fn = lenia_stat.build_compute_stats_fn(world_params, render_params)
+
+    run_scan_mem_optimized_parameters = (
+        all_cells_0_jnp,
+        all_Ks_jnp,
+        all_gfn_params_jnp,
+        all_kernels_weight_per_channel_jnp,
+        max_run_iter,
+        update_fn,
+        compute_stats_fn
+    )
+
+    return rng_key, run_scan_mem_optimized_parameters
+
+
+def update_individuals(base_config, inds: List[LeniaIndividual], Ns: jnp.ndarray) -> List[LeniaIndividual]:
+    # run_params = base_config['run_params']
+    # nb_init_search = run_params['nb_init_search']
+    # max_run_iter = run_params['max_run_iter']
+
+    return inds

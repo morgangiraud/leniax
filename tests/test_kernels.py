@@ -10,7 +10,7 @@ fixture_dir = os.path.join(cfd, 'fixtures')
 
 
 class TestKernels(unittest.TestCase):
-    def test_remove_zero_dims(self):
+    def test_crop_zero(self):
 
         kernels = jnp.array([[
             [0., 0., 0., 0.],
@@ -31,6 +31,6 @@ class TestKernels(unittest.TestCase):
             [1., 0., 0.],
         ]])
 
-        kernels_out = lenia_kernels.remove_zero_dims(kernels)
+        kernels_out = lenia_kernels.crop_zero(kernels)
 
         np.testing.assert_array_equal(kernels_out, true_kernels)

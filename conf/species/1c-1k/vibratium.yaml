@@ -54,7 +54,6 @@ render_params:
   pixel_size: 4
   pixel_size_power2: 2
   size_power2: 7
-  win_size_power2: 9
   world_size:
   - 128
   - 128

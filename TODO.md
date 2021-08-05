@@ -2,7 +2,7 @@
 
 ## Parameters
 Criticial parameters are parameters that forces JAX to recompile the evaluation function, either because they change the memory allocation of the graph or they change the computation graph itself. Those are:
-- wolrd_size
+- world_size
 - nb_channels
 - nb_kernels
 - gf_id

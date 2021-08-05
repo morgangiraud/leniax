@@ -1,14 +1,12 @@
 import os
-import psutil
-from functools import partial
+import math
 from absl import logging
 from omegaconf import DictConfig
 import hydra
 import jax.numpy as jnp
 import pickle
-import math
 
-from ribs.archives import CVTArchive
+from ribs.archives import GridArchive, CVTArchive
 from ribs.emitters import GaussianEmitter, ImprovementEmitter, OptimizingEmitter, RandomDirectionEmitter
 from ribs.optimizers import Optimizer
 
@@ -20,11 +18,6 @@ from lenia import video as lenia_video
 # Disable JAX logging https://abseil.io/docs/python/guides/logging
 logging.set_verbosity(logging.ERROR)
 
-# # We are not using matmul on huge matrix, so we can avoid parallelising every operation
-# # This allow us to increase the numbre of parallel process
-# # https://github.com/google/jax/issues/743
-# os.environ["XLA_FLAGS"] = ("--xla_cpu_multi_thread_eigen=false " "intra_op_parallelism_threads=1")
-
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
 
@@ -32,7 +25,6 @@ config_path = os.path.join(cdir, '..', 'conf')
 @hydra.main(config_path=config_path, config_name="config_qd_cmame")
 def run(omegaConf: DictConfig) -> None:
     config = get_container(omegaConf)
-    config['algo']['budget'] *= 2
     print(config)
 
     seed = config['run_params']['seed']
@@ -40,13 +32,15 @@ def run(omegaConf: DictConfig) -> None:
     generator_builder = lenia_qd.genBaseIndividual(config, rng_key)
     lenia_generator = generator_builder()
 
-    fitness_domain = [-65, 0]  # negative rastrigin domain in(to maximise)
-    features_domain = [[-4, 4], [-4, 4]]
+    fitness_domain = [0, config['run_params']['max_run_iter']]
+    features_domain = config['grid']['features_domain']
     grid_shape = config['grid']['shape']
     assert len(grid_shape) == len(features_domain)
-
-    bins = math.prod(grid_shape)
-    archive = CVTArchive(bins, features_domain, seed=seed, use_kd_tree=True)
+    if True:
+        archive = GridArchive(grid_shape, features_domain, seed=seed)
+    else:
+        bins = math.prod(grid_shape)
+        archive = CVTArchive(bins, features_domain, seed=seed, use_kd_tree=True)
     archive.base_config = config
 
     genotype_dims = len(config['genotype'])
@@ -75,10 +69,9 @@ def run(omegaConf: DictConfig) -> None:
     ]
     optimizer = Optimizer(archive, emitters)
 
-    # See https://stackoverflow.com/questions/40217873/multiprocessing-use-only-the-physical-cores
-    n_workers = psutil.cpu_count(logical=False) - 1
+    n_workers = -1
     nb_iter = config['algo']['budget'] // (batch_size * len(emitters))
-    eval_fn = partial(lenia_qd.eval_debug, neg_fitness=True)
+    eval_fn = lenia_qd.eval_lenia_config_mem_optimized
     metrics = lenia_qd.run_qd_search(eval_fn, nb_iter, lenia_generator, optimizer, fitness_domain, log_freq, n_workers)
 
     # Save results
@@ -92,6 +85,10 @@ def run(omegaConf: DictConfig) -> None:
     lenia_qd.save_heatmap(optimizer.archive, fitness_domain, f"{save_dir}/archive_heatmap.png")
     lenia_qd.save_parallel_axes_plot(optimizer.archive, fitness_domain, f"{save_dir}/archive_parralel_plot.png")
     lenia_video.dump_qd_ribs_result(os.path.join(save_dir, 'qd_search.mp4'))
+
+    if config['other']['dump_bests'] is True:
+        fitness_threshold = 0.7 * fitness_domain[1]
+        lenia_qd.dump_best(optimizer.archive, fitness_threshold)
 
 
 if __name__ == '__main__':

@@ -1,5 +1,6 @@
 import os
 import math
+import psutil
 from absl import logging
 from omegaconf import DictConfig
 import hydra
@@ -69,9 +70,11 @@ def run(omegaConf: DictConfig) -> None:
     ]
     optimizer = Optimizer(archive, emitters)
 
+    # See https://stackoverflow.com/questions/40217873/multiprocessing-use-only-the-physical-cores
+    n_workers = psutil.cpu_count(logical=False) - 1
     nb_iter = config['algo']['budget'] // (batch_size * len(emitters))
     eval_fn = lenia_qd.eval_lenia_config
-    metrics = lenia_qd.run_qd_search(eval_fn, nb_iter, lenia_generator, optimizer, fitness_domain, log_freq)
+    metrics = lenia_qd.run_qd_search(eval_fn, nb_iter, lenia_generator, optimizer, fitness_domain, log_freq, n_workers)
 
     # Save results
     save_dir = os.getcwd()

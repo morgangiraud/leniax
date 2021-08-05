@@ -1,4 +1,5 @@
 import os
+import psutil
 import pickle
 from absl import logging
 from omegaconf import DictConfig
@@ -85,8 +86,10 @@ def run(omegaConf: DictConfig) -> None:
     ]
     optimizer = Optimizer(archive, emitters)
 
+    # See https://stackoverflow.com/questions/40217873/multiprocessing-use-only-the-physical-cores
+    n_workers = psutil.cpu_count(logical=False) - 1
     eval_fn = lenia_qd.eval_lenia_init
-    metrics = lenia_qd.run_qd_search(eval_fn, budget, lenia_generator, optimizer, fitness_domain, log_freq)
+    metrics = lenia_qd.run_qd_search(eval_fn, budget, lenia_generator, optimizer, fitness_domain, log_freq, n_workers)
 
     save_dir = os.getcwd()
     with open(f"{save_dir}/final.p", 'wb') as handle:

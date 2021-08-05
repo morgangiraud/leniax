@@ -1,14 +1,15 @@
-import time
+# import time
 import uuid
 import jax
 import jax.numpy as jnp
 from typing import Dict, Tuple, List
 from omegaconf import DictConfig, OmegaConf
 
-from .qd import LeniaIndividual
+from .qd import LeniaIndividual, get_param
 from . import initializations as initializations
 from . import statistics as lenia_stat
 from . import core as lenia_core
+from . import utils as lenia_utils
 
 from . import kernels as lenia_kernels
 
@@ -63,7 +64,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Di
     best_run = {}
     current_max = 0
     for i in range(nb_init_search):
-        t0 = time.time()
+        # t0 = time.time()
 
         all_cells, _, _, all_stats = lenia_core.run_scan(
             all_cells_0_jnp[i], K, gfn_params, kernels_weight_per_channel, max_run_iter, update_fn, compute_stats_fn
@@ -71,7 +72,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Di
         # https://jax.readthedocs.io/en/latest/async_dispatch.html
         all_stats['N'].block_until_ready()
 
-        t1 = time.time()
+        # t1 = time.time()
 
         nb_iter_done = all_stats['N']
         if current_max < nb_iter_done:
@@ -81,7 +82,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Di
         if nb_iter_done >= max_run_iter:
             break
 
-        print(t1 - t0, nb_iter_done)
+        # print(t1 - t0, nb_iter_done)
 
     return rng_key, best_run, i
 
@@ -185,22 +186,22 @@ def get_mem_optimized_inputs(rng_key: jnp.ndarray, base_config: Dict, lenia_sols
         config = ind.get_config()
         kernels_params = config['kernels_params']['k']
 
+        K, mapping = lenia_core.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
+        gfn_params = mapping.get_gfn_params()
+        kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
+
         rng_key, noises = initializations.perlin(rng_key, nb_init_search, world_size, R, kernels_params[0])
         for i in range(nb_init_search):
             cells_0 = lenia_core.init_cells(world_size, nb_channels, [noises[i]])
             all_cells_0.append(cells_0)
 
-        K, mapping = lenia_core.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
-        gfn_params = mapping.get_gfn_params()
-        kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
-
-        all_Ks.append(K)
-        all_gfn_params.append(gfn_params)
-        all_kernels_weight_per_channel.append(kernels_weight_per_channel)
+            all_Ks.append(K)
+            all_gfn_params.append(gfn_params)
+            all_kernels_weight_per_channel.append(kernels_weight_per_channel)
     all_cells_0_jnp = jnp.stack(all_cells_0)  # add a dimension
     all_Ks_jnp = jnp.stack(all_Ks)
     all_gfn_params_jnp = jnp.stack(all_gfn_params)
-    all_kernels_weight_per_channel_jnp = jnp.stack(kernels_weight_per_channel)
+    all_kernels_weight_per_channel_jnp = jnp.stack(all_kernels_weight_per_channel)
 
     # Critical parameters
     update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version)
@@ -219,9 +220,43 @@ def get_mem_optimized_inputs(rng_key: jnp.ndarray, base_config: Dict, lenia_sols
     return rng_key, run_scan_mem_optimized_parameters
 
 
-def update_individuals(base_config, inds: List[LeniaIndividual], Ns: jnp.ndarray) -> List[LeniaIndividual]:
-    # run_params = base_config['run_params']
-    # nb_init_search = run_params['nb_init_search']
+def update_individuals(
+    qd_config: Dict,
+    inds: List[LeniaIndividual],
+    Ns: jnp.ndarray,
+    cells0s: jnp.ndarray,
+    neg_fitness=False
+) -> List[LeniaIndividual]:
+    """
+        Args:
+            - qd_config:    Dict,                       Quality diversity configuration
+            - inds:         List,                       Evaluated Lenia individuals
+            - Ns:           jnp.ndarray, [len(inds)]    Fitness of each lenias
+            - cells0s:      jnp.ndarray, [len(inds), world_size...]
+    """
+    run_params = qd_config['run_params']
+    nb_init_search = run_params['nb_init_search']
     # max_run_iter = run_params['max_run_iter']
+
+    for i, ind in enumerate(inds):
+        config = ind.get_config()
+
+        current_ind_results = Ns[i * nb_init_search:(i + 1) * nb_init_search]
+        current_ind_cells0s = cells0s[i * nb_init_search:(i + 1) * nb_init_search]
+        max_idx = jnp.argmax(current_ind_results)
+        nb_steps = current_ind_results[max_idx]
+        init_cells = current_ind_cells0s[max_idx]
+
+        # config['behaviours'] = best['all_stats']
+        ind.set_init_cells(lenia_utils.compress_array(init_cells))
+
+        if neg_fitness is True:
+            fitness = -nb_steps
+        else:
+            fitness = nb_steps
+        features = [get_param(config, key_string) for key_string in ind.base_config['phenotype']]
+
+        ind.fitness = fitness
+        ind.features = features
 
     return inds

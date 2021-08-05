@@ -1,0 +1,81 @@
+world_params:
+  nb_dims: 2
+  nb_channels: 1
+  R: 5
+  T: 10
+render_params:
+  pixel_size_power2: 2
+  size_power2: 6
+  pixel_border_size: 0
+  world_size: MISSING
+  pixel_size: MISSING
+run_params:
+  code: "O2u"
+  name: "Orbium unicaudatus"
+  cname: "球虫(單尾)"
+  seed: 1
+  max_run_iter: 4
+  nb_init_search: 3
+kernels_params:
+  k:
+    - k_id: 0
+      q: 4
+      r: 1
+      b: '1'
+      gf_id: 0
+      m: 0.17
+      s: 0.015
+      h: 1
+      c_in: 0
+      c_out: 0
+    - k_id: 0
+      q: 4
+      r: 1
+      b: '1'
+      gf_id: 1
+      m: 0.2
+      s: 0.02
+      h: 0.5
+      c_in: 0
+      c_out: 0
+
+genotype:
+  - key: kernels_params.k.0.m
+    domain: 
+      - .1
+      - .5
+    type: float
+  - key: kernels_params.k.0.s
+    domain: 
+      - 0.
+      - .1
+    type: float
+
+
+phenotype:
+  - kernels_params.k.0.m
+  - kernels_params.k.0.s
+
+grid:
+  features_domain:
+    - - .1
+      - .5
+    - - 0.
+      - .1
+  shape: [25, 25]
+  
+algo:
+  # Generic
+  budget: 2048
+  batch_size: 8
+  sampling_domain:
+    - 0.
+    - 1.
+  # cmaes
+  mut_sigma0: 0.01
+  sigma0: 0.15
+  separable_cma: false
+  ignore_if_not_added_to_container: false
+
+other:
+  dump_bests: True

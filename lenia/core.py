@@ -155,6 +155,7 @@ def run(
     all_potentials_jnp = jnp.array(all_potentials)
 
     stats_dict = lenia_stat.stats_list_to_dict(all_stats)
+    stats_dict['N'] = jnp.array(current_iter)
 
     return all_cells_jnp, all_fields_jnp, all_potentials_jnp, stats_dict
 
@@ -215,9 +216,9 @@ def run_scan(
 
 
 @jax.partial(jit, static_argnums=(4, 5, 6))
-@jax.partial(vmap, in_axes=(0, 0, 0, 0, None, None, None))
+@jax.partial(vmap, in_axes=(0, 0, 0, 0, None, None, None), out_axes=0)
 def run_scan_mem_optimized(
-    cells: jnp.ndarray,
+    cells0: jnp.ndarray,
     K: jnp.ndarray,
     gfn_params: jnp.ndarray,
     kernels_weight_per_channel: jnp.ndarray,
@@ -225,7 +226,7 @@ def run_scan_mem_optimized(
     update_fn: Callable,
     compute_stats_fn: Callable
 ) -> int:
-    world_shape = jnp.array(cells.shape[3:])
+    world_shape = jnp.array(cells0.shape[3:])
     nb_dims = len(world_shape)
     axes = tuple(range(-nb_dims, 0, 1))
 
@@ -254,7 +255,7 @@ def run_scan_mem_optimized(
 
     total_shift_idx = jnp.zeros([nb_dims], dtype=jnp.int32)
     init_carry = {
-        'fn_params': (cells, K, gfn_params, kernels_weight_per_channel),
+        'fn_params': (cells0, K, gfn_params, kernels_weight_per_channel),
         'stats_properties': {
             'total_shift_idx': total_shift_idx,
         }

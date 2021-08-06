@@ -52,8 +52,8 @@ Any growth functions that would boost the 0 value is doomed to fail. This would 
 
 
 ## Now
+- Refactor rng to make different qd_cmame search  more deterministic
 - replace compress/decompress functions for init_cells with a duo pickle + relative_path
-- Refactor qd_ribs to have the big parallelization capacity (jit perlin noise, and build the inputs for the vmap function)
 - Let's explore 1c-1k, 1c-2k, 1d-3k for now (looking for 10 species with interelation)
 
 ## Next

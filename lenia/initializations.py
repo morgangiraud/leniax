@@ -53,15 +53,19 @@ def perlin(rng_key, nb_noise: int, world_size: List[int], R: float, kernel_param
     res = [world_size[0] // (kernel_radius * 3), world_size[1] // (kernel_radius * 2)]
     min_mean_bound = kernel_params['m']
     max_mean_bound = min(1, 2 * kernel_params['m'])
+    scaling = jnp.array([min_mean_bound + i / nb_noise * (max_mean_bound - min_mean_bound) for i in range(nb_noise)])
+    scaling = scaling[:, jnp.newaxis, jnp.newaxis]
 
-    all_cells = []
-    for i in range(nb_noise):
-        rng_key, cells = generate_perlin_noise_2d(rng_key, world_size, res)
-        cells -= cells.min()
-        cells /= cells.max()
-        cells *= min_mean_bound + i / nb_noise * (max_mean_bound - min_mean_bound)
-        all_cells.append(cells[jnp.newaxis, ...])
+    rng_key, subkey = jax.random.split(rng_key)
+    angles_shape = [nb_noise] + res
+    angles = 2 * jnp.pi * jax.random.uniform(subkey, shape=angles_shape)  # [nb_noise, H_res, W_res]
 
-    init_cells = jnp.stack(all_cells)
+    # Why tuple here? -> List are non-hashable which breaks jit function
+    cells = generate_perlin_noise_2d(angles, tuple(world_size), tuple(res), nb_noise)
+
+    cells -= cells.min(axis=(1, 2), keepdims=True)
+    cells /= cells.max(axis=(1, 2), keepdims=True)
+    cells *= scaling
+    init_cells = cells[:, jnp.newaxis, ...]
 
     return rng_key, init_cells

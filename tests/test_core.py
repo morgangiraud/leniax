@@ -198,15 +198,15 @@ class TestCore(unittest.TestCase):
         potential2.block_until_ready()
         delta_t_compiled = time.time() - t0
 
-        assert len(potential.shape) == 3
-        assert potential.shape[0] == nb_kernels
-        assert potential.shape[1] == H
-        assert potential.shape[2] == W
+        assert len(potential.shape) == 4
+        assert potential.shape[1] == nb_kernels
+        assert potential.shape[2] == H
+        assert potential.shape[3] == W
 
-        true_potential = jnp.ones([3, 2, 2])
-        true_potential = true_potential.at[0].set(0.09)
-        true_potential = true_potential.at[1].set(0.18)
-        true_potential = true_potential.at[2].set(0.54)
+        true_potential = jnp.ones([1, 3, 2, 2])
+        true_potential = true_potential.at[0, 0].set(0.09)
+        true_potential = true_potential.at[0, 1].set(0.18)
+        true_potential = true_potential.at[0, 2].set(0.54)
         np.testing.assert_array_equal(potential, true_potential)
 
         assert delta_t_compiled < 1 / 100 * delta_t
@@ -223,7 +223,7 @@ class TestCore(unittest.TestCase):
         get_field = lenia_core.build_get_field_fn(mapping.cin_growth_fns)
         jit_fn = jax.jit(get_field)
 
-        potential1 = jnp.ones([nb_kernels, 25, 25]) * .5
+        potential1 = jnp.ones([1, nb_kernels, 25, 25]) * .5
         gfn_params1 = mapping.get_gfn_params()
         kernels_weight_per_channel1 = mapping.get_kernels_weight_per_channel()
         t0 = time.time()
@@ -231,7 +231,7 @@ class TestCore(unittest.TestCase):
         out1.block_until_ready()
         delta_t = time.time() - t0
 
-        potential2 = jnp.ones([nb_kernels, 25, 25]) * .5
+        potential2 = jnp.ones([1, nb_kernels, 25, 25]) * .5
         mapping.cin_growth_fns['m'] = [0.2, 0.3, 0.4]
         mapping.cin_growth_fns['s'] = [0.8, 0.7, 0.6]
         gfn_params2 = mapping.get_gfn_params()
@@ -248,7 +248,7 @@ class TestCore(unittest.TestCase):
         jit_fn = jax.jit(lenia_core.weighted_select_average)
 
         nb_kernels = 3
-        field1 = jnp.ones([nb_kernels, 25, 25]) * .5
+        field1 = jnp.ones([1, nb_kernels, 25, 25]) * .5
         weights1 = jnp.array([[.5, .4, .0], [.5, .2, .0]])
 
         t0 = time.time()
@@ -256,7 +256,7 @@ class TestCore(unittest.TestCase):
         out1.block_until_ready()
         delta_t = time.time() - t0
 
-        field2 = jnp.ones([nb_kernels, 25, 25]) * .5
+        field2 = jnp.ones([1, nb_kernels, 25, 25]) * .5
         weights2 = jnp.array([[.1, .2, .0], [.5, .2, .0]])
 
         t0 = time.time()

@@ -275,6 +275,19 @@ def build_update_fn(
     @jit
     def update(cells: jnp.ndarray, K: jnp.ndarray, gfn_params: jnp.ndarray,
                kernels_weight_per_channel: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+        """
+            Args:
+                - cells:                        jnp.ndarray[N, nb_channels, world_dims...]
+                - K:                            jnp.ndarray[K_o=nb_channels * max_k_per_kernel, K_i=1, kernel_dims...]
+                - gfn_params:                   jnp.ndarray[nb_kernels, 2]
+                - kernels_weight_per_channel:   jnp.ndarray[nb_channels, nb_kernels]
+
+            Outputs:
+                - cells:        jnp.ndarray[N, nb_channels, world_dims...]
+                - field:        jnp.ndarray[N, nb_channels, world_dims...]
+                - potential:    jnp.ndarray[N, nb_channels, world_dims...]
+        """
+
         potential = get_potential_fn(cells, K)
         field = get_field_fn(potential, gfn_params, kernels_weight_per_channel)
         cells = update_fn(cells, field, dt)
@@ -291,19 +304,17 @@ def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: jnp.nda
     def get_potential(cells: jnp.ndarray, K: jnp.ndarray) -> jnp.ndarray:
         """
             Args:
-                - cells: jnp.ndarray[nb_channels, N=1, c=1, world_dims...]
-                - K: jnp.ndarray[nb_channels, K_o=max_k_per_kernel, K_i=1, kernel_dims...]
+                - cells: jnp.ndarray[N, nb_channels, world_dims...]
+                - K: jnp.ndarray[K_o=nb_channels * max_k_per_kernel, K_i=1, kernel_dims...]
 
             The first dimension of cells and K is the vmap dimension
         """
         padded_cells = jnp.pad(cells, padding, mode='wrap')
         nb_channels = cells.shape[1]
         # the beauty of feature_group_count for depthwise convolution
-        conv_out_reshaped = lax.conv_general_dilated(
-            padded_cells, K, (1, 1), 'VALID', feature_group_count=nb_channels
-        )
+        conv_out_reshaped = lax.conv_general_dilated(padded_cells, K, (1, 1), 'VALID', feature_group_count=nb_channels)
 
-        potential = conv_out_reshaped[0, true_channels]  # [nb_kernels, H, W]
+        potential = conv_out_reshaped[:, true_channels]  # [N, nb_kernels, H, W]
 
         return potential
 
@@ -316,14 +327,15 @@ def build_get_field_fn(cin_growth_fns: Dict[str, List]) -> Callable:
         gf_id = cin_growth_fns['gf_id'][i]
         growth_fn = growth_fns[gf_id]
         growth_fn_l.append(growth_fn)
+    nb_kernels = len(cin_growth_fns['gf_id'])
 
     def get_field(
         potential: jnp.ndarray, gfn_params: jnp.ndarray, kernels_weight_per_channel: jnp.ndarray
     ) -> jnp.ndarray:
         """
             Args:
-                - potential: jnp.ndarray[nb_kernels, world_dims...] shape must be kept constant to avoid recompiling
-                - fn_params: jnp.ndarray[nb_kernels, 2] shape must be kept constant to avoid recompiling
+                - potential: jnp.ndarray[N, nb_kernels, world_dims...] shape must be kept constant to avoid recompiling
+                - gfn_params: jnp.ndarray[nb_kernels, 2] shape must be kept constant to avoid recompiling
                 - kernels_weight_per_channel: jnp.ndarray[nb_channels, nb_kernels]
             Implicit closure args:
                 - nb_kernels must be kept contant to avoid recompiling
@@ -333,19 +345,17 @@ def build_get_field_fn(cin_growth_fns: Dict[str, List]) -> Callable:
                 - fields: jnp.ndarray[N=1, nb_channels, world_dims]
         """
         fields = []
-        nb_kernels = len(cin_growth_fns['gf_id'])
         for i in range(nb_kernels):
-            sub_potential = potential[i]
+            sub_potential = potential[:, i]
             current_gfn_params = gfn_params[i]
             growth_fn = growth_fn_l[i]
 
             sub_field = growth_fn(sub_potential, current_gfn_params[0], current_gfn_params[1])
 
             fields.append(sub_field)
-        fields_jnp = jnp.stack(fields)  # [nb_kernels, world_dims...]
+        fields_jnp = jnp.stack(fields, axis=1)  # [N, nb_kernels, world_dims...]
 
-        fields_jnp = weighted_select_average(fields_jnp, kernels_weight_per_channel)  # [C, H, W]
-        fields_jnp = fields_jnp[jnp.newaxis, ...]  # [N=1, C, H, W]
+        fields_jnp = weighted_select_average(fields_jnp, kernels_weight_per_channel)  # [N, C, H, W]
 
         return fields_jnp
 
@@ -355,22 +365,26 @@ def build_get_field_fn(cin_growth_fns: Dict[str, List]) -> Callable:
 def weighted_select_average(fields: jnp.ndarray, weights: jnp.ndarray) -> jnp.ndarray:
     """
         Args:
-            - fields: jnp.ndarray[nb_kernels, world_dims...] shape must be kept constant to avoid recompiling
+            - fields: jnp.ndarray[N, nb_kernels, world_dims...] shape must be kept constant to avoid recompiling
             - weights: jnp.ndarray[nb_channels, nb_kernels] shape must be kept constant to avoid recompiling
                 0. values are used to indicate that a given channels does not receive inputs from this kernel
 
         Outputs:
             - fields: jnp.ndarray[nb_channels, world_dims...]
     """
-    nb_kernels = fields.shape[0]
-    world_dims = list(fields.shape[1:])
+    N = fields.shape[0]
+    nb_kernels = fields.shape[1]
+    world_dims = list(fields.shape[2:])
     nb_channels = weights.shape[0]
 
-    tmp_fields = fields.reshape(nb_kernels, -1)
-    out_tmp = jnp.matmul(weights, tmp_fields).reshape([nb_channels] + world_dims)
-    out_field = out_tmp / weights.sum(axis=1)[:, jnp.newaxis, jnp.newaxis]
+    fields_swapped = fields.swapaxes(0, 1)  # [nb_kernels, N, world_dims...]
+    fields_reshaped = fields_swapped.reshape(nb_kernels, -1)
+    out_tmp = jnp.matmul(weights, fields_reshaped)
+    out_tmp = out_tmp.reshape([nb_channels, N] + world_dims)
+    out_tmp = out_tmp.swapaxes(0, 1)  # [N, nb_channels, world_dims...]
+    fields_normalized = out_tmp / weights.sum(axis=1)[jnp.newaxis, :, jnp.newaxis, jnp.newaxis]
 
-    return out_field
+    return fields_normalized
 
 
 def update_cells(cells: jnp.ndarray, field: jnp.ndarray, dt: float) -> jnp.ndarray:

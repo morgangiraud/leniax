@@ -7,7 +7,7 @@ from . import utils as lenia_utils
 
 
 def dump_video(all_cells, render_params, media_dir, colormap):
-    assert len(all_cells.shape) == 6
+    assert len(all_cells.shape) == 5
 
     nb_iter_done = len(all_cells)
     width = all_cells[0].shape[-1] * render_params['pixel_size']
@@ -22,7 +22,7 @@ def dump_video(all_cells, render_params, media_dir, colormap):
     for i in range(nb_iter_done):
         start_time = time.time()
         img = lenia_utils.get_image(
-            all_cells[i][:, 0, 0, ...], render_params['pixel_size'], render_params['pixel_border_size'], colormap
+            all_cells[i, 0, ...], render_params['pixel_size'], render_params['pixel_border_size'], colormap
         )
         process.stdin.write(img.tobytes())
 

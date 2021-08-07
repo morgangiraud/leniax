@@ -41,8 +41,8 @@ class TestHelpers(unittest.TestCase):
         all_gfn_params_jnp = run_scan_mem_optimized_parameters[2]
         all_kernels_weight_per_channel_jnp = run_scan_mem_optimized_parameters[3]
 
-        np.testing.assert_array_equal(all_cells_0_jnp.shape, [6, nb_channels, 1, 1] + world_size)
-        np.testing.assert_array_equal(all_Ks_jnp.shape, [6, nb_channels, nb_kernels, 1, R * 2 - 1, R * 2 - 1])
+        np.testing.assert_array_equal(all_cells_0_jnp.shape, [6, 1, nb_channels] + world_size)
+        np.testing.assert_array_equal(all_Ks_jnp.shape, [6, nb_channels * nb_kernels, 1, R * 2 - 1, R * 2 - 1])
         np.testing.assert_array_equal(all_gfn_params_jnp.shape, [6, nb_kernels, 2])
         np.testing.assert_array_equal(all_kernels_weight_per_channel_jnp.shape, [6, 1, nb_kernels])
 

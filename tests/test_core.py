@@ -165,35 +165,36 @@ class TestCore(unittest.TestCase):
         H = 2
         W = 2
         C = 2
-        cells = jnp.ones([C, 1, 1, H, W])
-        cells = cells.at[0].set(0.1)
-        cells = cells.at[1].set(0.2)
+        cells = jnp.ones([1, C, H, W])
+        cells = cells.at[0, 0].set(0.1)
+        cells = cells.at[0, 1].set(0.2)
 
         nb_kernels = 3  # 0 -> 0, 0 -> 1, 1 -> 1
         max_depth = 2
-        K_o = max_depth
+        K_o = max_depth * C
         K_i = 1
         K_h = 3
         K_w = 3
-        K = jnp.ones([C, K_o, K_i, K_h, K_w])
-        K = K.at[0, 0].set(0.1)
-        K = K.at[0, 1].set(0.2)
-        K = K.at[1, 0].set(0.3)
-        K = K.at[1, 1].set(0)
+        K = jnp.ones([K_o, K_i, K_h, K_w])
+        K = K.at[0].set(0.1)
+        K = K.at[1].set(0.2)
+        K = K.at[2].set(0.3)
+        K = K.at[3].set(0)
 
-        true_channels = [True, True, True, False]
+        true_channels = jnp.array([True, True, True, False])
 
         get_potential = lenia_core.build_get_potential_fn(K.shape, true_channels)
+        jit_fn = jax.jit(get_potential)
 
         t0 = time.time()
-        potential = get_potential(cells, K)
+        potential = jit_fn(cells, K)
         potential.block_until_ready()
         delta_t = time.time() - t0
 
-        cells2 = jnp.ones([C, 1, 1, H, W])
-        K2 = jnp.ones([C, K_o, K_i, K_h, K_w]) * 0.2
+        cells2 = jnp.ones([1, C, H, W])
+        K2 = jnp.ones([K_o, K_i, K_h, K_w]) * 0.2
         t0 = time.time()
-        potential2 = get_potential(cells2, K2)
+        potential2 = jit_fn(cells2, K2)
         potential2.block_until_ready()
         delta_t_compiled = time.time() - t0
 
@@ -220,12 +221,13 @@ class TestCore(unittest.TestCase):
         mapping.cin_growth_fns['s'] = [0.1, 0.2, 0.3]
 
         get_field = lenia_core.build_get_field_fn(mapping.cin_growth_fns)
+        jit_fn = jax.jit(get_field)
 
         potential1 = jnp.ones([nb_kernels, 25, 25]) * .5
         gfn_params1 = mapping.get_gfn_params()
         kernels_weight_per_channel1 = mapping.get_kernels_weight_per_channel()
         t0 = time.time()
-        out1 = get_field(potential1, gfn_params1, kernels_weight_per_channel1)
+        out1 = jit_fn(potential1, gfn_params1, kernels_weight_per_channel1)
         out1.block_until_ready()
         delta_t = time.time() - t0
 
@@ -236,7 +238,7 @@ class TestCore(unittest.TestCase):
         kernels_weight_per_channel2 = mapping.get_kernels_weight_per_channel()
 
         t0 = time.time()
-        out2 = get_field(potential2, gfn_params2, kernels_weight_per_channel2)
+        out2 = jit_fn(potential2, gfn_params2, kernels_weight_per_channel2)
         out2.block_until_ready()
         delta_t_compiled = time.time() - t0
 

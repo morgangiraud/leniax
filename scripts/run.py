@@ -21,8 +21,8 @@ config_path = os.path.join(cdir, '..', 'conf', 'species')
 config_path_1c1k = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
 
 
-@hydra.main(config_path=config_path_1c1k, config_name="orbium")
-# @hydra.main(config_path=config_path, config_name="orbium-scutium")
+# @hydra.main(config_path=config_path_1c1k, config_name="orbium")
+@hydra.main(config_path=config_path, config_name="orbium-scutium")
 def run(omegaConf: DictConfig) -> None:
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
@@ -42,13 +42,17 @@ def run(omegaConf: DictConfig) -> None:
     media_dir = os.path.join(save_dir, 'media')
     lenia_utils.check_dir(media_dir)
 
-    first_cells = all_cells[0][:, 0, 0, ...]
+    first_cells = all_cells[0, 0, ...]
     config['run_params']['cells'] = lenia_utils.compress_array(first_cells)
     lenia_utils.save_config(save_dir, config)
 
     print('Dumping cells')
     with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
-        np.save(f, np.array(all_cells)[:, 0, 0, ...])
+        np.save(f, np.array(all_cells)[:, 0, ...])
+
+    # with open(os.path.join(save_dir, 'last_frame.p'), 'wb') as f:
+    #     import pickle
+    #     pickle.dump(np.array(all_cells)[127, 0, ...], f)
 
     colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
     print('Plotting stats')

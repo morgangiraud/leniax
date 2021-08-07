@@ -12,7 +12,7 @@ class KernelMapping(object):
     cin_kernels: List[List[int]]
     cin_growth_fns: Dict[str, List]
     kernels_weight_per_channel: List[List[float]]
-    true_channels: List[bool]
+    true_channels: jnp.ndarray
 
     def __init__(self, nb_channels: int, nb_kernels: int):
         self.cin_kernels = [[] for _ in range(nb_channels)]
@@ -23,7 +23,6 @@ class KernelMapping(object):
         }
 
         self.kernels_weight_per_channel = [[0.] * nb_kernels for _ in range(nb_channels)]
-        self.true_channels = []
 
     def get_gfn_params(self) -> jnp.ndarray:
         return jnp.vstack([self.cin_growth_fns['m'], self.cin_growth_fns['s']]).T
@@ -89,21 +88,22 @@ def get_kernels_and_mapping(kernels_params: Dict, world_size: List[int], nb_chan
 
     max_k_per_channel = max(map(len, mapping.cin_kernels))
     kernels_per_channel = []
+    true_channels = []
     for kernel_list in mapping.cin_kernels:
         K_tmp = kernels[jnp.array(kernel_list)]  # [O=nb_kernel_per_channel, K_h, K_w]
 
         # We create the mask
         diff = max_k_per_channel - K_tmp.shape[0]
-        mapping.true_channels.append(jnp.array([True] * K_tmp.shape[0] + [False] * diff))
+        true_channels.append(jnp.array([True] * K_tmp.shape[0] + [False] * diff))
         if diff > 0:
             K_tmp = jnp.vstack([K_tmp, jnp.zeros([diff, K_h, K_w])])  # [O=max_k_per_channel, K_h, K_w]
 
         K_tmp = K_tmp[:, jnp.newaxis, ...]  # [O=max_k_per_channel, I=1, K_h, K_w]
         kernels_per_channel.append(K_tmp)
-    K = jnp.stack(kernels_per_channel)  # [vmap_dim=nb_channels, O=max_k_per_channel, I=1, K_h, K_w]
-    assert K.shape[0] == nb_channels
+    K = jnp.vstack(kernels_per_channel)  # [O=nb_channels*max_k_per_channel, I=1, K_h, K_w]
+    assert K.shape[0] == nb_channels * max_k_per_channel
 
-    mapping.true_channels = jnp.concatenate(mapping.true_channels)
+    mapping.true_channels = jnp.concatenate(true_channels)
 
     return K, mapping
 
@@ -154,8 +154,8 @@ def crop_zero(kernels: jnp.ndarray) -> jnp.ndarray:
 
 
 def draw_kernels(K, save_dir, colormap):
-    nb_dims = len(K.shape[3:])
-    data = jnp.ones(K.shape[3:])
+    nb_dims = len(K.shape[2:])
+    data = jnp.ones(K.shape[2:])
     padding = [(dim, dim) for dim in data.shape]
     data = jnp.pad(data, padding, mode='constant')
 
@@ -163,7 +163,7 @@ def draw_kernels(K, save_dir, colormap):
     pixel_border_size = 0
     for i in range(K.shape[1]):
         id = str(i).zfill(2)
-        current_k = K[0, i:i + 1, 0]
+        current_k = K[0, i:i + 1]
         img = lenia_utils.get_image(
             lenia_utils.normalize(current_k, 0, jnp.max(current_k)), pixel_size, pixel_border_size, colormap
         )

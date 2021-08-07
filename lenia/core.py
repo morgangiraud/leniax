@@ -31,26 +31,14 @@ def init(config: Dict) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
     return cells, K, mapping
 
 
-def init_cells(
-    world_size: List[int], nb_channels: int, other_cells: List[jnp.ndarray] = None, nb_init: int = 1
-) -> jnp.ndarray:
-    if nb_init == 1:
-        world_shape = [nb_channels] + world_size  # [C, H, W]
-    else:
-        world_shape = [nb_init, nb_channels] + world_size  # [C, H, W]
+def init_cells(world_size: List[int], nb_channels: int, other_cells: List[jnp.ndarray] = None) -> jnp.ndarray:
+    world_shape = [nb_channels] + world_size  # [C, H, W]
     cells = jnp.zeros(world_shape)
     if other_cells is not None:
         for c in other_cells:
             cells = utils.merge_cells(cells, c)
 
-    # 2D convolutions needs an input with shape [N, C, H, W]
-    # And we are going to map over first dimension with vmap so we need th following shape
-    # [C, N=1, c=1, H, W]
-    if nb_init == 1:
-        cells = cells[:, jnp.newaxis, jnp.newaxis]
-    else:
-        # In this case we also vmap on the number on init: [N_init, C, N=1, c=1, H, W]
-        cells = cells[:, :, jnp.newaxis, jnp.newaxis]
+    cells = cells[jnp.newaxis, ...]
 
     return cells
 
@@ -67,7 +55,7 @@ def run(
     assert max_run_iter > 0, f"max_run_iter must be positive, value given: {max_run_iter}"
 
     # cells shape: [C, N=1, c=1, dims...]
-    world_shape = jnp.array(cells.shape[3:])
+    world_shape = jnp.array(cells.shape[2:])
     nb_dims = len(world_shape)
     axes = tuple(range(-nb_dims, 0, 1))
 
@@ -170,7 +158,7 @@ def run_scan(
     update_fn: Callable,
     compute_stats_fn: Callable
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
-    world_shape = jnp.array(cells.shape[3:])
+    world_shape = jnp.array(cells.shape[2:])
     nb_dims = len(world_shape)
     axes = tuple(range(-nb_dims, 0, 1))
 
@@ -226,7 +214,7 @@ def run_scan_mem_optimized(
     update_fn: Callable,
     compute_stats_fn: Callable
 ) -> int:
-    world_shape = jnp.array(cells0.shape[3:])
+    world_shape = jnp.array(cells0.shape[2:])
     nb_dims = len(world_shape)
     axes = tuple(range(-nb_dims, 0, 1))
 
@@ -296,30 +284,26 @@ def build_update_fn(
     return update
 
 
-def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: List[bool]) -> Callable:
-    true_channels_jnp = jnp.array(true_channels)
-    nb_channels = kernel_shape[0]
-    depth = kernel_shape[1]
-    # First 3 dimensions are for nb_channels, fake batch dim and fake channel dim
-    padding = jnp.array([[0, 0]] * 3 + [[dim // 2, dim // 2] for dim in kernel_shape[3:]])
+def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: jnp.ndarray) -> Callable:
+    # First 2 dimensions are for fake batch dim and nb_channels
+    padding = jnp.array([[0, 0]] * 2 + [[dim // 2, dim // 2] for dim in kernel_shape[2:]])
 
-    vconv = vmap(lax.conv, (0, 0, None, None), 0)
-
-    @jit
     def get_potential(cells: jnp.ndarray, K: jnp.ndarray) -> jnp.ndarray:
         """
             Args:
-                - cells: jnp.ndarray[C, N=1, c=1, world_dims...]
-                - K: jnp.ndarray[C, K_o, K_i=1, kernel_dims...]
+                - cells: jnp.ndarray[nb_channels, N=1, c=1, world_dims...]
+                - K: jnp.ndarray[nb_channels, K_o=max_k_per_kernel, K_i=1, kernel_dims...]
 
             The first dimension of cells and K is the vmap dimension
         """
-
         padded_cells = jnp.pad(cells, padding, mode='wrap')
-        conv_out = vconv(padded_cells, K, (1, 1), 'VALID')  # [C, N=1, c=O, H, W]
+        nb_channels = cells.shape[1]
+        # the beauty of feature_group_count for depthwise convolution
+        conv_out_reshaped = lax.conv_general_dilated(
+            padded_cells, K, (1, 1), 'VALID', feature_group_count=nb_channels
+        )
 
-        conv_out_reshaped = conv_out.reshape(nb_channels * depth, *cells.shape[3:])
-        potential = conv_out_reshaped[true_channels_jnp]  # [nb_kernels, H, W]
+        potential = conv_out_reshaped[0, true_channels]  # [nb_kernels, H, W]
 
         return potential
 
@@ -333,7 +317,6 @@ def build_get_field_fn(cin_growth_fns: Dict[str, List]) -> Callable:
         growth_fn = growth_fns[gf_id]
         growth_fn_l.append(growth_fn)
 
-    @jit
     def get_field(
         potential: jnp.ndarray, gfn_params: jnp.ndarray, kernels_weight_per_channel: jnp.ndarray
     ) -> jnp.ndarray:
@@ -345,6 +328,9 @@ def build_get_field_fn(cin_growth_fns: Dict[str, List]) -> Callable:
             Implicit closure args:
                 - nb_kernels must be kept contant to avoid recompiling
                 - cout_kernels must be of shape [nb_channels]
+
+            Outputs:
+                - fields: jnp.ndarray[N=1, nb_channels, world_dims]
         """
         fields = []
         nb_kernels = len(cin_growth_fns['gf_id'])
@@ -359,7 +345,7 @@ def build_get_field_fn(cin_growth_fns: Dict[str, List]) -> Callable:
         fields_jnp = jnp.stack(fields)  # [nb_kernels, world_dims...]
 
         fields_jnp = weighted_select_average(fields_jnp, kernels_weight_per_channel)  # [C, H, W]
-        fields_jnp = fields_jnp[:, jnp.newaxis, jnp.newaxis]  # [C, N=1, c=1, H, W]
+        fields_jnp = fields_jnp[jnp.newaxis, ...]  # [N=1, C, H, W]
 
         return fields_jnp
 

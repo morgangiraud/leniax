@@ -341,7 +341,7 @@ def build_get_field_fn(cin_growth_fns: Dict[str, List]) -> Callable:
             Args:
                 - potential: jnp.ndarray[nb_kernels, world_dims...] shape must be kept constant to avoid recompiling
                 - fn_params: jnp.ndarray[nb_kernels, 2] shape must be kept constant to avoid recompiling
-
+                - kernels_weight_per_channel: jnp.ndarray[nb_channels, nb_kernels]
             Implicit closure args:
                 - nb_kernels must be kept contant to avoid recompiling
                 - cout_kernels must be of shape [nb_channels]
@@ -366,8 +366,6 @@ def build_get_field_fn(cin_growth_fns: Dict[str, List]) -> Callable:
     return get_field
 
 
-@jit
-@jax.partial(vmap, in_axes=(None, 0), out_axes=0)
 def weighted_select_average(fields: jnp.ndarray, weights: jnp.ndarray) -> jnp.ndarray:
     """
         Args:
@@ -377,15 +375,18 @@ def weighted_select_average(fields: jnp.ndarray, weights: jnp.ndarray) -> jnp.nd
 
         Outputs:
             - fields: jnp.ndarray[nb_channels, world_dims...]
-
-        ! This function must be vmap-ed to get the dimensions right !
     """
-    out_field = jnp.average(fields, axis=0, weights=weights)
+    nb_kernels = fields.shape[0]
+    world_dims = list(fields.shape[1:])
+    nb_channels = weights.shape[0]
+
+    tmp_fields = fields.reshape(nb_kernels, -1)
+    out_tmp = jnp.matmul(weights, tmp_fields).reshape([nb_channels] + world_dims)
+    out_field = out_tmp / weights.sum(axis=1)[:, jnp.newaxis, jnp.newaxis]
 
     return out_field
 
 
-@jit
 def update_cells(cells: jnp.ndarray, field: jnp.ndarray, dt: float) -> jnp.ndarray:
     """
         Args:
@@ -399,7 +400,6 @@ def update_cells(cells: jnp.ndarray, field: jnp.ndarray, dt: float) -> jnp.ndarr
     return cells_new
 
 
-@jit
 def update_cells_v2(cells: jnp.ndarray, field: jnp.ndarray, dt: float) -> jnp.ndarray:
     """
         Args:

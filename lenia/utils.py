@@ -9,7 +9,7 @@ import jax.numpy as jnp
 import numpy as np
 from fractions import Fraction
 from PIL import Image
-from typing import List, Callable, Dict, Any
+from typing import Tuple, List, Callable, Dict, Any
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 save_dir = os.path.join(cdir, 'save')
@@ -174,7 +174,8 @@ def get_unit_distances(world_size: List[int]) -> jnp.ndarray:
     return unit_distances
 
 
-def center_world(cells, field, potential, shift_idx, axes):
+def center_world(cells: jnp.ndarray, field: jnp.ndarray, potential: jnp.ndarray, shift_idx,
+                 axes) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     cells = jnp.roll(cells, -shift_idx, axes)
     field = jnp.roll(field, -shift_idx, axes)
     potential = jnp.roll(potential, -shift_idx, axes)

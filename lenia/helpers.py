@@ -161,7 +161,7 @@ def slow_init_search(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, D
     return rng_key, runs
 
 
-def get_mem_optimized_inputs(rng_key: jnp.ndarray, base_config: Dict, lenia_sols: List[LeniaIndividual]):
+def get_mem_optimized_inputs(base_config: Dict, lenia_sols: List[LeniaIndividual]):
     """
         All critical parameters are taken from the base_config.
         All non-critical parameters are taken from each potential lenia solutions
@@ -190,7 +190,7 @@ def get_mem_optimized_inputs(rng_key: jnp.ndarray, base_config: Dict, lenia_sols
         gfn_params = mapping.get_gfn_params()
         kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 
-        rng_key, noises = initializations.perlin(rng_key, nb_init_search, world_size, R, kernels_params[0])
+        rng_key, noises = initializations.perlin(ind.rng_key, nb_init_search, world_size, R, kernels_params[0])
         for i in range(nb_init_search):
             cells_0 = lenia_core.init_cells(world_size, nb_channels, [noises[i]])
             all_cells_0.append(cells_0)

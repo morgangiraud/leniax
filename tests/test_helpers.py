@@ -33,9 +33,7 @@ class TestHelpers(unittest.TestCase):
         lenia_sols[0][:] = [0.2, 0.02]
         lenia_sols[1][:] = [0.3, 0.03]
 
-        rng_key, run_scan_mem_optimized_parameters = lenia_helpers.get_mem_optimized_inputs(
-            rng_key, base_config, lenia_sols
-        )
+        rng_key, run_scan_mem_optimized_parameters = lenia_helpers.get_mem_optimized_inputs(base_config, lenia_sols)
 
         assert len(run_scan_mem_optimized_parameters) == 7
         all_cells_0_jnp = run_scan_mem_optimized_parameters[0]

@@ -241,10 +241,7 @@ def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividua
 
 def eval_lenia_config_mem_optimized(lenia_sols: List[LeniaIndividual], neg_fitness=False) -> List[LeniaIndividual]:
     base_config = lenia_sols[0].base_config
-    rng_key = lenia_sols[0].rng_key
-    rng_key, run_scan_mem_optimized_parameters = lenia_helpers.get_mem_optimized_inputs(
-        rng_key, base_config, lenia_sols
-    )
+    _, run_scan_mem_optimized_parameters = lenia_helpers.get_mem_optimized_inputs(base_config, lenia_sols)
 
     Ns = lenia_core.run_scan_mem_optimized(*run_scan_mem_optimized_parameters)
     Ns.block_until_ready()

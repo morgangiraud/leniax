@@ -1,20 +1,98 @@
 import time
+import random
 import os
 import unittest
+import jax
 import jax.numpy as jnp
 import numpy as np
 from hydra import compose, initialize
 
-from lenia.helpers import get_container
+from lenia.helpers import get_container, get_mem_optimized_inputs
 from lenia import core as lenia_core
 from lenia import kernels as lenia_kernel
 from lenia import statistics as lenia_stat
+from lenia import utils as lenia_utils
+from lenia import qd as lenia_qd
 
 cfd = os.path.dirname(os.path.realpath(__file__))
 fixture_dir = os.path.join(cfd, 'fixtures')
 
 
 class TestCore(unittest.TestCase):
+    def test_run_scan_mem_optimized_perf(self):
+        with initialize(config_path='fixtures'):
+            omegaConf = compose(config_name="qd_base_config-test")
+            base_config = get_container(omegaConf)
+
+        seed = base_config['run_params']['seed']
+        rng_key = lenia_utils.seed_everything(seed)
+
+        nb_lenia = 4
+
+        lenia_sols1 = []
+        for _ in range(nb_lenia):
+            rng_key, subkey = jax.random.split(rng_key)
+            len = lenia_qd.LeniaIndividual(base_config, subkey)
+            len[:] = [random.random(), random.random()]
+            lenia_sols1.append(len)
+
+        (
+            rng_key,
+            (
+                all_cells_0_jnp1,
+                all_Ks_jnp1,
+                all_gfn_params_jnp1,
+                all_kernels_weight_per_channel_jnp1,
+                max_run_iter,
+                update_fn,
+                compute_stats_fn
+            )
+        ) = get_mem_optimized_inputs(base_config, lenia_sols1)
+
+        lenia_sols2 = []
+        for _ in range(nb_lenia):
+            rng_key, subkey = jax.random.split(rng_key)
+            len = lenia_qd.LeniaIndividual(base_config, subkey)
+            len[:] = [random.random(), random.random()]
+            lenia_sols2.append(len)
+
+        (rng_key, (all_cells_0_jnp2, all_Ks_jnp2, all_gfn_params_jnp2, all_kernels_weight_per_channel_jnp2, _, _,
+                   _)) = get_mem_optimized_inputs(base_config, lenia_sols2)
+
+        # jax.profiler.start_trace("/tmp/tensorboard")
+
+        t0 = time.time()
+        Ns1 = lenia_core.run_scan_mem_optimized(
+            all_cells_0_jnp1,
+            all_Ks_jnp1,
+            all_gfn_params_jnp1,
+            all_kernels_weight_per_channel_jnp1,
+            max_run_iter,
+            update_fn,
+            compute_stats_fn
+        )
+        Ns1.block_until_ready()
+        delta_t = time.time() - t0
+
+        t0 = time.time()
+        Ns2 = lenia_core.run_scan_mem_optimized(
+            all_cells_0_jnp2,
+            all_Ks_jnp2,
+            all_gfn_params_jnp2,
+            all_kernels_weight_per_channel_jnp2,
+            max_run_iter,
+            update_fn,
+            compute_stats_fn
+        )
+        Ns2.block_until_ready()
+        delta_t_compiled = time.time() - t0
+
+        # jax.profiler.stop_trace()
+
+        print(delta_t_compiled, delta_t)
+
+        assert delta_t_compiled < 1 / 20 * delta_t
+
     def test_run_scan_perf(self):
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="orbium-test")
@@ -165,12 +243,14 @@ class TestCore(unittest.TestCase):
         assert delta_t_compiled < 1 / 100 * delta_t
 
     def test_weighted_select_average_jit_perf(self):
+        jit_fn = jax.jit(lenia_core.weighted_select_average)
+
         nb_kernels = 3
         field1 = jnp.ones([nb_kernels, 25, 25]) * .5
         weights1 = jnp.array([[.5, .4, .0], [.5, .2, .0]])
 
         t0 = time.time()
-        out1 = lenia_core.weighted_select_average(field1, weights1)
+        out1 = jit_fn(field1, weights1)
         out1.block_until_ready()
         delta_t = time.time() - t0
 
@@ -178,31 +258,62 @@ class TestCore(unittest.TestCase):
         weights2 = jnp.array([[.1, .2, .0], [.5, .2, .0]])
 
         t0 = time.time()
-        out2 = lenia_core.weighted_select_average(field2, weights2)
+        out2 = jit_fn(field2, weights2)
         out2.block_until_ready()
         delta_t_compiled = time.time() - t0
 
         assert delta_t_compiled < 1 / 100 * delta_t
 
-    def test_update_cells_jit_perf(self):
-        cells1 = jnp.ones([25, 25]) * .5
-        field1 = jnp.ones([25, 25]) * 3
+    def test_update_cells_v1_jit_perf(self):
+        jit_fn = jax.jit(lenia_core.update_cells)
+
+        world_shape = [25, 25]
+
+        cells1 = jnp.ones(world_shape) * .5
+        field1 = jnp.ones(world_shape) * 3
         dt1 = 1. / 3.
 
         t0 = time.time()
-        out1 = lenia_core.update_cells(cells1, field1, dt1)
+        out1 = jit_fn(cells1, field1, dt1)
         out1.block_until_ready()
         delta_t = time.time() - t0
 
-        cells2 = jnp.ones([25, 25], ) * .2
-        field2 = jnp.ones([25, 25]) * 3
+        cells2 = jnp.ones(world_shape, ) * .2
+        field2 = jnp.ones(world_shape) * 3
         dt2 = 1. / 6.
 
         t0 = time.time()
-        out2 = lenia_core.update_cells(cells2, field2, dt2)
+        out2 = jit_fn(cells2, field2, dt2)
         out2.block_until_ready()
         delta_t_compiled = time.time() - t0
 
         assert delta_t_compiled < 1 / 20 * delta_t
-        np.testing.assert_array_almost_equal(out1, jnp.ones([25, 25]))
-        np.testing.assert_array_almost_equal(out2, jnp.ones([25, 25]) * .7)
+        np.testing.assert_array_almost_equal(out1, jnp.ones(world_shape))
+        np.testing.assert_array_almost_equal(out2, jnp.ones(world_shape) * .7)
+
+    def test_update_cells_v2_jit_perf(self):
+        jit_fn = jax.jit(lenia_core.update_cells_v2)
+
+        world_shape = [25, 25]
+
+        cells1 = jnp.ones(world_shape) * .5
+        field1 = jnp.ones(world_shape) * 3
+        dt1 = 1. / 3.
+
+        t0 = time.time()
+        out1 = jit_fn(cells1, field1, dt1)
+        out1.block_until_ready()
+        delta_t = time.time() - t0
+
+        cells2 = jnp.ones(world_shape, ) * .2
+        field2 = jnp.ones(world_shape) * 3
+        dt2 = 1. / 6.
+
+        t0 = time.time()
+        out2 = jit_fn(cells2, field2, dt2)
+        out2.block_until_ready()
+        delta_t_compiled = time.time() - t0
+
+        print(delta_t_compiled, delta_t)
+
+        assert delta_t_compiled < 1 / 20 * delta_t

@@ -79,12 +79,15 @@ class LeniaIndividual(list):
         self.base_config['run_params']['cells'] = init_cells
 
     def get_config(self) -> Dict:
-        p_and_ds = self.get_genotype()
-        raw_values = list(self)
-        assert len(raw_values) == len(p_and_ds)
+        if 'genotype' in self.base_config:
+            p_and_ds = self.get_genotype()
+            raw_values = list(self)
+            assert len(raw_values) == len(p_and_ds)
 
-        to_update = get_update_config(p_and_ds, raw_values)
-        config = update_config(self.base_config, to_update)
+            to_update = get_update_config(p_and_ds, raw_values)
+            config = update_config(self.base_config, to_update)
+        else:
+            config = self.base_config
 
         return config
 

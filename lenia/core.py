@@ -53,8 +53,9 @@ def run(
     compute_stats_fn: Callable
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
     assert max_run_iter > 0, f"max_run_iter must be positive, value given: {max_run_iter}"
-
-    # cells shape: [C, N=1, c=1, dims...]
+    assert cells.shape[0] == 1
+    # cells shape: [N=1, C, dims...]
+    N = 1
     world_shape = jnp.array(cells.shape[2:])
     nb_dims = len(world_shape)
     axes = tuple(range(-nb_dims, 0, 1))
@@ -63,7 +64,7 @@ def run(
     all_fields = []
     all_potentials = []
     all_stats = []
-    total_shift_idx = jnp.zeros([nb_dims], dtype=jnp.int32)
+    total_shift_idx = jnp.zeros([N, nb_dims], dtype=jnp.int32)
     init_mass = cells.sum()
 
     previous_mass = init_mass
@@ -150,7 +151,7 @@ def run(
 
 @jax.partial(jit, static_argnums=(4, 5, 6))
 def run_scan(
-    cells: jnp.ndarray,
+    cells0: jnp.ndarray,
     K: jnp.ndarray,
     gfn_params: jnp.ndarray,
     kernels_weight_per_channel: jnp.ndarray,
@@ -158,7 +159,8 @@ def run_scan(
     update_fn: Callable,
     compute_stats_fn: Callable
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
-    world_shape = jnp.array(cells.shape[2:])
+    N = cells0.shape[0]
+    world_shape = jnp.array(cells0.shape[2:])
     nb_dims = len(world_shape)
     axes = tuple(range(-nb_dims, 0, 1))
 
@@ -187,15 +189,15 @@ def run_scan(
 
         return new_carry, y
 
-    total_shift_idx = jnp.zeros([nb_dims], dtype=jnp.int32)
+    total_shift_idx = jnp.zeros([N, nb_dims], dtype=jnp.int32)
     init_carry = {
-        'fn_params': (cells, K, gfn_params, kernels_weight_per_channel),
+        'fn_params': (cells0, K, gfn_params, kernels_weight_per_channel),
         'stats_properties': {
             'total_shift_idx': total_shift_idx,
         }
     }
 
-    final_carry, ys = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
+    _, ys = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
 
     continue_stat = lenia_stat.check_heuristics(ys['stats'])
     ys['stats']['N'] = continue_stat.sum()
@@ -214,6 +216,7 @@ def run_scan_mem_optimized(
     update_fn: Callable,
     compute_stats_fn: Callable
 ) -> int:
+    N = cells0.shape[0]
     world_shape = jnp.array(cells0.shape[2:])
     nb_dims = len(world_shape)
     axes = tuple(range(-nb_dims, 0, 1))
@@ -241,7 +244,7 @@ def run_scan_mem_optimized(
 
         return new_carry, stats
 
-    total_shift_idx = jnp.zeros([nb_dims], dtype=jnp.int32)
+    total_shift_idx = jnp.zeros([N, nb_dims], dtype=jnp.int32)
     init_carry = {
         'fn_params': (cells0, K, gfn_params, kernels_weight_per_channel),
         'stats_properties': {
@@ -249,10 +252,10 @@ def run_scan_mem_optimized(
         }
     }
 
-    final_carry, stats = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
+    _, stats = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
 
     continue_stat = lenia_stat.check_heuristics(stats)
-    N = continue_stat.sum()
+    N = continue_stat.sum(axis=0)
 
     return N
 
@@ -379,6 +382,7 @@ def weighted_select_average(fields: jnp.ndarray, weights: jnp.ndarray) -> jnp.nd
 
     fields_swapped = fields.swapaxes(0, 1)  # [nb_kernels, N, world_dims...]
     fields_reshaped = fields_swapped.reshape(nb_kernels, -1)
+
     out_tmp = jnp.matmul(weights, fields_reshaped)
     out_tmp = out_tmp.reshape([nb_channels, N] + world_dims)
     out_tmp = out_tmp.swapaxes(0, 1)  # [N, nb_channels, world_dims...]

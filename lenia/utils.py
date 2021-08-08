@@ -174,6 +174,7 @@ def get_unit_distances(world_size: List[int]) -> jnp.ndarray:
     return unit_distances
 
 
+@jax.partial(jax.vmap, in_axes=(0, 0, 0, 0, None), out_axes=(0, 0, 0))
 def center_world(cells: jnp.ndarray, field: jnp.ndarray, potential: jnp.ndarray, shift_idx: jnp.ndarray,
                  axes) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     cells = jnp.roll(cells, -shift_idx, axes)

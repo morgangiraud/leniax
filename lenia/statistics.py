@@ -14,51 +14,45 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
     coords = jnp.indices(world_size)
     whitened_coords = (coords - midpoint) / R  # [nb_dims, H, W]
 
-    @jit
+    # @jit
     def compute_stats(cells, field, potential):
-        # cells: # [C, N=1, c=1, H, W]
-        # field: # [C, N=1, c=1, H, W]
-        # potential: # [C, H, W]
-        mass = cells.sum()
-        pos_field = jnp.maximum(field, 0)
-        growth = pos_field.sum()
-        percent_activated = (cells > EPSILON).mean()
+        # cells: # [N, C, H, W]
+        # field: # [N, C, H, W]
+        # potential: # [N, C, H, W]
+        non_batch_dims = tuple(range(1, cells.ndim, 1))
+
+        mass = cells.sum(axis=non_batch_dims)
+        positive_field = jnp.maximum(field, 0)
+        growth = positive_field.sum(axis=non_batch_dims)
+        percent_activated = (cells > EPSILON).mean(axis=non_batch_dims)
 
         # Those statistic works on a centered world
         AX = [cells * x for x in whitened_coords]
-        MX1 = [ax.sum() for ax in AX]
+        MX1 = [ax.sum(axis=non_batch_dims) for ax in AX]
         mass_center = jnp.asarray(MX1) / (mass + EPSILON)
         # This function returns "mass centered" cells so the previous mass_center is at origin
         dm = mass_center
-        mass_speed = jnp.linalg.norm(dm)
+        mass_speed = jnp.linalg.norm(dm, axis=0)
         mass_angle = jnp.degrees(jnp.arctan2(dm[1], dm[0]))
 
         MX2 = [(ax * x).sum() for ax, x in zip(AX, whitened_coords)]
         MuX2 = [mx2 - mx * mx1 for mx, mx1, mx2 in zip(mass_center, MX1, MX2)]
         inertia = sum(MuX2)
 
-        GX1 = [(pos_field * x).sum() for x in whitened_coords]
+        GX1 = [(positive_field * x).sum(axis=non_batch_dims) for x in whitened_coords]
         growth_center = jnp.asarray(GX1) / (growth + EPSILON)
-        mass_growth_dist = jnp.linalg.norm(mass_center - growth_center)
+        mass_growth_dist = jnp.linalg.norm(mass_center - growth_center, axis=0)
 
-        shift_idx = (mass_center * R).astype(int)
-        # stats = jnp.array([
-        #     mass,
-        #     growth,
-        #     inertia,
-        #     mass_growth_dist,
-        #     mass_speed,
-        #     mass_angle,
-        #     percent_activated
-        # ])
+        shift_idx = (mass_center * R).astype(int).T
+
         stats = {
-            'mass': jnp.array(mass),
-            'growth': jnp.array(growth),
-            'inertia': jnp.array(inertia),
-            'mass_growth_dist': jnp.array(mass_growth_dist),
-            'mass_speed': jnp.array(mass_speed),
-            'mass_angle': jnp.array(mass_angle),
-            'percent_activated': jnp.array(percent_activated)
+            'mass': mass,
+            'growth': growth,
+            'inertia': inertia,
+            'mass_growth_dist': mass_growth_dist,
+            'mass_speed': mass_speed,
+            'mass_angle': mass_angle,
+            'percent_activated': percent_activated,
         }
 
         return (stats, shift_idx)
@@ -116,23 +110,24 @@ def check_heuristics(stats: Dict[str, jnp.ndarray]):
 
         return new_carry, should_continue
 
+    N = stats['mass'].shape[1]
     init_carry = {
-        'should_continue': True,
+        'should_continue': jnp.ones(N),
         'init_mass': stats['mass'][0],
         'previous_mass': stats['mass'][0],
-        'previous_sign': 0.,
-        'counters': init_counters(),
+        'previous_sign': jnp.zeros(N),
+        'counters': init_counters(N),
     }
-    final_carry, continue_stat = jax.lax.scan(fn, init_carry, stats, unroll=1)
+    _, continue_stat = jax.lax.scan(fn, init_carry, stats, unroll=1)
 
     return continue_stat
 
 
-def init_counters() -> Dict[str, int]:
+def init_counters(N: int) -> Dict[str, int]:
     return {
-        'nb_monotone_step': 0,
-        'nb_slow_mass_step': 0,
-        'nb_too_much_percent_step': 0,
+        'nb_monotone_step': jnp.zeros(N),
+        'nb_slow_mass_step': jnp.zeros(N),
+        'nb_too_much_percent_step': jnp.zeros(N),
     }
 
 

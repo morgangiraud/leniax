@@ -92,10 +92,11 @@ def init_and_run(config: Dict, with_jit: bool = False) -> Tuple:
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 
+    max_run_iter = config['run_params']['max_run_iter']
+
     update_fn = lenia_core.build_update_fn(config['world_params'], K.shape, mapping)
     compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
-    max_run_iter = config['run_params']['max_run_iter']
     if with_jit is True:
         outputs = lenia_core.run_scan(
             cells, K, gfn_params, kernels_weight_per_channel, max_run_iter, update_fn, compute_stats_fn
@@ -191,13 +192,16 @@ def get_mem_optimized_inputs(base_config: Dict, lenia_sols: List[LeniaIndividual
         kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 
         rng_key, noises = initializations.perlin(ind.rng_key, nb_init_search, world_size, R, kernels_params[0])
+        current_lenia_cells_0 = []
         for i in range(nb_init_search):
             cells_0 = lenia_core.init_cells(world_size, nb_channels, [noises[i]])
-            all_cells_0.append(cells_0)
+            current_lenia_cells_0.append(cells_0)
 
-            all_Ks.append(K)
-            all_gfn_params.append(gfn_params)
-            all_kernels_weight_per_channel.append(kernels_weight_per_channel)
+        all_cells_0.append(jnp.vstack(current_lenia_cells_0))
+        all_Ks.append(K)
+        all_gfn_params.append(gfn_params)
+        all_kernels_weight_per_channel.append(kernels_weight_per_channel)
+
     all_cells_0_jnp = jnp.stack(all_cells_0)  # add a dimension
     all_Ks_jnp = jnp.stack(all_Ks)
     all_gfn_params_jnp = jnp.stack(all_gfn_params)
@@ -234,16 +238,14 @@ def update_individuals(
             - Ns:           jnp.ndarray, [len(inds)]    Fitness of each lenias
             - cells0s:      jnp.ndarray, [len(inds), world_size...]
     """
-    run_params = qd_config['run_params']
-    nb_init_search = run_params['nb_init_search']
-    # max_run_iter = run_params['max_run_iter']
-
     for i, ind in enumerate(inds):
         config = ind.get_config()
 
-        current_ind_results = Ns[i * nb_init_search:(i + 1) * nb_init_search]
-        current_ind_cells0s = cells0s[i * nb_init_search:(i + 1) * nb_init_search]
-        max_idx = jnp.argmax(current_ind_results)
+        current_ind_results = Ns[i]
+        current_ind_cells0s = cells0s[i]
+
+        max_idx = jnp.argmax(current_ind_results, axis=0)
+
         nb_steps = current_ind_results[max_idx]
         init_cells = current_ind_cells0s[max_idx]
 
@@ -254,9 +256,10 @@ def update_individuals(
             fitness = -nb_steps
         else:
             fitness = nb_steps
-        features = [get_param(config, key_string) for key_string in ind.base_config['phenotype']]
-
         ind.fitness = fitness
-        ind.features = features
+
+        if 'phenotype' in ind.base_config:
+            features = [get_param(config, key_string) for key_string in ind.base_config['phenotype']]
+            ind.features = features
 
     return inds

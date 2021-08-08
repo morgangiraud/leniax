@@ -31,8 +31,8 @@ def launch(omegaConf: DictConfig) -> None:
     _, best, nb_init_done = search_for_init(rng_key, config)
     print(f"Init search done in {time.time() - t0} (nb_inits done: {nb_init_done})")
 
-    all_cells = best['all_cells'][:best['N']]
-    all_stats = best['all_stats']
+    all_cells = best['all_cells'][:int(best['N'])]
+    stats_dict = {k: v.squeeze() for k, v in best['all_stats'].items()}
     render_params = config['render_params']
 
     print(f"best run length: {best['N']}")
@@ -51,7 +51,7 @@ def launch(omegaConf: DictConfig) -> None:
 
     colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
     print('Plotting stats')
-    lenia_utils.plot_stats(save_dir, all_stats)
+    lenia_utils.plot_stats(save_dir, stats_dict)
 
     print('Plotting kernels and functions')
     _, K, _ = init(config)

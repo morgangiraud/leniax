@@ -192,12 +192,8 @@ def get_mem_optimized_inputs(base_config: Dict, lenia_sols: List[LeniaIndividual
         kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 
         rng_key, noises = initializations.perlin(ind.rng_key, nb_init_search, world_size, R, kernels_params[0])
-        current_lenia_cells_0 = []
-        for i in range(nb_init_search):
-            cells_0 = lenia_core.init_cells(world_size, nb_channels, [noises[i]])
-            current_lenia_cells_0.append(cells_0)
 
-        all_cells_0.append(jnp.vstack(current_lenia_cells_0))
+        all_cells_0.append(noises)
         all_Ks.append(K)
         all_gfn_params.append(gfn_params)
         all_kernels_weight_per_channel.append(kernels_weight_per_channel)
@@ -244,6 +240,7 @@ def update_individuals(inds: List[LeniaIndividual],
 
         nb_steps = current_Ns[max_idx]
         cells0 = current_cells0s[max_idx]
+        # print(i, current_Ns, max_idx)
 
         # config['behaviours'] = best['all_stats']
         ind.set_init_cells(lenia_utils.compress_array(cells0))

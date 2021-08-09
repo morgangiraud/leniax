@@ -2,9 +2,11 @@ import time
 import os
 from absl import logging
 import matplotlib.pyplot as plt
+import jax
 from omegaconf import DictConfig
 import hydra
 
+from lenia.Lenia import LeniaIndividual
 from lenia import utils as lenia_utils
 from lenia.growth_functions import growth_fns
 from lenia.core import init
@@ -24,17 +26,23 @@ config_path_1c1k = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
 # @hydra.main(config_path=config_path_1c1k, config_name="prototype")
 def launch(omegaConf: DictConfig) -> None:
     config = lenia_helpers.get_container(omegaConf)
+    # config['run_params']['nb_init_search'] = 16
+    # config['run_params']['max_run_iter'] = 512
     print(config)
 
     rng_key = lenia_utils.seed_everything(config['run_params']['seed'])
+    lenia_sols = []
+    for _ in range(6):
+        rng_key, subkey = jax.random.split(rng_key)
+        lenia_sols.append(LeniaIndividual(config, subkey))
 
     t0 = time.time()
-    lenia_sols = [lenia_qd.LeniaIndividual(config, rng_key)]
     results = lenia_qd.eval_lenia_config_mem_optimized(lenia_sols)
-    for best in results:
+    print(f"Init search done in {time.time() - t0}")
 
-        print(f"Init search done in {time.time() - t0}")
+    for id_best, best in enumerate(results):
         print(f"best run length: {best.fitness}")
+        config = best.get_config()
 
         all_cells, _, _, stats_dict = lenia_helpers.init_and_run(config, True)
         stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
@@ -42,6 +50,7 @@ def launch(omegaConf: DictConfig) -> None:
         print(stats_dict['N'])
 
         save_dir = os.getcwd()  # changed by hydra
+        save_dir = f"{save_dir}/{id_best}"
         media_dir = os.path.join(save_dir, 'media')
         lenia_utils.check_dir(media_dir)
 

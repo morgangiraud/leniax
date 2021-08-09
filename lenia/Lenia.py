@@ -24,7 +24,7 @@ class LeniaIndividual(list):
     def __init__(self, config: Dict, rng_key: jnp.ndarray):
         super().__init__()
 
-        self.base_config = config
+        self.base_config = copy.deepcopy(config)
 
         self.rng_key = rng_key
 

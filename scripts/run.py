@@ -19,10 +19,12 @@ absl_logging.set_verbosity(absl_logging.ERROR)
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf', 'species')
 config_path_1c1k = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
+config_path_outputs = os.path.join(cdir, '..', 'outputs', '2021-08-09', '09-39-59')
 
 
-# @hydra.main(config_path=config_path_1c1k, config_name="orbium")
-@hydra.main(config_path=config_path, config_name="orbium-scutium")
+@hydra.main(config_path=config_path_1c1k, config_name="orbium")
+# @hydra.main(config_path=config_path, config_name="orbium-scutium")
+# @hydra.main(config_path=config_path_outputs, config_name="config")
 def run(omegaConf: DictConfig) -> None:
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
@@ -34,6 +36,7 @@ def run(omegaConf: DictConfig) -> None:
     start_time = time.time()
     all_cells, _, _, stats_dict = init_and_run(config, True)
     stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
+    all_cells = all_cells[:int(stats_dict['N'])]
     total_time = time.time() - start_time
 
     nb_iter_done = len(all_cells)

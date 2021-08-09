@@ -21,7 +21,7 @@ def init(config: Dict) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
 
     cells = config['run_params']['cells']
     if type(cells) is str:
-        cells = utils.decompress_array(cells, nb_dims + 1)
+        cells = utils.decompress_array(cells, nb_dims + 1)  # we add the channel dim
     cells = init_cells(world_size, nb_channels, [cells])
 
     kernels_params = config['kernels_params']['k']
@@ -32,6 +32,10 @@ def init(config: Dict) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
 
 
 def init_cells(world_size: List[int], nb_channels: int, other_cells: List[jnp.ndarray] = None) -> jnp.ndarray:
+    """
+        Outputs:
+            - cells: jnp.ndarray[N=1, C, world_dims...]
+    """
     world_shape = [nb_channels] + world_size  # [C, H, W]
     cells = jnp.zeros(world_shape)
     if other_cells is not None:
@@ -200,7 +204,7 @@ def run_scan(
     _, ys = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
 
     continue_stat = lenia_stat.check_heuristics(ys['stats'])
-    ys['stats']['N'] = continue_stat.sum()
+    ys['stats']['N'] = continue_stat.sum(axis=0)
 
     return ys['cells'], ys['field'], ys['potential'], ys['stats']
 
@@ -216,6 +220,13 @@ def run_scan_mem_optimized(
     update_fn: Callable,
     compute_stats_fn: Callable
 ) -> int:
+    """
+        Args:
+            - cells0: jnp.ndarray[N, nb_channels, world_dims...]
+            - K: jnp.ndarray[max_k_per_channel, nb_kernels * nb_channels, K_dims...]
+            - gfn_params: jnp.ndarray[N, nb_kernels, 2]
+            - kernels_weight_per_channel: jnp.ndarray[N, nb_channels, nb_kernels]
+    """
     N = cells0.shape[0]
     world_shape = jnp.array(cells0.shape[2:])
     nb_dims = len(world_shape)

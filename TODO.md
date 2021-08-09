@@ -50,9 +50,14 @@ Any growth functions that would boost the 0 value is doomed to fail. This would 
 ##### 1c1k notes
 - A random uniform initialisation convolved with a big enough kernel wil result in a neat constant field around the mean of the uniform distribution.
 
+##### Replication note
+There is a very strange behaviour that happens rarely but surely: it might happens that when running the vmap version of run_scan the check_heurisitics function returns different values N than when running each init separately.
+It seems to occur mainly on the last element of the set.
 
 ## Now
 - Fix eval_lenia_config_mem_optimized to reuse the update_func and compute_stats_func
+- Optimize get_mem_optimized_inputs (init_cells)
+- Test unroll parameter bigger than 1 in lax.scan
 - Move center_world inside compute_stats_fn
 - replace compress/decompress functions for init_cells with a duo pickle + relative_path
 - Let's explore 1c-1k, 1c-2k, 1d-3k for now (looking for 10 species with interelation)

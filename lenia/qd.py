@@ -7,8 +7,7 @@ import matplotlib.pyplot as plt
 from multiprocessing import get_context
 from absl import logging
 import random
-import copy
-from typing import Dict, Any, Tuple, Callable, List
+from typing import Dict, Callable, List
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -18,6 +17,7 @@ from ribs.archives import ArchiveBase
 from ribs.archives import GridArchive, CVTArchive
 from ribs.visualize import grid_archive_heatmap, cvt_archive_heatmap, parallel_axes_plot
 
+from .Lenia import LeniaIndividual
 from . import utils as lenia_utils
 from . import core as lenia_core
 from . import video as lenia_video
@@ -48,133 +48,6 @@ class genBaseIndividual(object):
     def __call__(self):
         while (True):
             yield self.__next__()
-
-
-class LeniaIndividual(list):
-    # Individual inherits from list
-    # The raw parameters can then be set with ind[:] = [param1,  ...]
-    #
-    # The philosophy of the lib is to have parameters sampled from the same domain
-    # And then scaled by custom functions before being used in the evaluation function
-    # To sum up:
-    #   - All parameters are generated in the sampling_domain
-    #   - the dimension parameter is the number of parameter
-    #   - in the eval function:
-    #       1. You scale those parameters
-    #       2. You create the configuration from those parameters
-    #       3. You evaluate the configuration
-    #       4. you set fitness and features
-
-    fitness: float
-    features: List[float]
-
-    def __init__(self, config: Dict, rng_key: jnp.ndarray):
-        super().__init__()
-
-        self.base_config = config
-
-        self.rng_key = rng_key
-
-    def set_init_cells(self, init_cells: str):
-        self.base_config['run_params']['cells'] = init_cells
-
-    def get_config(self) -> Dict:
-        if 'genotype' in self.base_config:
-            p_and_ds = self.get_genotype()
-            raw_values = list(self)
-            assert len(raw_values) == len(p_and_ds)
-
-            to_update = get_update_config(p_and_ds, raw_values)
-            config = update_config(self.base_config, to_update)
-        else:
-            config = self.base_config
-
-        return config
-
-    def get_genotype(self):
-        return self.base_config['genotype']
-
-
-def get_param(dic: Dict, key_string: str) -> Any:
-    keys = key_string.split('.')
-    for key in keys:
-        if key.isdigit():
-            dic = dic[int(key)]
-        else:
-            dic = dic[key]
-
-    if isinstance(dic, jnp.ndarray):
-        val = float(jnp.mean(dic))
-    else:
-        val = dic
-
-    return val
-
-
-def linear_scale(raw_value: float, domain: Tuple[float, float]) -> float:
-    val = domain[0] + (domain[1] - domain[0]) * raw_value
-
-    return val
-
-
-def log_scale(raw_value: float, domain: Tuple[float, float]) -> float:
-    val = domain[0] * (domain[1] / domain[0])**raw_value
-
-    return val
-
-
-def update_dict(dic: Dict, key_string: str, value: Any):
-    keys = key_string.split('.')
-    for i, key in enumerate(keys[:-1]):
-        if key.isdigit():
-            if isinstance(dic, list):
-                idx = int(key)
-                if len(dic) < idx + 1:
-                    for _ in range(idx + 1 - len(dic)):
-                        dic.append({})
-                dic = dic[idx]
-            else:
-                raise Exception('This key should be an array')
-        else:
-            if keys[i + 1].isdigit():
-                dic = dic.setdefault(key, [{}])
-            else:
-                dic = dic.setdefault(key, {})
-
-    dic[keys[-1]] = value
-
-
-def get_update_config(genotype: Dict, raw_values: list) -> Dict:
-    to_update: Dict = {}
-    for p_and_d, raw_val in zip(genotype, raw_values):
-        key_str = p_and_d['key']
-        domain = p_and_d['domain']
-        val_type = p_and_d['type']
-        if val_type == 'float':
-            val = float(linear_scale(raw_val, domain))
-        elif val_type == 'int':
-            d = (domain[0], domain[1] + 1)
-            val = int(linear_scale(raw_val, d) - 0.5)
-        elif val_type == 'choice':
-            d = (0, len(domain))
-            val = domain[int(linear_scale(raw_val, d) - 0.5)]
-        else:
-            raise ValueError(f"type {val_type} unknown")
-
-        update_dict(to_update, key_str, val)
-
-    return to_update
-
-
-def update_config(old_config, to_update):
-    new_config = copy.deepcopy(old_config)
-    if 'kernels_params' in to_update:
-        for i, kernel in enumerate(to_update['kernels_params']['k']):
-            new_config['kernels_params']['k'][i].update(kernel)
-    if 'world_params' in to_update:
-        new_config['world_params'].update(to_update['world_params'])
-
-    return new_config
 
 
 def rastrigin(pos: jnp.ndarray, A: float = 10.):
@@ -234,7 +107,7 @@ def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividua
         fitness = -nb_steps
     else:
         fitness = nb_steps
-    features = [get_param(config, key_string) for key_string in ind.base_config['phenotype']]
+    features = [lenia_utils.get_param(config, key_string) for key_string in ind.base_config['phenotype']]
 
     ind.fitness = fitness
     ind.features = features
@@ -250,7 +123,7 @@ def eval_lenia_config_mem_optimized(lenia_sols: List[LeniaIndividual], neg_fitne
     Ns.block_until_ready()
 
     cells0s = run_scan_mem_optimized_parameters[0]
-    results = lenia_helpers.update_individuals(base_config, lenia_sols, Ns, cells0s, neg_fitness)
+    results = lenia_helpers.update_individuals(lenia_sols, Ns, cells0s, neg_fitness)
 
     return results
 
@@ -549,7 +422,9 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
         render_params = config['render_params']
 
         start_time = time.time()
-        all_cells, _, _, all_stats = lenia_helpers.init_and_run(config)
+        all_cells, _, _, stats_dict = lenia_helpers.init_and_run(config, True)
+        stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
+        all_cells = all_cells[:int(stats_dict['N'])]
         total_time = time.time() - start_time
 
         nb_iter_done = len(all_cells)
@@ -559,7 +434,7 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
         media_dir = os.path.join(save_dir, 'media')
         lenia_utils.check_dir(media_dir)
 
-        first_cells = all_cells[0][:, 0, 0, ...]
+        first_cells = all_cells[0, 0, ...]
         config['run_params']['cells'] = lenia_utils.compress_array(first_cells)
         lenia_utils.save_config(save_dir, config)
 
@@ -569,8 +444,9 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
 
         print('Plotting stats and functions')
         colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
+        lenia_utils.plot_stats(save_dir, stats_dict)
 
-        lenia_utils.plot_stats(save_dir, all_stats)
+        print('Plotting kernels and functions')
         _, K, _ = lenia_core.init(config)
         draw_kernels(K, save_dir, colormap)
         for i, kernel in enumerate(config['kernels_params']['k']):
@@ -580,3 +456,5 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
 
         print('Dumping video')
         lenia_video.dump_video(all_cells, render_params, media_dir, colormap)
+
+        print('---')

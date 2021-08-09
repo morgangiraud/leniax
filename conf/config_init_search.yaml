@@ -11,7 +11,7 @@ render_params:
   size_power2: 7
 
 run_params:
-  nb_init_search: 256
+  nb_init_search: 128
   max_run_iter: 1024
 
 kernels_params:

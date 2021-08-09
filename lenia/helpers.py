@@ -5,7 +5,7 @@ import jax.numpy as jnp
 from typing import Dict, Tuple, List
 from omegaconf import DictConfig, OmegaConf
 
-from .qd import LeniaIndividual, get_param
+from .Lenia import LeniaIndividual
 from . import initializations as initializations
 from . import statistics as lenia_stat
 from . import core as lenia_core
@@ -224,16 +224,12 @@ def get_mem_optimized_inputs(base_config: Dict, lenia_sols: List[LeniaIndividual
     return rng_key, run_scan_mem_optimized_parameters
 
 
-def update_individuals(
-    qd_config: Dict,
-    inds: List[LeniaIndividual],
-    Ns: jnp.ndarray,
-    cells0s: jnp.ndarray,
-    neg_fitness=False
-) -> List[LeniaIndividual]:
+def update_individuals(inds: List[LeniaIndividual],
+                       Ns: jnp.ndarray,
+                       cells0s: jnp.ndarray,
+                       neg_fitness=False) -> List[LeniaIndividual]:
     """
         Args:
-            - qd_config:    Dict,                       Quality diversity configuration
             - inds:         List,                       Evaluated Lenia individuals
             - Ns:           jnp.ndarray, [len(inds)]    Fitness of each lenias
             - cells0s:      jnp.ndarray, [len(inds), world_size...]
@@ -241,16 +237,16 @@ def update_individuals(
     for i, ind in enumerate(inds):
         config = ind.get_config()
 
-        current_ind_results = Ns[i]
-        current_ind_cells0s = cells0s[i]
+        current_Ns = Ns[i]
+        current_cells0s = cells0s[i]
 
-        max_idx = jnp.argmax(current_ind_results, axis=0)
+        max_idx = jnp.argmax(current_Ns, axis=0)
 
-        nb_steps = current_ind_results[max_idx]
-        init_cells = current_ind_cells0s[max_idx]
+        nb_steps = current_Ns[max_idx]
+        cells0 = current_cells0s[max_idx]
 
         # config['behaviours'] = best['all_stats']
-        ind.set_init_cells(lenia_utils.compress_array(init_cells))
+        ind.set_init_cells(lenia_utils.compress_array(cells0))
 
         if neg_fitness is True:
             fitness = -nb_steps
@@ -259,7 +255,7 @@ def update_individuals(
         ind.fitness = fitness
 
         if 'phenotype' in ind.base_config:
-            features = [get_param(config, key_string) for key_string in ind.base_config['phenotype']]
+            features = [lenia_utils.get_param(config, key_string) for key_string in ind.base_config['phenotype']]
             ind.features = features
 
     return inds

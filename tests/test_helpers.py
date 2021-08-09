@@ -60,7 +60,7 @@ class TestHelpers(unittest.TestCase):
         Ns = jnp.array([[1, 2, 3], [1, 3, 4]])
         cells0s = jnp.ones([2, 3] + base_config["render_params"]["world_size"])
 
-        new_inds = lenia_helpers.update_individuals(base_config, inds, Ns, cells0s)
+        new_inds = lenia_helpers.update_individuals(inds, Ns, cells0s)
 
         assert len(new_inds) == 2
         assert new_inds[0].fitness == 3

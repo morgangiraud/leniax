@@ -8,7 +8,8 @@ from lenia import qd as lenia_qd
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
 
-final_dir = os.path.join(cdir, '..', 'outputs', '2021-07-15', '11-06-57')
+# final_dir = os.path.join(cdir, '..', 'outputs', '2021-08-08', '08-51-38')
+final_dir = os.path.join(cdir, '..', 'outputs', '08-44-26')
 # final_dir = os.path.join(cdir, '..', 'outputs', 'good-search')
 final_filename = os.path.join(final_dir, 'final.p')
 

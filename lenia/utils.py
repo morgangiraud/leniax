@@ -1,8 +1,11 @@
 # import time
+import binascii
+import itertools
 import random
 import os
+import codecs
+import pickle
 import yaml
-import itertools
 import matplotlib.pyplot as plt
 import jax
 import jax.numpy as jnp
@@ -83,7 +86,27 @@ def _recur_join_st(dim, lists, row_func, nb_dims: int):
         return DIM_DELIM[nb_dims - 1 - dim].join(row_func(lists))
 
 
-def compress_array(cells):
+def compress_array(cells: jnp.ndarray) -> str:
+    serialized_cells = pickle.dumps(cells)
+    string_cells = codecs.encode(serialized_cells, "base64").decode()
+
+    return string_cells
+
+
+def decompress_array(string_cells: str, nb_dims: int) -> jnp.ndarray:
+    try:
+        serialized_cells = codecs.decode(string_cells.encode(), "base64")
+        cells = pickle.loads(serialized_cells)
+    except binascii.Error:
+        cells = deprecated_decompress_array(string_cells, nb_dims)
+
+    return jnp.array(cells)
+
+
+###
+# Deprecated, kept for backward compatibilities
+###
+def deprecated_compress_array(cells):
     def drill_row(row):
         return [(len(list(g)), val2char(v).strip()) for v, g in itertools.groupby(row)]
 
@@ -99,7 +122,7 @@ def compress_array(cells):
     return st + '!'
 
 
-def decompress_array(cells_code: str, nb_dims: int) -> jnp.ndarray:
+def deprecated_decompress_array(cells_code: str, nb_dims: int) -> jnp.ndarray:
     stacks: List[List] = [[] for dim in range(nb_dims)]
     last, count = '', ''
     delims = list(DIM_DELIM.values())
@@ -128,6 +151,25 @@ def decompress_array(cells_code: str, nb_dims: int) -> jnp.ndarray:
     cells = jnp.array(cells_l)
 
     return cells
+
+
+###
+# Config
+###
+def get_param(dic: Dict, key_string: str) -> Any:
+    keys = key_string.split('.')
+    for key in keys:
+        if key.isdigit():
+            dic = dic[int(key)]
+        else:
+            dic = dic[key]
+
+    if isinstance(dic, jnp.ndarray):
+        val = float(jnp.mean(dic))
+    else:
+        val = dic
+
+    return val
 
 
 ###

@@ -19,7 +19,7 @@ def run() -> None:
         data = pickle.load(f)
         if isinstance(data, ArchiveBase):
             grid = data
-            base_config = grid.base_config
+            qd_config = grid.qd_config
         else:
             if 'container' in data:
                 grid = data['container']
@@ -27,8 +27,8 @@ def run() -> None:
                 grid = data['algorithms'][0].container
             else:
                 breakpoint()
-            base_config = grid[0].base_config
-    max_val = base_config['run_params']['max_run_iter']
+            qd_config = grid[0].qd_config
+    max_val = qd_config['run_params']['max_run_iter']
 
     os.chdir(final_dir)
     lenia_qd.dump_best(grid, max_val)

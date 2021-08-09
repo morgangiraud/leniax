@@ -12,7 +12,7 @@ from lenia import core as lenia_core
 from lenia import kernels as lenia_kernel
 from lenia import statistics as lenia_stat
 from lenia import utils as lenia_utils
-from lenia import qd as lenia_qd
+from lenia.lenia import LeniaIndividual
 
 cfd = os.path.dirname(os.path.realpath(__file__))
 fixture_dir = os.path.join(cfd, 'fixtures')
@@ -21,10 +21,11 @@ fixture_dir = os.path.join(cfd, 'fixtures')
 class TestCore(unittest.TestCase):
     def test_run_scan_mem_optimized_perf(self):
         with initialize(config_path='fixtures'):
-            omegaConf = compose(config_name="qd_base_config-test")
-            base_config = get_container(omegaConf)
+            omegaConf = compose(config_name="qd_config-test")
+            qd_config = get_container(omegaConf)
 
-        seed = base_config['run_params']['seed']
+        max_run_iter = qd_config['run_params']['max_run_iter']
+        seed = qd_config['run_params']['seed']
         rng_key = lenia_utils.seed_everything(seed)
 
         nb_lenia = 4
@@ -32,57 +33,50 @@ class TestCore(unittest.TestCase):
         lenia_sols1 = []
         for _ in range(nb_lenia):
             rng_key, subkey = jax.random.split(rng_key)
-            len = lenia_qd.LeniaIndividual(base_config, subkey)
+            len = LeniaIndividual(qd_config, subkey)
             len[:] = [random.random(), random.random()]
             lenia_sols1.append(len)
 
-        (
-            rng_key,
-            (
-                all_cells_0_jnp1,
-                all_Ks_jnp1,
-                all_gfn_params_jnp1,
-                all_kernels_weight_per_channel_jnp1,
-                max_run_iter,
-                update_fn,
-                compute_stats_fn
-            )
-        ) = get_mem_optimized_inputs(base_config, lenia_sols1)
+        (rng_key, run_scan_mem_optimized_parameters1) = get_mem_optimized_inputs(qd_config, lenia_sols1)
 
         lenia_sols2 = []
         for _ in range(nb_lenia):
             rng_key, subkey = jax.random.split(rng_key)
-            len = lenia_qd.LeniaIndividual(base_config, subkey)
+            len = LeniaIndividual(qd_config, subkey)
             len[:] = [random.random(), random.random()]
             lenia_sols2.append(len)
 
-        (rng_key, (all_cells_0_jnp2, all_Ks_jnp2, all_gfn_params_jnp2, all_kernels_weight_per_channel_jnp2, _, _,
-                   _)) = get_mem_optimized_inputs(base_config, lenia_sols2)
+        (rng_key, run_scan_mem_optimized_parameters2) = get_mem_optimized_inputs(qd_config, lenia_sols2)
+
+        max_run_iter = qd_config['run_params']['max_run_iter']
+        world_params = qd_config['world_params']
+        render_params = qd_config['render_params']
+        update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
+        kernels_params = qd_config['kernels_params']['k']
+        K, mapping = lenia_core.get_kernels_and_mapping(
+            kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R']
+        )
+        update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version)
+        compute_stats_fn = lenia_stat.build_compute_stats_fn(world_params, render_params)
 
         # jax.profiler.start_trace("/tmp/tensorboard")
 
         t0 = time.time()
         Ns1 = lenia_core.run_scan_mem_optimized(
-            all_cells_0_jnp1,
-            all_Ks_jnp1,
-            all_gfn_params_jnp1,
-            all_kernels_weight_per_channel_jnp1,
+            *run_scan_mem_optimized_parameters1,
             max_run_iter,
             update_fn,
-            compute_stats_fn
+            compute_stats_fn,
         )
         Ns1.block_until_ready()
         delta_t = time.time() - t0
 
         t0 = time.time()
         Ns2 = lenia_core.run_scan_mem_optimized(
-            all_cells_0_jnp2,
-            all_Ks_jnp2,
-            all_gfn_params_jnp2,
-            all_kernels_weight_per_channel_jnp2,
+            *run_scan_mem_optimized_parameters2,
             max_run_iter,
             update_fn,
-            compute_stats_fn
+            compute_stats_fn,
         )
         Ns2.block_until_ready()
         delta_t_compiled = time.time() - t0

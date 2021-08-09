@@ -1,10 +1,10 @@
 import os
 import math
+import pickle
 from absl import logging
 from omegaconf import DictConfig
 import hydra
 import jax.numpy as jnp
-import pickle
 
 from ribs.archives import GridArchive, CVTArchive
 from ribs.emitters import GaussianEmitter, ImprovementEmitter, OptimizingEmitter, RandomDirectionEmitter
@@ -27,11 +27,11 @@ def run(omegaConf: DictConfig) -> None:
     config = get_container(omegaConf)
     print(config)
 
+    # Seed
     seed = config['run_params']['seed']
     rng_key = lenia_utils.seed_everything(seed)
-    generator_builder = lenia_qd.genBaseIndividual(config, rng_key)
-    lenia_generator = generator_builder()
 
+    # Archive
     fitness_domain = [0, config['run_params']['max_run_iter']]
     features_domain = config['grid']['features_domain']
     grid_shape = config['grid']['shape']
@@ -41,8 +41,9 @@ def run(omegaConf: DictConfig) -> None:
     else:
         bins = math.prod(grid_shape)
         archive = CVTArchive(bins, features_domain, seed=seed, use_kd_tree=True)
-    archive.base_config = config
+    archive.qd_config = config
 
+    # Emitters
     genotype_dims = len(config['genotype'])
     sampling_domain = config['algo']['sampling_domain']
     sampling_bounds = [sampling_domain for _ in range(genotype_dims)]
@@ -50,7 +51,6 @@ def run(omegaConf: DictConfig) -> None:
                                for bounds in sampling_bounds])  # start the CMA-ES algorithm
 
     batch_size = config['algo']['batch_size']
-    log_freq = 1
     mut_sigma0 = config['algo']['mut_sigma0']
     sigma0 = config['algo']['sigma0']
     emitters = [
@@ -67,18 +67,23 @@ def run(omegaConf: DictConfig) -> None:
             archive, initial_model.flatten(), sigma0, batch_size=batch_size, seed=seed + 4, bounds=sampling_bounds
         ),
     ]
+
+    # Optimizer
     optimizer = Optimizer(archive, emitters)
 
-    n_workers = -1
+    # QD search
+    eval_fn = lenia_qd.build_eval_lenia_config_mem_optimized_fn(config)
     nb_iter = config['algo']['budget'] // (batch_size * len(emitters))
-    eval_fn = lenia_qd.eval_lenia_config_mem_optimized
+    lenia_generator = lenia_qd.genBaseIndividual(config, rng_key)()
+    log_freq = 1
+    n_workers = -1
     metrics = lenia_qd.run_qd_search(eval_fn, nb_iter, lenia_generator, optimizer, fitness_domain, log_freq, n_workers)
 
     # Save results
     save_dir = os.getcwd()
     with open(f"{save_dir}/final.p", 'wb') as handle:
         pickle.dump(archive, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    lenia_utils.save_config(save_dir, archive.base_config)
+    lenia_utils.save_config(save_dir, archive.qd_config)
 
     lenia_qd.save_ccdf(optimizer.archive, f"{save_dir}/archive_ccdf.png")
     lenia_qd.save_metrics(metrics, save_dir)

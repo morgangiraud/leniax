@@ -17,11 +17,12 @@ from ribs.archives import ArchiveBase
 from ribs.archives import GridArchive, CVTArchive
 from ribs.visualize import grid_archive_heatmap, cvt_archive_heatmap, parallel_axes_plot
 
-from .Lenia import LeniaIndividual
+from .lenia import LeniaIndividual
 from . import utils as lenia_utils
 from . import core as lenia_core
 from . import video as lenia_video
 from . import helpers as lenia_helpers
+from . import statistics as lenia_stat
 from .growth_functions import growth_fns
 from .kernels import get_kernels_and_mapping, draw_kernels
 from .statistics import build_compute_stats_fn
@@ -107,7 +108,7 @@ def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividua
         fitness = -nb_steps
     else:
         fitness = nb_steps
-    features = [lenia_utils.get_param(config, key_string) for key_string in ind.base_config['phenotype']]
+    features = [lenia_utils.get_param(config, key_string) for key_string in ind.qd_config['phenotype']]
 
     ind.fitness = fitness
     ind.features = features
@@ -115,17 +116,34 @@ def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividua
     return ind
 
 
-def eval_lenia_config_mem_optimized(lenia_sols: List[LeniaIndividual], neg_fitness=False) -> List[LeniaIndividual]:
-    base_config = lenia_sols[0].base_config
-    _, run_scan_mem_optimized_parameters = lenia_helpers.get_mem_optimized_inputs(base_config, lenia_sols)
+def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness=False) -> Callable:
+    max_run_iter = qd_config['run_params']['max_run_iter']
+    world_params = qd_config['world_params']
+    render_params = qd_config['render_params']
+    update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
+    kernels_params = qd_config['kernels_params']['k']
+    K, mapping = lenia_core.get_kernels_and_mapping(
+        kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R']
+    )
 
-    Ns = lenia_core.run_scan_mem_optimized(*run_scan_mem_optimized_parameters)
-    Ns.block_until_ready()
+    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version)
+    compute_stats_fn = lenia_stat.build_compute_stats_fn(world_params, render_params)
 
-    cells0s = run_scan_mem_optimized_parameters[0]
-    results = lenia_helpers.update_individuals(lenia_sols, Ns, cells0s, neg_fitness)
+    def eval_lenia_config_mem_optimized(lenia_sols: List[LeniaIndividual]) -> List[LeniaIndividual]:
+        qd_config = lenia_sols[0].qd_config
+        _, run_scan_mem_optimized_parameters = lenia_helpers.get_mem_optimized_inputs(qd_config, lenia_sols)
 
-    return results
+        Ns = lenia_core.run_scan_mem_optimized(
+            *run_scan_mem_optimized_parameters, max_run_iter, update_fn, compute_stats_fn
+        )
+        Ns.block_until_ready()
+
+        cells0s = run_scan_mem_optimized_parameters[0]
+        results = lenia_helpers.update_individuals(lenia_sols, Ns, cells0s, neg_fitness)
+
+        return results
+
+    return eval_lenia_config_mem_optimized
 
 
 def eval_lenia_init(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividual:
@@ -400,17 +418,17 @@ def save_all(current_iter: int, optimizer, fitness_domain, sols: List, fits: Lis
 
 
 def dump_best(grid: ArchiveBase, fitness_threshold: float):
-    base_config = grid.base_config
-    seed = base_config['run_params']['seed']
+    qd_config = grid.qd_config
+    seed = qd_config['run_params']['seed']
     rng_key = lenia_utils.seed_everything(seed)
-    generator_builder = genBaseIndividual(base_config, rng_key)
+    generator_builder = genBaseIndividual(qd_config, rng_key)
     lenia_generator = generator_builder()
 
     real_bests = []
     for idx in grid._occupied_indices:
         if abs(grid._objective_values[idx]) >= fitness_threshold:
             lenia = next(lenia_generator)
-            lenia.base_config = grid._metadata[idx]
+            lenia.qd_config = grid._metadata[idx]
             lenia[:] = grid._solutions[idx]
             real_bests.append(lenia)
 

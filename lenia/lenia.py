@@ -24,28 +24,28 @@ class LeniaIndividual(list):
     def __init__(self, config: Dict, rng_key: jnp.ndarray):
         super().__init__()
 
-        self.base_config = copy.deepcopy(config)
+        self.qd_config = copy.deepcopy(config)
 
         self.rng_key = rng_key
 
     def set_init_cells(self, init_cells: str):
-        self.base_config['run_params']['cells'] = init_cells
+        self.qd_config['run_params']['cells'] = init_cells
 
     def get_config(self) -> Dict:
-        if 'genotype' in self.base_config:
+        if 'genotype' in self.qd_config:
             p_and_ds = self.get_genotype()
             raw_values = list(self)
             assert len(raw_values) == len(p_and_ds)
 
             to_update = get_update_config(p_and_ds, raw_values)
-            config = update_config(self.base_config, to_update)
+            config = update_config(self.qd_config, to_update)
         else:
-            config = self.base_config
+            config = self.qd_config
 
         return config
 
     def get_genotype(self):
-        return self.base_config['genotype']
+        return self.qd_config['genotype']
 
 
 def update_config(old_config, to_update):

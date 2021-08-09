@@ -42,7 +42,7 @@ def run(omegaConf: DictConfig) -> None:
     else:
         bins = math.prod(grid_shape)
         archive = CVTArchive(bins, features_domain, seed=seed, use_kd_tree=True)
-    archive.base_config = config
+    archive.qd_config = config
 
     genotype_dims = len(config['genotype'])
     sampling_domain = config['algo']['sampling_domain']
@@ -80,7 +80,7 @@ def run(omegaConf: DictConfig) -> None:
     save_dir = os.getcwd()
     with open(f"{save_dir}/final.p", 'wb') as handle:
         pickle.dump(archive, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    lenia_utils.save_config(save_dir, archive.base_config)
+    lenia_utils.save_config(save_dir, archive.qd_config)
 
     lenia_qd.save_ccdf(optimizer.archive, f"{save_dir}/archive_ccdf.png")
     lenia_qd.save_metrics(metrics, save_dir)

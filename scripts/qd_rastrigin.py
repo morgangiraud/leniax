@@ -1,9 +1,9 @@
 import os
 import psutil
-from functools import partial
 from absl import logging
 from omegaconf import DictConfig
 import hydra
+import jax
 import jax.numpy as jnp
 import pickle
 import math
@@ -47,7 +47,7 @@ def run(omegaConf: DictConfig) -> None:
 
     bins = math.prod(grid_shape)
     archive = CVTArchive(bins, features_domain, seed=seed, use_kd_tree=True)
-    archive.base_config = config
+    archive.qd_config = config
 
     genotype_dims = len(config['genotype'])
     sampling_domain = config['algo']['sampling_domain']
@@ -78,14 +78,14 @@ def run(omegaConf: DictConfig) -> None:
     # See https://stackoverflow.com/questions/40217873/multiprocessing-use-only-the-physical-cores
     n_workers = psutil.cpu_count(logical=False) - 1
     nb_iter = config['algo']['budget'] // (batch_size * len(emitters))
-    eval_fn = partial(lenia_qd.eval_debug, neg_fitness=True)
+    eval_fn = jax.partial(lenia_qd.eval_debug, neg_fitness=True)
     metrics = lenia_qd.run_qd_search(eval_fn, nb_iter, lenia_generator, optimizer, fitness_domain, log_freq, n_workers)
 
     # Save results
     save_dir = os.getcwd()
     with open(f"{save_dir}/final.p", 'wb') as handle:
         pickle.dump(archive, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    lenia_utils.save_config(save_dir, archive.base_config)
+    lenia_utils.save_config(save_dir, archive.qd_config)
 
     lenia_qd.save_ccdf(optimizer.archive, f"{save_dir}/archive_ccdf.png")
     lenia_qd.save_metrics(metrics, save_dir)

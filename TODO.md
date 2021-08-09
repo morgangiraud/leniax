@@ -55,20 +55,24 @@ There is a very strange behaviour that happens rarely but surely: it might happe
 It seems to occur mainly on the last element of the set.
 
 ## Now
-- Fix eval_lenia_config_mem_optimized to reuse the update_func and compute_stats_func
-- Optimize get_mem_optimized_inputs (init_cells)
-- Test unroll parameter bigger than 1 in lax.scan
 - Move center_world inside compute_stats_fn
-- replace compress/decompress functions for init_cells with a duo pickle + relative_path
-- Let's explore 1c-1k, 1c-2k, 1d-3k for now (looking for 10 species with interelation)
+- Test unroll parameter bigger than 1 in lax.scan
+- Fix the progress bar for collab
+- Computate statistics for all species already found to get a sense of good behaviours statistics and their ranges
+- Define a 2D set of behaviours (mass_speed ?, etc.)
+- Let's explore 1c-1k, 1c-2k, 1c-3k for now (looking for 10 species with interelation)
+
+Validation:
+1. a big qd_search
+2. a big qd_search with the new update rule
+3. a big qd search using real behaviours
 
 ## Next
 - Spend some time to get intimate with all parameters
 - explore other kernels
-- debug qd video dump (sometimes the number of iterations do not match the one found during the optimization, reproducibility issue)
 - define a qd state
 - save/load qd search states
-- Make sure that we do not need multiple modes because of multiple kernels
-- Computate statistics for all species already found to ge a sense of good behaviours statistics and their ranges/
-- Define a 2D set of behaviours (mass_speed ?, etc.)
 -  Go beyond perlin noise with simplex noise ? (https://www.bit-101.com/blog/2021/07/perlin-vs-simplex/)
+
+## To be able to launch
+Find 1337 species!

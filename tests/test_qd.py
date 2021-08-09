@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from lenia.Lenia import LeniaIndividual
+from lenia.lenia import LeniaIndividual
 from lenia import utils as lenia_utils
 
 cfd = os.path.dirname(os.path.realpath(__file__))

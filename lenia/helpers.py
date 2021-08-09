@@ -5,7 +5,7 @@ import jax.numpy as jnp
 from typing import Dict, Tuple, List
 from omegaconf import DictConfig, OmegaConf
 
-from .Lenia import LeniaIndividual
+from .lenia import LeniaIndividual
 from . import initializations as initializations
 from . import statistics as lenia_stat
 from . import core as lenia_core
@@ -162,22 +162,20 @@ def slow_init_search(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, D
     return rng_key, runs
 
 
-def get_mem_optimized_inputs(base_config: Dict, lenia_sols: List[LeniaIndividual]):
+def get_mem_optimized_inputs(qd_config: Dict, lenia_sols: List[LeniaIndividual]):
     """
-        All critical parameters are taken from the base_config.
+        All critical parameters are taken from the qd_config.
         All non-critical parameters are taken from each potential lenia solutions
     """
-    world_params = base_config['world_params']
+    world_params = qd_config['world_params']
     nb_channels = world_params['nb_channels']
-    update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
     R = world_params['R']
 
-    render_params = base_config['render_params']
+    render_params = qd_config['render_params']
     world_size = render_params['world_size']
 
-    run_params = base_config['run_params']
+    run_params = qd_config['run_params']
     nb_init_search = run_params['nb_init_search']
-    max_run_iter = run_params['max_run_iter']
 
     all_cells_0 = []
     all_Ks = []
@@ -203,18 +201,11 @@ def get_mem_optimized_inputs(base_config: Dict, lenia_sols: List[LeniaIndividual
     all_gfn_params_jnp = jnp.stack(all_gfn_params)
     all_kernels_weight_per_channel_jnp = jnp.stack(all_kernels_weight_per_channel)
 
-    # Critical parameters
-    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version)
-    compute_stats_fn = lenia_stat.build_compute_stats_fn(world_params, render_params)
-
     run_scan_mem_optimized_parameters = (
         all_cells_0_jnp,
         all_Ks_jnp,
         all_gfn_params_jnp,
         all_kernels_weight_per_channel_jnp,
-        max_run_iter,
-        update_fn,
-        compute_stats_fn
     )
 
     return rng_key, run_scan_mem_optimized_parameters
@@ -251,8 +242,8 @@ def update_individuals(inds: List[LeniaIndividual],
             fitness = nb_steps
         ind.fitness = fitness
 
-        if 'phenotype' in ind.base_config:
-            features = [lenia_utils.get_param(config, key_string) for key_string in ind.base_config['phenotype']]
+        if 'phenotype' in ind.qd_config:
+            features = [lenia_utils.get_param(config, key_string) for key_string in ind.qd_config['phenotype']]
             ind.features = features
 
     return inds

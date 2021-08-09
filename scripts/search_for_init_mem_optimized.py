@@ -6,10 +6,10 @@ import jax
 from omegaconf import DictConfig
 import hydra
 
-from lenia.Lenia import LeniaIndividual
-from lenia import utils as lenia_utils
+from lenia.lenia import LeniaIndividual
 from lenia.growth_functions import growth_fns
-from lenia.core import init
+import lenia.utils as lenia_utils
+import lenia.core as lenia_core
 import lenia.helpers as lenia_helpers
 import lenia.video as lenia_video
 import lenia.kernels as lenia_kernels
@@ -26,18 +26,20 @@ config_path_1c1k = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
 # @hydra.main(config_path=config_path_1c1k, config_name="prototype")
 def launch(omegaConf: DictConfig) -> None:
     config = lenia_helpers.get_container(omegaConf)
-    # config['run_params']['nb_init_search'] = 16
-    # config['run_params']['max_run_iter'] = 512
+    config['run_params']['nb_init_search'] = 16
+    config['run_params']['max_run_iter'] = 512
     print(config)
 
     rng_key = lenia_utils.seed_everything(config['run_params']['seed'])
     lenia_sols = []
-    for _ in range(6):
+    for _ in range(2):
         rng_key, subkey = jax.random.split(rng_key)
         lenia_sols.append(LeniaIndividual(config, subkey))
 
+    eval_fn = lenia_qd.build_eval_lenia_config_mem_optimized_fn(config)
+
     t0 = time.time()
-    results = lenia_qd.eval_lenia_config_mem_optimized(lenia_sols)
+    results = eval_fn(lenia_sols)
     print(f"Init search done in {time.time() - t0}")
 
     for id_best, best in enumerate(results):
@@ -67,7 +69,7 @@ def launch(omegaConf: DictConfig) -> None:
         lenia_utils.plot_stats(save_dir, stats_dict)
 
         print('Plotting kernels and functions')
-        _, K, _ = init(config)
+        _, K, _ = lenia_core.init(config)
         lenia_kernels.draw_kernels(K, save_dir, colormap)
         for i, kernel in enumerate(config['kernels_params']['k']):
             lenia_utils.plot_gfunction(

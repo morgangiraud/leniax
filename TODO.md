@@ -55,11 +55,11 @@ There is a very strange behaviour that happens rarely but surely: it might happe
 It seems to occur mainly on the last element of the set.
 
 ## Now
-- Move center_world inside compute_stats_fn
-- Test unroll parameter bigger than 1 in lax.scan
 - Fix the progress bar for collab
+- Do Validation number 2
 - Computate statistics for all species already found to get a sense of good behaviours statistics and their ranges
 - Define a 2D set of behaviours (mass_speed ?, etc.)
+- Do validation number 3
 - Let's explore 1c-1k, 1c-2k, 1c-3k for now (looking for 10 species with interelation)
 
 Validation:

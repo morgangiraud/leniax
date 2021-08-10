@@ -417,7 +417,7 @@ def save_all(current_iter: int, optimizer, fitness_domain, sols: List, fits: Lis
     with open(f"{prefix_fullpath}final.p", 'wb') as handle:
         pickle.dump(optimizer.archive, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    if current_iter - 1 > -1:
+    if current_iter - 1 > 0:
         previous_prefix_fullpath = os.path.join(save_dir, f"{str(current_iter-1).zfill(4)}-")
         os.remove(f"{previous_prefix_fullpath}final.p")
 

@@ -419,9 +419,10 @@ def plot_stats(save_dir: str, stats_dict: Dict):
     fig.set_size_inches(10, 10)
     for i, k in enumerate(all_keys):
         axs[i].set_title(k.capitalize())
-        axs[i].plot(stats_dict[k][-64:])
+        axs[i].plot(stats_dict[k][-128:])
     plt.tight_layout()
-    plt.xticks(np.arange(max(nb_steps - 64, 0), nb_steps, ticks))
+    truncated_nb_steps = min(nb_steps, 128)
+    plt.xticks(np.arange(0, truncated_nb_steps, 8))
     fig.savefig(os.path.join(save_dir, 'stats_last_64.png'))
     plt.close(fig)
 

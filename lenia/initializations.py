@@ -52,7 +52,7 @@ def perlin(rng_key, nb_noise: int, world_size: List[int], R: float, kernel_param
     kernel_radius = int(R * kernel_params['r'])
     res = [world_size[0] // (kernel_radius * 3), world_size[1] // (kernel_radius * 2)]
     min_mean_bound = kernel_params['m']
-    max_mean_bound = min(1, 2 * kernel_params['m'])
+    max_mean_bound = min(1, 3 * kernel_params['m'])
     scaling = jnp.array([min_mean_bound + i / nb_noise * (max_mean_bound - min_mean_bound) for i in range(nb_noise)])
     scaling = scaling[:, jnp.newaxis, jnp.newaxis]
 
@@ -67,5 +67,43 @@ def perlin(rng_key, nb_noise: int, world_size: List[int], R: float, kernel_param
     cells /= cells.max(axis=(1, 2), keepdims=True)
     cells *= scaling
     init_cells = cells[:, jnp.newaxis, ...]
+
+    return rng_key, init_cells
+
+
+def perlin_local(rng_key, nb_noise: int, world_size: List[int], R: float, kernel_params: Dict):
+    """
+    Perlin noise initialization which target the mean of the growth function
+    """
+    kernel_radius = int(R * kernel_params['r'])
+    res = [world_size[0] // (kernel_radius * 3), world_size[1] // (kernel_radius * 2)]
+    min_mean_bound = kernel_params['m']
+    max_mean_bound = min(1, 3 * kernel_params['m'])
+    scaling = jnp.array([min_mean_bound + i / nb_noise * (max_mean_bound - min_mean_bound) for i in range(nb_noise)])
+    scaling = scaling[:, jnp.newaxis, jnp.newaxis]
+
+    rng_key, subkey = jax.random.split(rng_key)
+    angles_shape = [nb_noise] + res
+    angles = 2 * jnp.pi * jax.random.uniform(subkey, shape=angles_shape)  # [nb_noise, H_res, W_res]
+
+    # Why tuple here? -> List are non-hashable which breaks jit function
+    cells = generate_perlin_noise_2d(angles, tuple(world_size), tuple(res), nb_noise)
+
+    cells -= cells.min(axis=(1, 2), keepdims=True)
+    cells /= cells.max(axis=(1, 2), keepdims=True)
+    cells *= scaling
+    init_cells = cells[:, jnp.newaxis, ...]
+
+    size = kernel_radius * 2
+    pad_left = (128 - size) // 2
+    if pad_left * 2 + size != 128:
+        pad_right = pad_left + 1
+    else:
+        pad_right = pad_left
+    init_cells = jnp.pad(
+        init_cells[:, :, 24:24 + size, 24:24 + size], ((0, 0), (0, 0), (pad_left, pad_right), (pad_left, pad_right)),
+        mode='constant',
+        constant_values=(0, 0)
+    )
 
     return rng_key, init_cells

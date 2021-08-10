@@ -22,6 +22,8 @@ def init(config: Dict) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
     cells = config['run_params']['cells']
     if type(cells) is str:
         cells = utils.decompress_array(cells, nb_dims + 1)  # we add the channel dim
+    elif type(cells) is list:
+        cells = jnp.array(cells)
     cells = init_cells(world_size, nb_channels, [cells])
 
     kernels_params = config['kernels_params']['k']
@@ -401,7 +403,6 @@ def update_cells_v2(cells: jnp.ndarray, field: jnp.ndarray, dt: float) -> jnp.nd
             - field: jnp.ndarray, shape must be kept constant to avoid recompiling
             - float: can change without recompiling
     """
-    rescaled_field = (field + 1) / 2
-    cells_new = jnp.array(cells * (1 - dt) + dt * rescaled_field)
+    cells_new = jnp.array(cells * (1 - dt) + dt * field)
 
     return cells_new

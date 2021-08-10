@@ -56,15 +56,14 @@ It seems to occur mainly on the last element of the set.
 
 ## Now
 - Fix the progress bar for collab
-- Do Validation number 2
 - Computate statistics for all species already found to get a sense of good behaviours statistics and their ranges
 - Define a 2D set of behaviours (mass_speed ?, etc.)
 - Do validation number 3
 - Let's explore 1c-1k, 1c-2k, 1c-3k for now (looking for 10 species with interelation)
 
 Validation:
-1. a big qd_search
-2. a big qd_search with the new update rule
+1. a big qd_search (OK!)
+2. a big qd_search with the new update rule (OK! need a more focused search)
 3. a big qd search using real behaviours
 
 ## Next

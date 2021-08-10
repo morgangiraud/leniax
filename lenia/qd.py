@@ -156,6 +156,7 @@ def eval_lenia_init(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividual:
     world_params = config['world_params']
     nb_channels = world_params['nb_channels']
     R = world_params['R']
+    update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
 
     render_params = config['render_params']
     world_size = render_params['world_size']
@@ -173,7 +174,7 @@ def eval_lenia_init(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividual:
     random.seed(ind.rng_key[0])
 
     K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
-    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping)
+    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
     compute_stats_fn = build_compute_stats_fn(config['world_params'], config['render_params'])

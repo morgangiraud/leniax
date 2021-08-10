@@ -17,12 +17,15 @@ logging.set_verbosity(logging.ERROR)
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
 config_path_1c1k = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
+config_path_1c1kv2 = os.path.join(cdir, '..', 'conf', 'species', '1c-1k-v2')
 
 
-@hydra.main(config_path=config_path, config_name="config_init_search")
+# @hydra.main(config_path=config_path, config_name="config_init_search")
 # @hydra.main(config_path=config_path_1c1k, config_name="prototype")
+@hydra.main(config_path=config_path_1c1kv2, config_name="wanderer")
 def launch(omegaConf: DictConfig) -> None:
     config = get_container(omegaConf)
+    # config['run_params']['nb_init_search'] = 16
     print(config)
 
     rng_key = lenia_utils.seed_everything(config['run_params']['seed'])

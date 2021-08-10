@@ -53,7 +53,13 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Di
     update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version)
     compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
-    rng_key, noises = initializations.perlin(rng_key, nb_init_search, world_size, R, kernels_params[0])
+    if update_fn_version == 'v1':
+        rng_key, noises = initializations.perlin(rng_key, nb_init_search, world_size, R, kernels_params[0])
+    elif update_fn_version == 'v2':
+        rng_key, noises = initializations.perlin_local(rng_key, nb_init_search, world_size, R, kernels_params[0])
+    else:
+        raise ValueError('update_fn_version {update_fn_version} does not exist')
+
     all_cells_0 = []
     for i in range(nb_init_search):
         cells_0 = lenia_core.init_cells(world_size, nb_channels, [noises[i]])
@@ -90,10 +96,12 @@ def init_and_run(config: Dict, with_jit: bool = False) -> Tuple:
     cells, K, mapping = lenia_core.init(config)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
+    world_params = config['world_params']
+    update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
 
     max_run_iter = config['run_params']['max_run_iter']
 
-    update_fn = lenia_core.build_update_fn(config['world_params'], K.shape, mapping)
+    update_fn = lenia_core.build_update_fn(config['world_params'], K.shape, mapping, update_fn_version)
     compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     if with_jit is True:
@@ -116,6 +124,7 @@ def get_mem_optimized_inputs(qd_config: Dict, lenia_sols: List[LeniaIndividual])
     world_params = qd_config['world_params']
     nb_channels = world_params['nb_channels']
     R = world_params['R']
+    update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
 
     render_params = qd_config['render_params']
     world_size = render_params['world_size']
@@ -135,7 +144,14 @@ def get_mem_optimized_inputs(qd_config: Dict, lenia_sols: List[LeniaIndividual])
         gfn_params = mapping.get_gfn_params()
         kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 
-        rng_key, noises = initializations.perlin(ind.rng_key, nb_init_search, world_size, R, kernels_params[0])
+        if update_fn_version == 'v1':
+            rng_key, noises = initializations.perlin(ind.rng_key, nb_init_search, world_size, R, kernels_params[0])
+        elif update_fn_version == 'v2':
+            rng_key, noises = initializations.perlin_local(
+                ind.rng_key, nb_init_search, world_size, R, kernels_params[0]
+            )
+        else:
+            raise ValueError('update_fn_version {update_fn_version} does not exist')
 
         all_cells_0.append(noises)
         all_Ks.append(K)

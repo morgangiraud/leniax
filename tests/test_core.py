@@ -50,8 +50,8 @@ class TestCore(unittest.TestCase):
 
         max_run_iter = qd_config['run_params']['max_run_iter']
         world_params = qd_config['world_params']
-        render_params = qd_config['render_params']
         update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
+        render_params = qd_config['render_params']
         kernels_params = qd_config['kernels_params']['k']
         K, mapping = lenia_core.get_kernels_and_mapping(
             kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R']
@@ -94,7 +94,9 @@ class TestCore(unittest.TestCase):
 
         max_run_iter = 32
         cells, K, mapping = lenia_core.init(config)
-        update_fn = lenia_core.build_update_fn(config['world_params'], K.shape, mapping)
+        world_params = config['world_params']
+        update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
+        update_fn = lenia_core.build_update_fn(config['world_params'], K.shape, mapping, update_fn_version)
         compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
         cells1 = jnp.ones(cells.shape) * 0.2
@@ -130,7 +132,9 @@ class TestCore(unittest.TestCase):
             config = get_container(omegaConf)
 
         cells, K, mapping = lenia_core.init(config)
-        update_fn = lenia_core.build_update_fn(config['world_params'], K.shape, mapping)
+        world_params = config['world_params']
+        update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
+        update_fn = lenia_core.build_update_fn(config['world_params'], K.shape, mapping, update_fn_version)
 
         cells1 = jnp.ones(cells.shape) * 0.2
         K1 = jnp.ones(K.shape) * 0.3

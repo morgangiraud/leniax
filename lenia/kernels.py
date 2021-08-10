@@ -38,9 +38,16 @@ def poly_quad4(x: jnp.ndarray, q: float = 4):
     return out
 
 
-def gauss_bump4(x: jnp.ndarray, q: float = 1):
-    out = 4 - 1 / (x * (1 - x))
+def gauss_bump(x: jnp.ndarray, q: float = 1):
+    out = q - 1 / (x * (1 - x))
     out = jnp.exp(q * out)
+
+    return out
+
+
+def gauss(x: jnp.ndarray, q: float = 1):
+    out = -((x - q) / (0.3 * q))**2
+    out = jnp.exp(out / 2)
 
     return out
 
@@ -53,7 +60,7 @@ def staircase(x: jnp.ndarray, q: float = 1 / 4):
     return (x >= q) * (x <= 1 - q) + (x < q) * 0.5
 
 
-kernel_core = {0: poly_quad4, 1: gauss_bump4, 2: step4, 3: staircase}
+kernel_core = {0: poly_quad4, 1: gauss_bump, 2: step4, 3: staircase, 4: gauss}
 
 
 def get_kernels_and_mapping(kernels_params: Dict, world_size: List[int], nb_channels: int,
@@ -115,6 +122,7 @@ def get_kernel(kernel_params: Dict, world_size: list, R: float) -> jnp.ndarray:
     coords = jnp.indices(world_size)  # [nb_dims, dim_0, dim_1, ...]
     centered_coords = (coords - midpoint) / (kernel_params['r'] * R)  # [nb_dims, dim_0, dim_1, ...]
     # Distances from the center of the grid
+
     distances = jnp.sqrt(jnp.sum(centered_coords**2, axis=0))  # [dim_0, dim_1, ...]
 
     kernel = kernel_shell(distances, kernel_params)
@@ -134,7 +142,7 @@ def kernel_shell(distances: jnp.ndarray, kernel_params: Dict) -> jnp.ndarray:
     # All kernel functions are defined in [0, 1] so we keep only value with distance under 1
     kernel_func = kernel_core[kernel_params['k_id']]
     kernel_q = kernel_params['q']
-    kernel = (distances < 1) * kernel_func(jnp.minimum(B_dist % 1, 1), kernel_q) * bs_mat  # type: ignore
+    kernel = (distances < 1) * kernel_func(B_dist % 1, kernel_q) * bs_mat  # type: ignore
 
     return kernel
 

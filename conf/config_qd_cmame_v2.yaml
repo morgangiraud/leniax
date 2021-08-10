@@ -7,13 +7,13 @@ world_params:
   update_fn_version: 'v2'
 kernels_params:
   k:
-    - k_id: 0
-      q: 4
+    - k_id: 4
+      q: 0.5
       r: 1
       b: '1'
-      gf_id: 0
-      m: 0.17
-      s: 0.015
+      gf_id: 2
+      m: 0.1
+      s: 0.005
       h: 1
       c_in: 0
       c_out: 0

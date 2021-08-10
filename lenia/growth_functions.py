@@ -10,8 +10,15 @@ def poly_quad4(X: jnp.ndarray, m: float, s: float):
 
 
 def gaussian(X: jnp.ndarray, m: float, s: float):
-    out = -(X - m)**2 / (2 * s**2)
+    out = -((X - m) / s)**2 / 2
     out = jnp.exp(out) * 2 - 1
+
+    return out
+
+
+def gaussian_target(X: jnp.ndarray, m: float, s: float):
+    out = -((X - m) / s)**2 / 2
+    out = jnp.exp(out)
 
     return out
 
@@ -23,4 +30,4 @@ def step(X: jnp.ndarray, m: float, s: float):
     return out
 
 
-growth_fns = {0: poly_quad4, 1: gaussian, 2: step}
+growth_fns = {0: poly_quad4, 1: gaussian, 2: gaussian_target, 3: step}

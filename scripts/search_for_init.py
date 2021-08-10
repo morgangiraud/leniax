@@ -33,7 +33,6 @@ def launch(omegaConf: DictConfig) -> None:
 
     all_cells = best['all_cells'][:int(best['N'])]
     stats_dict = {k: v.squeeze() for k, v in best['all_stats'].items()}
-    render_params = config['render_params']
 
     print(f"best run length: {best['N']}")
 
@@ -41,7 +40,7 @@ def launch(omegaConf: DictConfig) -> None:
     media_dir = os.path.join(save_dir, 'media')
     lenia_utils.check_dir(media_dir)
 
-    first_cells = all_cells[0][:, 0, 0, ...]
+    first_cells = all_cells[0, 0, ...]
     config['run_params']['cells'] = lenia_utils.compress_array(first_cells)
     lenia_utils.save_config(save_dir, config)
 
@@ -62,6 +61,7 @@ def launch(omegaConf: DictConfig) -> None:
         )
 
     print('Dumping video')
+    render_params = config['render_params']
     lenia_video.dump_video(all_cells, render_params, media_dir, colormap)
 
 

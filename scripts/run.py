@@ -30,8 +30,6 @@ def run(omegaConf: DictConfig) -> None:
 
     config = get_container(omegaConf)
 
-    render_params = config['render_params']
-
     print('Initialiazing and running')
     start_time = time.time()
     all_cells, _, _, stats_dict = init_and_run(config, True)
@@ -71,6 +69,7 @@ def run(omegaConf: DictConfig) -> None:
         )
 
     print('Dumping video')
+    render_params = config['render_params']
     lenia_video.dump_video(all_cells, render_params, media_dir, colormap)
 
 

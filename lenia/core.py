@@ -60,15 +60,13 @@ def run(
     assert cells.shape[0] == 1
     # cells shape: [N=1, C, dims...]
     N = 1
-    world_shape = jnp.array(cells.shape[2:])
-    nb_dims = len(world_shape)
-    axes = tuple(range(-nb_dims, 0, 1))
+    nb_world_dims = cells.ndim - 2
 
     all_cells = [cells]
     all_fields = []
     all_potentials = []
     all_stats = []
-    total_shift_idx = jnp.zeros([N, nb_dims], dtype=jnp.int32)
+    total_shift_idx = jnp.zeros([N, nb_world_dims], dtype=jnp.int32)
     init_mass = cells.sum()
 
     previous_mass = init_mass
@@ -80,18 +78,13 @@ def run(
     for current_iter in range(max_run_iter):
         new_cells, field, potential = update_fn(cells, K, gfn_params, kernels_weight_per_channel)
 
-        # To compute stats, the world (cells, field, potential) has to be centered and taken from the same timestep
-        centered_cells, centered_field, centered_potential = utils.center_world(
-            new_cells, field, potential, total_shift_idx, axes
-        )
-        stats, shift_idx = compute_stats_fn(centered_cells, centered_field, centered_potential)
-        total_shift_idx = (total_shift_idx + shift_idx) % world_shape
-        all_stats.append(stats)
+        stats, total_shift_idx = compute_stats_fn(cells, field, potential, total_shift_idx)
 
         cells = new_cells
         all_cells.append(cells)
         all_fields.append(field)
         all_potentials.append(potential)
+        all_stats.append(stats)
 
         # Heuristics
         # Looking for non-static species
@@ -164,9 +157,7 @@ def run_scan(
     compute_stats_fn: Callable
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
     N = cells0.shape[0]
-    world_shape = jnp.array(cells0.shape[2:])
-    nb_dims = len(world_shape)
-    axes = tuple(range(-nb_dims, 0, 1))
+    nb_world_dims = cells0.ndim - 2
 
     def fn(carry, x):
         cells, K, gfn_params, kernels_weight_per_channel = carry['fn_params']
@@ -174,12 +165,7 @@ def run_scan(
 
         stat_props = carry['stats_properties']
         total_shift_idx = stat_props['total_shift_idx']
-        # To compute stats, the world (cells, field, potential) has to be centered and taken from the same timestep
-        centered_cells, centered_field, centered_potential = utils.center_world(
-            new_cells, field, potential, total_shift_idx, axes
-        )
-        stats, shift_idx = compute_stats_fn(centered_cells, centered_field, centered_potential)
-        total_shift_idx = (total_shift_idx + shift_idx) % world_shape
+        stats, total_shift_idx = compute_stats_fn(cells, field, potential, total_shift_idx)
 
         y = {'cells': cells, 'field': field, 'potential': potential, 'stats': stats}
 
@@ -193,7 +179,7 @@ def run_scan(
 
         return new_carry, y
 
-    total_shift_idx = jnp.zeros([N, nb_dims], dtype=jnp.int32)
+    total_shift_idx = jnp.zeros([N, nb_world_dims], dtype=jnp.int32)
     init_carry = {
         'fn_params': (cells0, K, gfn_params, kernels_weight_per_channel),
         'stats_properties': {
@@ -228,9 +214,7 @@ def run_scan_mem_optimized(
             - kernels_weight_per_channel: jnp.ndarray[N, nb_channels, nb_kernels]
     """
     N = cells0.shape[0]
-    world_shape = jnp.array(cells0.shape[2:])
-    nb_dims = len(world_shape)
-    axes = tuple(range(-nb_dims, 0, 1))
+    nb_world_dims = cells0.ndim - 2
 
     def fn(carry, x):
         cells, K, gfn_params, kernels_weight_per_channel = carry['fn_params']
@@ -238,12 +222,7 @@ def run_scan_mem_optimized(
 
         stat_props = carry['stats_properties']
         total_shift_idx = stat_props['total_shift_idx']
-        # To compute stats, the world (cells, field, potential) has to be centered and taken from the same timestep
-        centered_cells, centered_field, centered_potential = utils.center_world(
-            new_cells, field, potential, total_shift_idx, axes
-        )
-        stats, shift_idx = compute_stats_fn(centered_cells, centered_field, centered_potential)
-        total_shift_idx = (total_shift_idx + shift_idx) % world_shape
+        stats, total_shift_idx = compute_stats_fn(cells, field, potential, total_shift_idx)
 
         cells = new_cells
         new_carry = {
@@ -255,7 +234,7 @@ def run_scan_mem_optimized(
 
         return new_carry, stats
 
-    total_shift_idx = jnp.zeros([N, nb_dims], dtype=jnp.int32)
+    total_shift_idx = jnp.zeros([N, nb_world_dims], dtype=jnp.int32)
     init_carry = {
         'fn_params': (cells0, K, gfn_params, kernels_weight_per_channel),
         'stats_properties': {

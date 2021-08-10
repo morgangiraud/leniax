@@ -4,6 +4,7 @@ from jax import jit
 from typing import List, Dict, Callable, Tuple
 
 from .constant import EPSILON
+from .utils import center_world
 
 
 def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
@@ -14,20 +15,22 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
     coords = jnp.indices(world_size)
     whitened_coords = (coords - midpoint) / R  # [nb_dims, H, W]
 
-    # @jit
-    def compute_stats(cells, field, potential):
+    @jit
+    def compute_stats(cells, field, potential, total_shift_idx):
         # cells: # [N, C, H, W]
         # field: # [N, C, H, W]
         # potential: # [N, C, H, W]
         non_batch_dims = tuple(range(1, cells.ndim, 1))
+        axes = tuple(range(-(cells.ndim - 2), 0, 1))
+        centered_cells, centered_field, _ = center_world(cells, field, potential, total_shift_idx, axes)
 
-        mass = cells.sum(axis=non_batch_dims)
-        positive_field = jnp.maximum(field, 0)
+        mass = centered_cells.sum(axis=non_batch_dims)
+        positive_field = jnp.maximum(centered_field, 0)
         growth = positive_field.sum(axis=non_batch_dims)
-        percent_activated = (cells > EPSILON).mean(axis=non_batch_dims)
+        percent_activated = (centered_cells > EPSILON).mean(axis=non_batch_dims)
 
         # Those statistic works on a centered world
-        AX = [cells * x for x in whitened_coords]
+        AX = [centered_cells * x for x in whitened_coords]
         MX1 = [ax.sum(axis=non_batch_dims) for ax in AX]
         mass_center = jnp.asarray(MX1) / (mass + EPSILON)
         # This function returns "mass centered" cells so the previous mass_center is at origin
@@ -44,6 +47,8 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
         mass_growth_dist = jnp.linalg.norm(mass_center - growth_center, axis=0)
 
         shift_idx = (mass_center * R).astype(int).T
+        world_shape = jnp.array(cells.shape[2:])
+        total_shift_idx = (total_shift_idx + shift_idx) % world_shape
 
         stats = {
             'mass': mass,
@@ -55,7 +60,7 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
             'percent_activated': percent_activated,
         }
 
-        return (stats, shift_idx)
+        return (stats, total_shift_idx)
 
     return compute_stats
 

@@ -1,6 +1,5 @@
 # import time
 import uuid
-import jax
 import jax.numpy as jnp
 from typing import Dict, Tuple, List
 from omegaconf import DictConfig, OmegaConf
@@ -107,59 +106,6 @@ def init_and_run(config: Dict, with_jit: bool = False) -> Tuple:
         )
 
     return outputs
-
-
-def slow_init_search(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Dict]:
-    """
-        Slow_init_search is a debugging fuction used to explore in a grid-like fashion some initialization scheme
-
-        So far, it has revealed that different size of random_uniform is not a good way to sample the init space
-        but random_uniform on the whole world with different max value is a much better strategy.
-
-    """
-    world_params = config['world_params']
-    nb_channels = world_params['nb_channels']
-    R = world_params['R']
-
-    render_params = config['render_params']
-    world_size = render_params['world_size']
-
-    kernels_params = config['kernels_params']['k']
-
-    run_params = config['run_params']
-    max_run_iter = run_params['max_run_iter']
-
-    K, mapping = lenia_core.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
-    gfn_params = mapping.get_gfn_params()
-    kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
-
-    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping)
-    compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
-
-    runs: Dict[str, list] = {}
-    min_bound = 128
-    max_bound = 128
-    max_search_iter = 1
-    max_sampling_iter = 32
-    for i in range(max_search_iter):
-        noise_h = min_bound + i // max_bound
-        noise_w = min_bound + i % max_bound
-        runs[f"{noise_h},{noise_w}"] = []
-        for _ in range(max_sampling_iter):
-            rng_key, subkey = jax.random.split(rng_key)
-            noise = jax.random.uniform(subkey, (1, noise_h, noise_w), minval=0, maxval=1.)
-
-            cells_0 = lenia_core.init_cells(world_size, nb_channels, [noise])
-
-            all_cells, _, _, all_stats = lenia_core.run(
-                cells_0, K, gfn_params, kernels_weight_per_channel, max_run_iter, update_fn, compute_stats_fn
-            )
-            nb_iter_done = len(all_cells)
-
-            runs[f"{noise_h},{noise_w}"].append(nb_iter_done >= max_run_iter)
-            print(f"{noise_h},{noise_w} : {nb_iter_done} / {max_run_iter} -> {nb_iter_done >= max_run_iter}")
-
-    return rng_key, runs
 
 
 def get_mem_optimized_inputs(qd_config: Dict, lenia_sols: List[LeniaIndividual]):

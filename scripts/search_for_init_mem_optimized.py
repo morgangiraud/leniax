@@ -26,13 +26,13 @@ config_path_1c1k = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
 # @hydra.main(config_path=config_path_1c1k, config_name="prototype")
 def launch(omegaConf: DictConfig) -> None:
     config = lenia_helpers.get_container(omegaConf)
-    config['run_params']['nb_init_search'] = 16
-    config['run_params']['max_run_iter'] = 512
+    # config['run_params']['nb_init_search'] = 16
+    # config['run_params']['max_run_iter'] = 512
     print(config)
 
     rng_key = lenia_utils.seed_everything(config['run_params']['seed'])
     lenia_sols = []
-    for _ in range(2):
+    for _ in range(1):
         rng_key, subkey = jax.random.split(rng_key)
         lenia_sols.append(LeniaIndividual(config, subkey))
 
@@ -49,7 +49,6 @@ def launch(omegaConf: DictConfig) -> None:
         all_cells, _, _, stats_dict = lenia_helpers.init_and_run(config, True)
         stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
         all_cells = all_cells[:int(stats_dict['N'])]
-        print(stats_dict['N'])
 
         save_dir = os.getcwd()  # changed by hydra
         save_dir = f"{save_dir}/{id_best}"

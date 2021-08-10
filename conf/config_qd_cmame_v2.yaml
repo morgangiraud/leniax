@@ -4,7 +4,7 @@ defaults:
   - run_params: default
 
 world_params:
-  update_fn_version: 'v1'
+  update_fn_version: 'v2'
 kernels_params:
   k:
     - k_id: 0
@@ -36,7 +36,7 @@ genotype:
   - key: kernels_params.k.0.m
     domain: 
       - .1
-      - .8
+      - .5
     type: float
   - key: kernels_params.k.0.s
     domain: 
@@ -62,7 +62,7 @@ phenotype:
 grid:
   features_domain:
     - - .1
-      - .8
+      - .5
     - - 0.
       - .1
     # - - 0.

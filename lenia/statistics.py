@@ -22,14 +22,15 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
         # potential: # [N, C, H, W]
         non_batch_dims = tuple(range(1, cells.ndim, 1))
         axes = tuple(range(-(cells.ndim - 2), 0, 1))
+        
+        # Those statistic works on a centered world
         centered_cells, centered_field, _ = center_world(cells, field, potential, total_shift_idx, axes)
 
         mass = centered_cells.sum(axis=non_batch_dims)
         positive_field = jnp.maximum(centered_field, 0)
         growth = positive_field.sum(axis=non_batch_dims)
         percent_activated = (centered_cells > EPSILON).mean(axis=non_batch_dims)
-
-        # Those statistic works on a centered world
+        
         AX = [centered_cells * x for x in whitened_coords]
         MX1 = [ax.sum(axis=non_batch_dims) for ax in AX]
         mass_center = jnp.asarray(MX1) / (mass + EPSILON)

@@ -60,6 +60,8 @@ It seems to occur mainly on the last element of the set.
 - Define a 2D set of behaviours (mass_speed ?, etc.)
 - Do validation number 3
 - Let's explore 1c-1k, 1c-2k, 1c-3k for now (looking for 10 species with interelation)
+- Let's explore with T and R
+- Let's expplore with different bs
 
 Validation:
 1. a big qd_search (OK!)
@@ -75,3 +77,20 @@ Validation:
 
 ## To be able to launch
 Find 1337 species!
+
+# Listo of experiments
+for bs
+- [1] Done
+
+- [0.5, 1] Done
+- [1, 0,5]
+- [1, 1]
+
+- [0.25, 0.5, 1]
+- [1, 0.5, 0.25]
+- [0.5, 1, 0.5]
+- [1, 1, 1]
+
+- [1, 0, 0.5]
+- [0.5, 0, 1]
+- [1, 0, 1]

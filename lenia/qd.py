@@ -443,8 +443,6 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
     for id_best, best in enumerate(real_bests):
         config = best.get_config()
 
-        render_params = config['render_params']
-
         start_time = time.time()
         all_cells, _, _, stats_dict = lenia_helpers.init_and_run(config, True)
         stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
@@ -479,6 +477,7 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
             )
 
         print('Dumping video')
+        render_params = config['render_params']
         lenia_video.dump_video(all_cells, render_params, media_dir, colormap)
 
         print('---')

@@ -119,6 +119,8 @@ def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividua
 def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness=False) -> Callable:
     max_run_iter = qd_config['run_params']['max_run_iter']
     world_params = qd_config['world_params']
+    R = world_params['R']
+    T = world_params['T']
     render_params = qd_config['render_params']
     update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
     kernels_params = qd_config['kernels_params']['k']
@@ -134,7 +136,7 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness=False)
         _, run_scan_mem_optimized_parameters = lenia_helpers.get_mem_optimized_inputs(qd_config, lenia_sols)
 
         Ns = lenia_core.run_scan_mem_optimized(
-            *run_scan_mem_optimized_parameters, max_run_iter, update_fn, compute_stats_fn
+            *run_scan_mem_optimized_parameters, max_run_iter, R, T, update_fn, compute_stats_fn
         )
         Ns.block_until_ready()
 
@@ -156,6 +158,7 @@ def eval_lenia_init(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividual:
     world_params = config['world_params']
     nb_channels = world_params['nb_channels']
     R = world_params['R']
+    T = world_params['T']
     update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
 
     render_params = config['render_params']
@@ -182,7 +185,7 @@ def eval_lenia_init(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividual:
     cells_0 = lenia_core.init_cells(world_size, nb_channels, [noise])
 
     all_cells, _, _, all_stats = lenia_core.run(
-        cells_0, K, gfn_params, kernels_weight_per_channel, max_run_iter, update_fn, compute_stats_fn
+        cells_0, K, gfn_params, kernels_weight_per_channel, max_run_iter, R, T, update_fn, compute_stats_fn
     )
 
     nb_steps = len(all_cells)

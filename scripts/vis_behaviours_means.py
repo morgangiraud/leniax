@@ -1,8 +1,8 @@
-from logging import error
 import os
 import pickle
 import matplotlib.pyplot as plt
 import jax.numpy as jnp
+from typing import Dict, List
 
 from ribs.archives import ArchiveBase, GridArchive
 
@@ -19,14 +19,14 @@ final_filename = 'final.p'
 def run() -> None:
     os.chdir(exp_dir)
 
-    all_mean_stats = {}
-    all_var_stats = {}
+    all_mean_stats: Dict[str, List] = {}
+    all_var_stats: Dict[str, List] = {}
     grid_shape = [50, 50]
-    mass_domain = [0, 4000]
-    mass_speed_domain = [0, 0.2]
-    features_domain = [mass_domain, mass_speed_domain]
+    mass_density_domain = [0, 1.]
+    mass_speed_domain = [0, .15]
+    features_domain = [mass_density_domain, mass_speed_domain]
     fitness_domain = [0, 1024]
-    subdirs = [x[0] for x in os.walk(exp_dir)]  
+    subdirs = [x[0] for x in os.walk(exp_dir)]
     for subdir in subdirs:
         file_path = os.path.join(subdir, final_filename)
         if os.path.isfile(file_path):
@@ -42,10 +42,9 @@ def run() -> None:
 
         try:
             qd_config = grid.qd_config
-        except:
+        except Exception:
             # backward compatibility
             qd_config = grid.base_config
-
 
         seed = qd_config['run_params']['seed']
         rng_key = lenia_utils.seed_everything(seed)
@@ -79,19 +78,15 @@ def run() -> None:
                 all_mean_stats[k].append(stats_dict[k].squeeze()[-128:].mean())
                 all_var_stats[k].append(stats_dict[k].squeeze()[-128:].var())
 
-            behaviour = [
-                all_mean_stats['mass'][-1], 
-                all_mean_stats['mass_speed'][-1]
-            ]
+            behaviour = [all_mean_stats['mass'][-1], all_mean_stats['mass_speed'][-1]]
             behaviour_archive.add(lenia, 1024, behaviour, config)
 
         print(len(behaviour_archive._occupied_indices))
         lenia_qd.save_heatmap(behaviour_archive, fitness_domain, f"{subdir}/behaviour_archive_heatmap.png")
         with open(f"{subdir}/behaviour_final.p", 'wb') as handle:
             pickle.dump(behaviour_archive, handle, protocol=pickle.HIGHEST_PROTOCOL)
-        
-        
-    all_keys = list(all_mean_stats.keys())  
+
+    all_keys = list(all_mean_stats.keys())
     fig, axs = plt.subplots(len(all_keys))
     fig.set_size_inches(10, 10)
     for i, k in enumerate(all_keys):
@@ -109,7 +104,6 @@ def run() -> None:
     plt.tight_layout()
     fig.savefig(os.path.join(exp_dir, 'all_var_stats.png'))
     plt.close(fig)
-                               
 
 
 if __name__ == '__main__':

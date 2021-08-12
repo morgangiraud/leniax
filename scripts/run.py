@@ -23,8 +23,8 @@ config_path_1c1kv2 = os.path.join(cdir, '..', 'conf', 'species', '1c-1k-v2')
 config_path_outputs = os.path.join(cdir, '..', 'outputs', '2021-08-09', '09-39-59')
 
 
-# @hydra.main(config_path=config_path_1c1k, config_name="orbium")
-@hydra.main(config_path=config_path_1c1kv2, config_name="wanderer")
+@hydra.main(config_path=config_path_1c1k, config_name="orbium")
+# @hydra.main(config_path=config_path_1c1kv2, config_name="wanderer")
 # @hydra.main(config_path=config_path, config_name="orbium-scutium")
 # @hydra.main(config_path=config_path_outputs, config_name="config")
 def run(omegaConf: DictConfig) -> None:

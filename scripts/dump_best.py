@@ -10,7 +10,7 @@ config_path = os.path.join(cdir, '..', 'conf')
 
 # final_dir = os.path.join(cdir, '..', 'outputs', '2021-08-08', '08-51-38')
 # final_dir = os.path.join(cdir, '..', 'outputs', 'test')
-final_dir = os.path.join(cdir, '..', 'experiments', '004_v1_1c1k_b1,0.5_m_s')
+final_dir = os.path.join(cdir, '..', 'experiments', '003_v1_1c1k_b0.5,1_m_s')
 final_filename = os.path.join(final_dir, 'final.p')
 
 

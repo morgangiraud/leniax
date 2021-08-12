@@ -37,6 +37,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Di
     nb_channels = world_params['nb_channels']
     update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
     R = world_params['R']
+    T = world_params['T']
 
     render_params = config['render_params']
     world_size = render_params['world_size']
@@ -72,7 +73,15 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Di
         # t0 = time.time()
 
         all_cells, _, _, all_stats = lenia_core.run_scan(
-            all_cells_0_jnp[i], K, gfn_params, kernels_weight_per_channel, max_run_iter, update_fn, compute_stats_fn
+            all_cells_0_jnp[i],
+            K,
+            gfn_params,
+            kernels_weight_per_channel,
+            max_run_iter,
+            R,
+            T,
+            update_fn,
+            compute_stats_fn,
         )
         # https://jax.readthedocs.io/en/latest/async_dispatch.html
         all_stats['N'].block_until_ready()
@@ -100,17 +109,19 @@ def init_and_run(config: Dict, with_jit: bool = False) -> Tuple:
     update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
 
     max_run_iter = config['run_params']['max_run_iter']
+    R = config['world_params']['R']
+    T = config['world_params']['T']
 
     update_fn = lenia_core.build_update_fn(config['world_params'], K.shape, mapping, update_fn_version)
     compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     if with_jit is True:
         outputs = lenia_core.run_scan(
-            cells, K, gfn_params, kernels_weight_per_channel, max_run_iter, update_fn, compute_stats_fn
+            cells, K, gfn_params, kernels_weight_per_channel, max_run_iter, R, T, update_fn, compute_stats_fn
         )
     else:
         outputs = lenia_core.run(
-            cells, K, gfn_params, kernels_weight_per_channel, max_run_iter, update_fn, compute_stats_fn
+            cells, K, gfn_params, kernels_weight_per_channel, max_run_iter, R, T, update_fn, compute_stats_fn
         )
 
     return outputs

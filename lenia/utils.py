@@ -423,7 +423,7 @@ def plot_stats(save_dir: str, stats_dict: Dict):
     plt.tight_layout()
     truncated_nb_steps = min(nb_steps, 128)
     plt.xticks(np.arange(0, truncated_nb_steps, 8))
-    fig.savefig(os.path.join(save_dir, 'stats_last_64.png'))
+    fig.savefig(os.path.join(save_dir, f"stats_last_{truncated_nb_steps}.png"))
     plt.close(fig)
 
 

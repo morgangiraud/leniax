@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 from jax import jit
-from typing import List, Dict, Callable, Tuple
+from typing import List, Dict, Callable
 
 from .constant import EPSILON
 from .utils import center_world
@@ -10,55 +10,67 @@ from .utils import center_world
 def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
     world_size = render_params['world_size']
     R = world_params['R']
+    dt = 1. / world_params['T']
 
     midpoint = jnp.asarray([size // 2 for size in world_size])[:, jnp.newaxis, jnp.newaxis]
     coords = jnp.indices(world_size)
-    whitened_coords = (coords - midpoint) / R  # [nb_dims, H, W]
+    centered_coords = coords - midpoint  # [nb_dims, H, W]
 
     @jit
-    def compute_stats(cells, field, potential, total_shift_idx):
+    def compute_stats(cells, field, potential, previous_total_shift_idx):
         # cells: # [N, C, H, W]
         # field: # [N, C, H, W]
         # potential: # [N, C, H, W]
         non_batch_dims = tuple(range(1, cells.ndim, 1))
         axes = tuple(range(-(cells.ndim - 2), 0, 1))
-        
+
+        # https://en.wikipedia.org/wiki/Image_moment
         # Those statistic works on a centered world
-        centered_cells, centered_field, _ = center_world(cells, field, potential, total_shift_idx, axes)
-
-        mass = centered_cells.sum(axis=non_batch_dims)
+        centered_cells, centered_field, _ = center_world(cells, field, potential, previous_total_shift_idx, axes)
         positive_field = jnp.maximum(centered_field, 0)
-        growth = positive_field.sum(axis=non_batch_dims)
-        percent_activated = (centered_cells > EPSILON).mean(axis=non_batch_dims)
-        
-        AX = [centered_cells * x for x in whitened_coords]
-        MX1 = [ax.sum(axis=non_batch_dims) for ax in AX]
-        mass_center = jnp.asarray(MX1) / (mass + EPSILON)
-        # This function returns "mass centered" cells so the previous mass_center is at origin
-        dm = mass_center
-        mass_speed = jnp.linalg.norm(dm, axis=0)
-        mass_angle = jnp.degrees(jnp.arctan2(dm[1], dm[0]))
 
-        MX2 = [(ax * x).sum() for ax, x in zip(AX, whitened_coords)]
-        MuX2 = [mx2 - mx * mx1 for mx, mx1, mx2 in zip(mass_center, MX1, MX2)]
-        inertia = sum(MuX2)
+        m_00 = centered_cells.sum(axis=non_batch_dims)
+        g_00 = positive_field.sum(axis=non_batch_dims)
 
-        GX1 = [(positive_field * x).sum(axis=non_batch_dims) for x in whitened_coords]
-        growth_center = jnp.asarray(GX1) / (growth + EPSILON)
-        mass_growth_dist = jnp.linalg.norm(mass_center - growth_center, axis=0)
+        mass = m_00 / R**2
+        mass_volume = (centered_cells > EPSILON).sum(axis=non_batch_dims) / R**2
+        mass_density = mass / mass_volume
 
-        shift_idx = (mass_center * R).astype(int).T
+        growth = g_00 / R**2
+        growth_volume = (positive_field > EPSILON).sum(axis=non_batch_dims) / R**2
+        growth_density = growth / growth_volume
+
+        AX = [centered_cells * x for x in centered_coords]  # [nb_world_dims, N, C, world_dims...]
+        MX = [ax.sum(axis=non_batch_dims) for ax in AX]  # [nb_world_dims, N]
+        mass_centroid = jnp.array(MX) / (m_00 + EPSILON)
+        # This function returns "mass centered" cells so the previous mass_centroid is at origin
+        dm = jnp.linalg.norm(mass_centroid, axis=0)
+        mass_speed = dm / R / dt  # [N]
+        mass_angle_speed = jnp.degrees(jnp.arctan2(mass_centroid[1], mass_centroid[0])) / dt  # [N]
+
+        GX = [(positive_field * x).sum(axis=non_batch_dims) for x in centered_coords]
+        growth_centroid = jnp.array(GX) / (g_00 + EPSILON)
+        mass_growth_dist = jnp.linalg.norm(growth_centroid - mass_centroid, axis=0) / R
+
+        MX2 = [(ax * x).sum(axis=non_batch_dims) for ax, x in zip(AX, centered_coords)]
+        MuX2 = [mx2 - mc * mx for mc, mx, mx2 in zip(mass_centroid, MX, MX2)]
+        inertia = jnp.array(MuX2).sum(axis=0) / R**2
+
+        shift_idx = mass_centroid.astype(int).T
         world_shape = jnp.array(cells.shape[2:])
-        total_shift_idx = (total_shift_idx + shift_idx) % world_shape
+        total_shift_idx = (previous_total_shift_idx + shift_idx) % world_shape
 
         stats = {
             'mass': mass,
+            'mass_volume': mass_volume,
+            'mass_density': mass_density,
             'growth': growth,
-            'inertia': inertia,
-            'mass_growth_dist': mass_growth_dist,
+            'growth_volume': growth_volume,
+            'growth_density': growth_density,
             'mass_speed': mass_speed,
-            'mass_angle': mass_angle,
-            'percent_activated': percent_activated,
+            'mass_angle_speed': mass_angle_speed,
+            'mass_growth_dist': mass_growth_dist,
+            'inertia': inertia,
         }
 
         return (stats, total_shift_idx)
@@ -69,8 +81,8 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
 ###
 # Heuristics
 ###
-@jit
-def check_heuristics(stats: Dict[str, jnp.ndarray]):
+@jax.partial(jit, static_argnums=(1, 2))
+def check_heuristics(stats: Dict[str, jnp.ndarray], R: float, dt: float):
     def fn(carry, stat_t):
         should_continue = carry['should_continue']
         init_mass = carry['init_mass']
@@ -86,23 +98,21 @@ def check_heuristics(stats: Dict[str, jnp.ndarray]):
 
         sign = jnp.sign(mass - previous_mass)
         monotone_counter = counters['nb_monotone_step']
-        cond, counters['nb_monotone_step'] = monotonic_heuristic_seq(sign, previous_sign, monotone_counter)
+        cond, counters['nb_monotone_step'] = monotonic_heuristic(sign, previous_sign, monotone_counter)
         should_continue_cond *= cond
 
         # growth = stat_t['growth']
-        # cond = max_growth_heuristic(growth)
+        # cond = max_growth_heuristic(growth, R)
         # should_continue_cond *= cond
 
         mass_speed = stat_t['mass_speed']
         mass_speed_counter = counters['nb_slow_mass_step']
-        cond, counters['nb_slow_mass_step'] = max_mass_speed_heuristic_seq(mass_speed, mass_speed_counter)
+        cond, counters['nb_slow_mass_step'] = min_mass_speed_heuristic(mass_speed, mass_speed_counter, R, dt)
         should_continue_cond *= cond
 
-        percent_activated = stat_t['percent_activated']
-        percent_activated_counter = counters['nb_too_much_percent_step']
-        cond, counters['nb_too_much_percent_step'] = percent_activated_heuristic_seq(
-            percent_activated, percent_activated_counter
-        )
+        mass_volume = stat_t['mass_volume']
+        mass_volume_counter = counters['nb_max_volume_step']
+        cond, counters['nb_max_volume_step'] = mass_volume_heuristic(mass_volume, mass_volume_counter, R)
         should_continue_cond *= cond
 
         should_continue *= should_continue_cond
@@ -129,11 +139,11 @@ def check_heuristics(stats: Dict[str, jnp.ndarray]):
     return continue_stat
 
 
-def init_counters(N: int) -> Dict[str, int]:
+def init_counters(N: int) -> Dict[str, jnp.ndarray]:
     return {
         'nb_monotone_step': jnp.zeros(N),
         'nb_slow_mass_step': jnp.zeros(N),
-        'nb_too_much_percent_step': jnp.zeros(N),
+        'nb_max_volume_step': jnp.zeros(N),
     }
 
 
@@ -154,15 +164,6 @@ MONOTONIC_STOP_STEP = 80
 
 def monotonic_heuristic(sign: jnp.ndarray, previous_sign: jnp.ndarray, monotone_counter: jnp.ndarray):
     sign_cond = (sign == previous_sign)
-    monotone_counter = jax.ops.index_add(monotone_counter, sign_cond, 1.)
-    monotone_counter = jax.ops.index_update(monotone_counter, ~sign_cond, 0.)
-    should_continue_cond = monotone_counter <= MONOTONIC_STOP_STEP
-
-    return should_continue_cond, monotone_counter
-
-
-def monotonic_heuristic_seq(sign: float, previous_sign: float, monotone_counter: int) -> Tuple[bool, int]:
-    sign_cond = (sign == previous_sign)
     monotone_counter = monotone_counter * sign_cond + 1
     should_continue_cond = monotone_counter <= MONOTONIC_STOP_STEP
 
@@ -173,17 +174,8 @@ MASS_SPEED_THRESHOLD = 0.01
 MASS_SPEED_STOP_STEP = 16
 
 
-def max_mass_speed_heuristic(mass_speed: jnp.ndarray, mass_speed_counter: jnp.ndarray):
-    mass_speed_cond = (mass_speed < MASS_SPEED_THRESHOLD)
-    mass_speed_counter = jax.ops.index_add(mass_speed_counter, mass_speed_cond, 1.)
-    mass_speed_counter = jax.ops.index_update(mass_speed_counter, ~mass_speed_cond, 0.)
-    should_continue_cond = mass_speed_counter <= MASS_SPEED_STOP_STEP
-
-    return should_continue_cond, mass_speed_counter
-
-
-def max_mass_speed_heuristic_seq(mass_speed: float, mass_speed_counter: int) -> Tuple[bool, int]:
-    mass_speed_cond = (mass_speed < MASS_SPEED_THRESHOLD)
+def min_mass_speed_heuristic(mass_speed: jnp.ndarray, mass_speed_counter: jnp.ndarray, R: float, dt: float):
+    mass_speed_cond = jnp.array(mass_speed < MASS_SPEED_THRESHOLD / R / dt)
     mass_speed_counter = mass_speed_counter * mass_speed_cond + 1
     should_continue_cond = mass_speed_counter <= MASS_SPEED_STOP_STEP
 
@@ -193,39 +185,25 @@ def max_mass_speed_heuristic_seq(mass_speed: float, mass_speed_counter: int) -> 
 GROWTH_THRESHOLD = 500
 
 
-def max_growth_heuristic(growth: jnp.ndarray):
-    should_continue_cond = growth <= GROWTH_THRESHOLD
+def max_growth_heuristic(growth: jnp.ndarray, R: float):
+    should_continue_cond = growth <= GROWTH_THRESHOLD / R**2
 
     return should_continue_cond
 
 
-def max_growth_heuristic_sec(growth: float):
-    should_continue_cond = growth <= GROWTH_THRESHOLD
-
-    return should_continue_cond
-
-
-PERCENT_ACTIVATED_THRESHOLD = 0.2
-PERCENT_ACTIVATED_STOP_STEP = 50
+# Those are 3200 pixels activated
+# This number comes from the early days when I set the threshold
+# at 20% of a 128*128 ~= 3277 pixels
+MASS_VOLUME_THRESHOLD = 3200
+MASS_VOLUME_STOP_STEP = 50
 
 
-def percent_activated_heuristic(percent_activated: jnp.ndarray, percent_activated_counter: jnp.ndarray):
-    percent_activated_cond = (percent_activated > PERCENT_ACTIVATED_THRESHOLD)
-    percent_activated_counter = jax.ops.index_add(percent_activated_counter, percent_activated_cond, 1.)
-    percent_activated_counter = jax.ops.index_update(percent_activated_counter, ~percent_activated_cond, 0.)
-    should_continue_cond = percent_activated_counter <= PERCENT_ACTIVATED_STOP_STEP
+def mass_volume_heuristic(mass_volume: jnp.ndarray, mass_volume_counter: jnp.ndarray, R: float):
+    volume_cond = jnp.array(mass_volume > MASS_VOLUME_THRESHOLD / R**2)
+    mass_volume_counter = mass_volume_counter * volume_cond + 1
+    should_continue_cond = mass_volume_counter <= MASS_VOLUME_STOP_STEP
 
-    return should_continue_cond, percent_activated_counter
-
-
-def percent_activated_heuristic_seq(percent_activated: float, percent_activated_counter: int) -> Tuple[bool, int]:
-    # Stops when the world is N% covered
-    # Hopefully, no species takes so much space
-    percent_cond = (percent_activated > PERCENT_ACTIVATED_THRESHOLD)
-    percent_activated_counter = percent_activated_counter * percent_cond + 1
-    should_continue_cond = percent_activated_counter <= PERCENT_ACTIVATED_STOP_STEP
-
-    return should_continue_cond, percent_activated_counter
+    return should_continue_cond, mass_volume_counter
 
 
 ###

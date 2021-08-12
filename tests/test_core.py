@@ -24,6 +24,8 @@ class TestCore(unittest.TestCase):
             omegaConf = compose(config_name="qd_config-test")
             qd_config = get_container(omegaConf)
 
+        R = qd_config['world_params']['R']
+        T = qd_config['world_params']['T']
         max_run_iter = qd_config['run_params']['max_run_iter']
         seed = qd_config['run_params']['seed']
         rng_key = lenia_utils.seed_everything(seed)
@@ -65,6 +67,8 @@ class TestCore(unittest.TestCase):
         Ns1 = lenia_core.run_scan_mem_optimized(
             *run_scan_mem_optimized_parameters1,
             max_run_iter,
+            R,
+            T,
             update_fn,
             compute_stats_fn,
         )
@@ -75,6 +79,8 @@ class TestCore(unittest.TestCase):
         Ns2 = lenia_core.run_scan_mem_optimized(
             *run_scan_mem_optimized_parameters2,
             max_run_iter,
+            R,
+            T,
             update_fn,
             compute_stats_fn,
         )
@@ -95,6 +101,8 @@ class TestCore(unittest.TestCase):
         max_run_iter = 32
         cells, K, mapping = lenia_core.init(config)
         world_params = config['world_params']
+        R = world_params['R']
+        T = world_params['T']
         update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
         update_fn = lenia_core.build_update_fn(config['world_params'], K.shape, mapping, update_fn_version)
         compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
@@ -106,7 +114,7 @@ class TestCore(unittest.TestCase):
 
         t0 = time.time()
         out1, _, _, _ = lenia_core.run_scan(
-            cells1, K1, gfn_params1, kernels_weight_per_channel1, max_run_iter, update_fn, compute_stats_fn
+            cells1, K1, gfn_params1, kernels_weight_per_channel1, max_run_iter, R, T, update_fn, compute_stats_fn
         )
         out1.block_until_ready()
         delta_t = time.time() - t0
@@ -119,7 +127,7 @@ class TestCore(unittest.TestCase):
 
         t0 = time.time()
         out2, _, _, _ = lenia_core.run_scan(
-            cells2, K2, gfn_params2, kernels_weight_per_channel2, max_run_iter, update_fn, compute_stats_fn
+            cells2, K2, gfn_params2, kernels_weight_per_channel2, max_run_iter, R, T, update_fn, compute_stats_fn
         )
         out2.block_until_ready()
         delta_t_compiled = time.time() - t0

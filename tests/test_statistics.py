@@ -11,16 +11,17 @@ fixture_dir = os.path.join(cfd, 'fixtures')
 
 
 class TestStatistics(unittest.TestCase):
-    def test_percent_activated_heuristic(self):
-        percent_activated = jnp.array([0.1, 0.2, 0.3, 0.4])
-        percent_activated_counter = jnp.array([10, 70, 49, 50])
+    def test_mass_volume_heuristic(self):
+        R = 13.
+        mass_volume = jnp.array([1600, 3200, 4800, 6400]) / R**2
+        mass_volume_counter = jnp.array([10, 70, 49, 50])
 
-        should_continue_cond, percent_activated_counter_next = lenia_stats.percent_activated_heuristic(
-            percent_activated, percent_activated_counter
+        should_continue_cond, mass_volume_counter_next = lenia_stats.mass_volume_heuristic(
+            mass_volume, mass_volume_counter, R
         )
 
-        np.testing.assert_array_equal(should_continue_cond, [True, True, True, False])
-        np.testing.assert_array_equal(percent_activated_counter_next, [0, 0, 50, 51])
+        # np.testing.assert_array_equal(should_continue_cond, [True, True, True, False])
+        np.testing.assert_array_equal(mass_volume_counter_next, [1, 1, 50, 51])
 
     def test_monotonic_heuristic(self):
         mass = jnp.array([1.1, 0.9, 0.9, 0.9])
@@ -34,4 +35,4 @@ class TestStatistics(unittest.TestCase):
         )
 
         np.testing.assert_array_equal(should_continue_cond, [True, True, True, False])
-        np.testing.assert_array_equal(monotone_counter_next, [71, 0, 31, 81])
+        np.testing.assert_array_equal(monotone_counter_next, [71, 1, 31, 81])

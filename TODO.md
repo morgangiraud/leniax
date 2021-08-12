@@ -56,8 +56,9 @@ It seems to occur mainly on the last element of the set.
 
 ## Now
 - Fix the progress bar for collab
-- Computate statistics for all species already found to get a sense of good behaviours statistics and their ranges
 - Define a 2D set of behaviours (mass_speed ?, etc.)
+- Dump species (center world + crop of last frame)
+- Dump cdf of all fitness, behaviours and genome
 - Do validation number 3
 - Let's explore 1c-1k, 1c-2k, 1c-3k for now (looking for 10 species with interelation)
 - Let's explore with T and R

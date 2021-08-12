@@ -1,4 +1,3 @@
-import math
 import jax
 from jax import vmap, lax, jit
 import jax.numpy as jnp
@@ -55,6 +54,8 @@ def run(
     gfn_params: jnp.ndarray,
     kernels_weight_per_channel: jnp.ndarray,
     max_run_iter: int,
+    R: float,
+    T: float,
     update_fn: Callable,
     compute_stats_fn: Callable
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
@@ -72,67 +73,63 @@ def run(
     init_mass = cells.sum()
 
     previous_mass = init_mass
-    previous_sign = 0.
-    nb_monotone_step = 0
-    nb_slow_mass_step = 0
-    nb_too_much_percent_step = 0
-    should_continue = True
+    previous_sign = jnp.zeros(N)
+    counters = lenia_stat.init_counters(N)
+    should_continue = jnp.ones(N)
     for current_iter in range(max_run_iter):
         new_cells, field, potential = update_fn(cells, K, gfn_params, kernels_weight_per_channel)
 
-        stats, total_shift_idx = compute_stats_fn(cells, field, potential, total_shift_idx)
+        stat_t, total_shift_idx = compute_stats_fn(cells, field, potential, total_shift_idx)
 
         cells = new_cells
         all_cells.append(cells)
         all_fields.append(field)
         all_potentials.append(potential)
-        all_stats.append(stats)
+        all_stats.append(stat_t)
+
+        mass = stat_t['mass']
+        # Stops when there is no more mass in the system
+        cond = lenia_stat.min_mass_heuristic(EPSILON, mass)
+        should_continue_cond = cond
+        cond = lenia_stat.max_mass_heuristic(init_mass, mass)
+        should_continue_cond *= cond
 
         # Heuristics
         # Looking for non-static species
-        mass_speed = stats['mass_speed']
-        should_continue_cond, nb_slow_mass_step = lenia_stat.max_mass_speed_heuristic_seq(mass_speed, nb_slow_mass_step)
-        should_continue = should_continue and should_continue_cond
-
-        # Checking if it is a kind of cosmic soup
-        # growth = stats['growth']
-        # should_continue_cond = lenia_stat.max_growth_heuristics_sec(growth)
-        # should_continue = should_continue and should_continue_cond
-
-        current_mass = stats['mass']
-        percent_activated = stats['percent_activated']
-
-        # Heuristics
-        # Stops when there is no more mass in the system
-        if current_mass < EPSILON:
-            # print("current_mass < should_stop", current_mass)
-            should_continue = False
-
-        # Stops when there is too much mass in the system
-        if current_mass > 3 * init_mass:  # heuristic to detect explosive behaviour
-            # print("current_mass > should_stop", current_mass)
-            should_continue = False
-
-        # Stops when mass evolve monotically over a quite long period
-        # Signal for long-term explosive/implosivve behaviour
-        current_sign = math.copysign(1, previous_mass - current_mass)
-        if current_sign == previous_sign:
-            nb_monotone_step += 1
-            if nb_monotone_step > 80:
-                # print("current_sign > should_stop")
-                should_continue = False
-        else:
-            nb_monotone_step = 0
-        previous_sign = current_sign
-        previous_mass = current_mass
-
-        should_continue_cond, nb_too_much_percent_step = lenia_stat.percent_activated_heuristic_seq(
-            percent_activated, nb_too_much_percent_step
+        mass_speed = stat_t['mass_speed']
+        mass_speed_counter = counters['nb_slow_mass_step']
+        cond, counters['nb_slow_mass_step'] = lenia_stat.min_mass_speed_heuristic(
+            mass_speed, mass_speed_counter, R, 1. / T
         )
-        should_continue = should_continue and should_continue_cond
+        should_continue_cond *= cond
+
+        sign = jnp.sign(mass - previous_mass)
+        monotone_counter = counters['nb_monotone_step']
+        cond, counters['nb_monotone_step'] = lenia_stat.monotonic_heuristic(sign, previous_sign, monotone_counter)
+        should_continue_cond *= cond
+
+        # growth = stat_t['growth']
+        # cond = max_growth_heuristic(growth, R)
+        # should_continue_cond *= cond
+
+        mass_speed = stat_t['mass_speed']
+        mass_speed_counter = counters['nb_slow_mass_step']
+        cond, counters['nb_slow_mass_step'] = lenia_stat.min_mass_speed_heuristic(
+            mass_speed, mass_speed_counter, R, 1. / T
+        )
+        should_continue_cond *= cond
+
+        mass_volume = stat_t['mass_volume']
+        mass_volume_counter = counters['nb_max_volume_step']
+        cond, counters['nb_max_volume_step'] = lenia_stat.mass_volume_heuristic(
+            mass_volume, mass_volume_counter, R
+        )
+        should_continue_cond *= cond
+
+        should_continue *= should_continue_cond
 
         # We avoid dismissing a simulation during the init period
-        if current_iter >= START_CHECK_STOP and not should_continue:
+        if current_iter >= START_CHECK_STOP and should_continue == 0:
             break
 
     # To keep the same number of elements per array
@@ -148,13 +145,15 @@ def run(
     return all_cells_jnp, all_fields_jnp, all_potentials_jnp, stats_dict
 
 
-@jax.partial(jit, static_argnums=(4, 5, 6))
+@jax.partial(jit, static_argnums=(4, 5, 6, 7, 8))
 def run_scan(
     cells0: jnp.ndarray,
     K: jnp.ndarray,
     gfn_params: jnp.ndarray,
     kernels_weight_per_channel: jnp.ndarray,
     max_run_iter: int,
+    R: float,
+    T: float,
     update_fn: Callable,
     compute_stats_fn: Callable
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
@@ -191,20 +190,22 @@ def run_scan(
 
     _, ys = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
 
-    continue_stat = lenia_stat.check_heuristics(ys['stats'])
+    continue_stat = lenia_stat.check_heuristics(ys['stats'], R, 1 / T)
     ys['stats']['N'] = continue_stat.sum(axis=0)
 
     return ys['cells'], ys['field'], ys['potential'], ys['stats']
 
 
-@jax.partial(jit, static_argnums=(4, 5, 6))
-@jax.partial(vmap, in_axes=(0, 0, 0, 0, None, None, None), out_axes=0)
+@jax.partial(jit, static_argnums=(4, 5, 6, 7, 8))
+@jax.partial(vmap, in_axes=(0, 0, 0, 0, None, None, None, None, None), out_axes=0)
 def run_scan_mem_optimized(
     cells0: jnp.ndarray,
     K: jnp.ndarray,
     gfn_params: jnp.ndarray,
     kernels_weight_per_channel: jnp.ndarray,
     max_run_iter: int,
+    R: float,
+    T: float,
     update_fn: Callable,
     compute_stats_fn: Callable
 ) -> int:
@@ -246,7 +247,7 @@ def run_scan_mem_optimized(
 
     _, stats = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
 
-    continue_stat = lenia_stat.check_heuristics(stats)
+    continue_stat = lenia_stat.check_heuristics(stats, R, 1 / T)
     N = continue_stat.sum(axis=0)
 
     return N

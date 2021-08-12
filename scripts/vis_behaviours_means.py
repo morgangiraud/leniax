@@ -23,7 +23,7 @@ def run() -> None:
     all_var_stats: Dict[str, List] = {}
     grid_shape = [50, 50]
     mass_density_domain = [0, 1.]
-    mass_speed_domain = [0, .15]
+    mass_speed_domain = [0, 2.]
     features_domain = [mass_density_domain, mass_speed_domain]
     fitness_domain = [0, 1024]
     subdirs = [x[0] for x in os.walk(exp_dir)]

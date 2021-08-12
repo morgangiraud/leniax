@@ -378,8 +378,8 @@ def weighted_select_average(fields: jnp.ndarray, weights: jnp.ndarray) -> jnp.nd
 
     out_tmp = jnp.matmul(weights, fields_reshaped)
     out_tmp = out_tmp.reshape([nb_channels, N] + world_dims)
-    out_tmp = out_tmp.swapaxes(0, 1)  # [N, nb_channels, world_dims...]
-    fields_normalized = out_tmp / weights.sum(axis=1)[jnp.newaxis, :, jnp.newaxis, jnp.newaxis]
+    fields_out = out_tmp.swapaxes(0, 1)  # [N, nb_channels, world_dims...]
+    fields_normalized = fields_out / weights.sum(axis=1)[jnp.newaxis, :, jnp.newaxis, jnp.newaxis]
 
     return fields_normalized
 

@@ -476,7 +476,7 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
         draw_kernels(K, save_dir, colormap)
         for i, kernel in enumerate(config['kernels_params']['k']):
             lenia_utils.plot_gfunction(
-                save_dir, i, growth_fns[kernel['gf_id']], kernel['m'], kernel['s'], config['world_params']['T']
+                save_dir, i, growth_fns[kernel['gf_id']], kernel['m'], kernel['s'], kernel['h'], config['world_params']['T']
             )
 
         print('Dumping video')

@@ -327,12 +327,12 @@ def normalize(v: jnp.ndarray, vmin: float, vmax: float, is_square: bool = False,
         return (v - vmin) / max(vmax - vmin, vmax2 - vmin2)
 
 
-def plot_gfunction(save_dir: str, id: int, fn: Callable, m: float, s: float, T: float):
+def plot_gfunction(save_dir: str, id: int, fn: Callable, m: float, s: float, h:float, T: float):
     fullpath = os.path.join(save_dir, f"growth_function{str(id).zfill(2)}.{image_ext}")
 
     x_t = jnp.linspace(0., 1., 200)
     dt = 1. / T
-    y = fn(x_t, m, s)
+    y = fn(x_t, m, s) * h
     dty = dt * y
     y_t_dt = x_t + dty
 
@@ -340,19 +340,19 @@ def plot_gfunction(save_dir: str, id: int, fn: Callable, m: float, s: float, T: 
     axs[0].grid(True, which='both')
     axs[0].axhline(y=0, color='k')
     axs[0].axvline(x=0, color='k')
-    axs[0].plot(x_t, y, 'r', label='y = gf(x)')
+    axs[0].plot(x_t, y, 'r', label='y = gf(x) * h')
     axs[0].legend(loc='upper left')
 
     axs[1].grid(True, which='both')
     axs[1].axhline(y=0, color='k')
     axs[1].axvline(x=0, color='k')
-    axs[1].plot(x_t, dty, 'r', label='y = dt * gf(x)')
+    axs[1].plot(x_t, dty, 'r', label='y = dt * gf(x) * h')
     axs[1].legend(loc='upper left')
 
     axs[2].grid(True, which='both')
     axs[2].axhline(y=0, color='k')
     axs[2].axvline(x=0, color='k')
-    axs[2].plot(x_t, y_t_dt, 'r', label='y = x + dt * gf(x)')
+    axs[2].plot(x_t, y_t_dt, 'r', label='y = x + dt * gf(x) * h')
     axs[2].plot(x_t, x_t, 'b', label='y = x')
     axs[2].legend(loc='upper left')
     plt.yticks(np.arange(-1, 1, .1))

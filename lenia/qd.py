@@ -11,7 +11,6 @@ from typing import Dict, Callable, List
 import jax
 import jax.numpy as jnp
 import numpy as np
-from alive_progress import alive_bar
 
 from ribs.archives import ArchiveBase
 from ribs.archives import GridArchive, CVTArchive
@@ -100,7 +99,12 @@ def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividua
     _, best, _ = lenia_helpers.search_for_init(ind.rng_key, config)
 
     nb_steps = best['N']
-    config['behaviours'] = best['all_stats']
+    stats = best['all_stats']
+    config['behaviours'] = {}
+    for k in stats.keys():
+        if k == 'N':
+            continue
+        config['behaviours'][k] = stats[k][-128:].mean()
     init_cells = best['all_cells'][0][:, 0, 0, ...]
     ind.set_init_cells(lenia_utils.compress_array(init_cells))
 
@@ -135,13 +139,13 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness=False)
         qd_config = lenia_sols[0].qd_config
         _, run_scan_mem_optimized_parameters = lenia_helpers.get_mem_optimized_inputs(qd_config, lenia_sols)
 
-        Ns = lenia_core.run_scan_mem_optimized(
+        stats = lenia_core.run_scan_mem_optimized(
             *run_scan_mem_optimized_parameters, max_run_iter, R, T, update_fn, compute_stats_fn
         )
-        Ns.block_until_ready()
+        stats['N'].block_until_ready()
 
         cells0s = run_scan_mem_optimized_parameters[0]
-        results = lenia_helpers.update_individuals(lenia_sols, Ns, cells0s, neg_fitness)
+        results = lenia_helpers.update_individuals(lenia_sols, stats, cells0s, neg_fitness)
 
         return results
 
@@ -240,66 +244,66 @@ def run_qd_search(
             n_workers == 0
 
     print(f"{'iter'}{'coverage':>32}{'mean':>20}{'std':>20}{'min':>16}{'max':>16}{'QD Score':>20}")
-    with alive_bar(nb_iter) as update_bar:
-        for itr in range(1, nb_iter + 1):
-            # Request models from the optimizer.
-            sols = optimizer.ask()
-            lenia_sols = []
-            for sol in sols:
-                lenia = next(lenia_generator)
-                lenia[:] = sol
-                lenia_sols.append(lenia)
+    # with alive_bar(nb_iter) as update_bar:
+    for itr in range(1, nb_iter + 1):
+        # Request models from the optimizer.
+        sols = optimizer.ask()
+        lenia_sols = []
+        for sol in sols:
+            lenia = next(lenia_generator)
+            lenia[:] = sol
+            lenia_sols.append(lenia)
 
-            # Evaluate the models and record the objectives and BCs.
-            results: List
-            if n_workers == -1:
-                # Beware in this case, we expect the evaluation function to handle a list of solutions
-                results = eval_fn(lenia_sols)
-            elif n_workers == 0:
-                results = list(map(eval_fn, lenia_sols))
-            else:
-                with get_context("spawn").Pool(processes=n_workers) as pool:
-                    results = pool.map(eval_fn, lenia_sols)
+        # Evaluate the models and record the objectives and BCs.
+        results: List
+        if n_workers == -1:
+            # Beware in this case, we expect the evaluation function to handle a list of solutions
+            results = eval_fn(lenia_sols)
+        elif n_workers == 0:
+            results = list(map(eval_fn, lenia_sols))
+        else:
+            with get_context("spawn").Pool(processes=n_workers) as pool:
+                results = pool.map(eval_fn, lenia_sols)
 
-            fits, bcs, metadata = [], [], []
-            for i, ind in enumerate(results):
-                fits.append(ind.fitness)
-                bcs.append(ind.features)
-                metadata.append(ind.get_config())
+        fits, bcs, metadata = [], [], []
+        for _, ind in enumerate(results):
+            fits.append(ind.fitness)
+            bcs.append(ind.features)
+            metadata.append(ind.get_config())
 
-            # Send the results back to the optimizer.
-            optimizer.tell(fits, bcs, metadata)
+        # Send the results back to the optimizer.
+        optimizer.tell(fits, bcs, metadata)
 
-            if itr % log_freq == 0 or itr == nb_iter:
-                df = optimizer.archive.as_pandas(include_solutions=False)
-                metrics["QD Score"]["x"].append(itr)
-                qd_score = (df['objective'] - fitness_domain[0]).sum() / (fitness_domain[1] - fitness_domain[0])
-                qd_score /= nb_total_bins
-                metrics["QD Score"]["y"].append(qd_score)
+        if itr % log_freq == 0 or itr == nb_iter:
+            df = optimizer.archive.as_pandas(include_solutions=False)
+            metrics["QD Score"]["x"].append(itr)
+            qd_score = (df['objective'] - fitness_domain[0]).sum() / (fitness_domain[1] - fitness_domain[0])
+            qd_score /= nb_total_bins
+            metrics["QD Score"]["y"].append(qd_score)
 
-                metrics["Max Score"]["x"].append(itr)
-                min_score = df["objective"].min()
-                max_score = df["objective"].max()
-                mean_score = df["objective"].mean()
-                std_score = df["objective"].std()
-                metrics["Max Score"]["y"].append(max_score)
+            metrics["Max Score"]["x"].append(itr)
+            min_score = df["objective"].min()
+            max_score = df["objective"].max()
+            mean_score = df["objective"].mean()
+            std_score = df["objective"].std()
+            metrics["Max Score"]["y"].append(max_score)
 
-                metrics["Archive Size"]["x"].append(itr)
-                metrics["Archive Size"]["y"].append(len(df))
-                metrics["Archive Coverage"]["x"].append(itr)
-                coverage = len(df) / nb_total_bins * 100
-                metrics["Archive Coverage"]["y"].append(coverage)
+            metrics["Archive Size"]["x"].append(itr)
+            metrics["Archive Size"]["y"].append(len(df))
+            metrics["Archive Coverage"]["x"].append(itr)
+            coverage = len(df) / nb_total_bins * 100
+            metrics["Archive Coverage"]["y"].append(coverage)
 
-                save_all(itr, optimizer, fitness_domain, sols, fits, bcs)
+            save_all(itr, optimizer, fitness_domain, sols, fits, bcs)
 
-                print(
-                    f"{len(df):>23}/{nb_total_bins:<6}{mean_score:>20.6f}"
-                    f"{std_score:>20.6f}{min_score:>16.6f}{max_score:>16.6f}{qd_score:>20.6f}"
-                )
+            print(
+                f"{len(df):>23}/{nb_total_bins:<6}{mean_score:>20.6f}"
+                f"{std_score:>20.6f}{min_score:>16.6f}{max_score:>16.6f}{qd_score:>20.6f}"
+            )
 
-            # Logging.
-            if not DEBUG:
-                update_bar()
+            # # Logging.
+            # if not DEBUG:
+            #     update_bar()
 
     return metrics
 
@@ -476,7 +480,13 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
         draw_kernels(K, save_dir, colormap)
         for i, kernel in enumerate(config['kernels_params']['k']):
             lenia_utils.plot_gfunction(
-                save_dir, i, growth_fns[kernel['gf_id']], kernel['m'], kernel['s'], kernel['h'], config['world_params']['T']
+                save_dir,
+                i,
+                growth_fns[kernel['gf_id']],
+                kernel['m'],
+                kernel['s'],
+                kernel['h'],
+                config['world_params']['T']
             )
 
         print('Dumping video')

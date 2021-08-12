@@ -57,10 +57,10 @@ class TestHelpers(unittest.TestCase):
         inds = [LeniaIndividual(qd_config, rng_key), LeniaIndividual(qd_config, rng_key)]
         inds[0][:] = [0.2, 0.02]
         inds[1][:] = [0.3, 0.03]
-        Ns = jnp.array([[1, 2, 3], [1, 3, 4]])
+        stats = {'N': jnp.array([[1, 2, 3], [1, 3, 4]])}
         cells0s = jnp.ones([2, 3] + qd_config["render_params"]["world_size"])
 
-        new_inds = lenia_helpers.update_individuals(inds, Ns, cells0s)
+        new_inds = lenia_helpers.update_individuals(inds, stats, cells0s)
 
         assert len(new_inds) == 2
         assert new_inds[0].fitness == 3

@@ -121,9 +121,7 @@ def run(
 
         mass_volume = stat_t['mass_volume']
         mass_volume_counter = counters['nb_max_volume_step']
-        cond, counters['nb_max_volume_step'] = lenia_stat.mass_volume_heuristic(
-            mass_volume, mass_volume_counter, R
-        )
+        cond, counters['nb_max_volume_step'] = lenia_stat.mass_volume_heuristic(mass_volume, mass_volume_counter, R)
         should_continue_cond *= cond
 
         should_continue *= should_continue_cond
@@ -156,7 +154,7 @@ def run_scan(
     T: float,
     update_fn: Callable,
     compute_stats_fn: Callable
-) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict[str, jnp.ndarray]]:
     N = cells0.shape[0]
     nb_world_dims = cells0.ndim - 2
 
@@ -208,7 +206,7 @@ def run_scan_mem_optimized(
     T: float,
     update_fn: Callable,
     compute_stats_fn: Callable
-) -> int:
+) -> Dict[str, jnp.ndarray]:
     """
         Args:
             - cells0: jnp.ndarray[N, nb_channels, world_dims...]
@@ -248,9 +246,9 @@ def run_scan_mem_optimized(
     _, stats = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
 
     continue_stat = lenia_stat.check_heuristics(stats, R, 1 / T)
-    N = continue_stat.sum(axis=0)
+    stats['N'] = continue_stat.sum(axis=0)
 
-    return N
+    return stats
 
 
 def build_update_fn(

@@ -184,10 +184,12 @@ def get_mem_optimized_inputs(qd_config: Dict, lenia_sols: List[LeniaIndividual])
     return rng_key, run_scan_mem_optimized_parameters
 
 
-def update_individuals(inds: List[LeniaIndividual],
-                       Ns: jnp.ndarray,
-                       cells0s: jnp.ndarray,
-                       neg_fitness=False) -> List[LeniaIndividual]:
+def update_individuals(
+    inds: List[LeniaIndividual],
+    stats: Dict[str, jnp.ndarray],
+    cells0s: jnp.ndarray,
+    neg_fitness=False
+) -> List[LeniaIndividual]:
     """
         Args:
             - inds:         List,                       Evaluated Lenia individuals
@@ -197,7 +199,7 @@ def update_individuals(inds: List[LeniaIndividual],
     for i, ind in enumerate(inds):
         config = ind.get_config()
 
-        current_Ns = Ns[i]
+        current_Ns = stats['N'][i]
         current_cells0s = cells0s[i]
 
         max_idx = jnp.argmax(current_Ns, axis=0)
@@ -206,7 +208,12 @@ def update_individuals(inds: List[LeniaIndividual],
         cells0 = current_cells0s[max_idx]
         # print(i, current_Ns, max_idx)
 
-        # config['behaviours'] = best['all_stats']
+        config['behaviours'] = {}
+        for k in stats.keys():
+            if k == 'N':
+                continue
+            truncated_stat = stats[k][i, :int(nb_steps), max_idx]
+            config['behaviours'][k] = truncated_stat[-128:].mean()
         ind.set_init_cells(lenia_utils.compress_array(cells0))
 
         if neg_fitness is True:

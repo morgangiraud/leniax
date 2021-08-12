@@ -327,7 +327,7 @@ def normalize(v: jnp.ndarray, vmin: float, vmax: float, is_square: bool = False,
         return (v - vmin) / max(vmax - vmin, vmax2 - vmin2)
 
 
-def plot_gfunction(save_dir: str, id: int, fn: Callable, m: float, s: float, h:float, T: float):
+def plot_gfunction(save_dir: str, id: int, fn: Callable, m: float, s: float, h: float, T: float):
     fullpath = os.path.join(save_dir, f"growth_function{str(id).zfill(2)}.{image_ext}")
 
     x_t = jnp.linspace(0., 1., 200)

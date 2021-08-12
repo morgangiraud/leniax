@@ -64,7 +64,7 @@ class TestCore(unittest.TestCase):
         # jax.profiler.start_trace("/tmp/tensorboard")
 
         t0 = time.time()
-        Ns1 = lenia_core.run_scan_mem_optimized(
+        stats1 = lenia_core.run_scan_mem_optimized(
             *run_scan_mem_optimized_parameters1,
             max_run_iter,
             R,
@@ -72,11 +72,11 @@ class TestCore(unittest.TestCase):
             update_fn,
             compute_stats_fn,
         )
-        Ns1.block_until_ready()
+        stats1['N'].block_until_ready()
         delta_t = time.time() - t0
 
         t0 = time.time()
-        Ns2 = lenia_core.run_scan_mem_optimized(
+        stats2 = lenia_core.run_scan_mem_optimized(
             *run_scan_mem_optimized_parameters2,
             max_run_iter,
             R,
@@ -84,7 +84,7 @@ class TestCore(unittest.TestCase):
             update_fn,
             compute_stats_fn,
         )
-        Ns2.block_until_ready()
+        stats2['N'].block_until_ready()
         delta_t_compiled = time.time() - t0
 
         # jax.profiler.stop_trace()

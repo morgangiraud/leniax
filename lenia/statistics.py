@@ -34,11 +34,11 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
 
         mass = m_00 / R**2
         mass_volume = (centered_cells > EPSILON).sum(axis=non_batch_dims) / R**2
-        mass_density = mass / mass_volume
+        mass_density = mass / (mass_volume + EPSILON)
 
         growth = g_00 / R**2
         growth_volume = (positive_field > EPSILON).sum(axis=non_batch_dims) / R**2
-        growth_density = growth / growth_volume
+        growth_density = growth / (growth_volume + EPSILON)
 
         AX = [centered_cells * x for x in centered_coords]  # [nb_world_dims, N, C, world_dims...]
         MX = [ax.sum(axis=non_batch_dims) for ax in AX]  # [nb_world_dims, N]

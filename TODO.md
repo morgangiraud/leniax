@@ -47,6 +47,8 @@ It might be interesting to spot the perfect
 
 Any growth functions that would boost the 0 value is doomed to fail. This would create a process that generates mass from an empty world.
 
+About AQUARIUM specie: At that point, Bert remove the average in "weighted_select_average" function. This is like a v1.5?
+
 ##### 1c1k notes
 - A random uniform initialisation convolved with a big enough kernel wil result in a neat constant field around the mean of the uniform distribution.
 

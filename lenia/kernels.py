@@ -169,9 +169,9 @@ def draw_kernels(K, save_dir, colormap):
 
     pixel_size = 1
     pixel_border_size = 0
-    for i in range(K.shape[1]):
+    for i in range(K.shape[0]):
         id = str(i).zfill(2)
-        current_k = K[0, i:i + 1]
+        current_k = K[i:i + 1, 0]
         img = lenia_utils.get_image(
             lenia_utils.normalize(current_k, 0, jnp.max(current_k)), pixel_size, pixel_border_size, colormap
         )

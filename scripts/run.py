@@ -26,8 +26,9 @@ config_path_outputs = os.path.join(cdir, '..', 'outputs', '2021-08-09', '09-39-5
 
 
 # @hydra.main(config_path=config_path_1c1k, config_name="orbium")
+@hydra.main(config_path=config_path_1c1k, config_name="vibratium")
 # @hydra.main(config_path=config_path_1c3k, config_name="fish")
-@hydra.main(config_path=config_path_3c15k, config_name="aquarium")
+# @hydra.main(config_path=config_path_3c15k, config_name="aquarium")
 # @hydra.main(config_path=config_path_1c1kv2, config_name="wanderer")
 # @hydra.main(config_path=config_path, config_name="orbium-scutium")
 # @hydra.main(config_path=config_path_outputs, config_name="config")

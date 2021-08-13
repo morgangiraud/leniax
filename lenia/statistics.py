@@ -4,7 +4,7 @@ from jax import jit
 from typing import List, Dict, Callable
 
 from .constant import EPSILON
-from .utils import center_world
+from . import utils as lenia_utils
 
 
 def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
@@ -15,18 +15,30 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
     midpoint = jnp.asarray([size // 2 for size in world_size])[:, jnp.newaxis, jnp.newaxis]
     coords = jnp.indices(world_size)
     centered_coords = coords - midpoint  # [nb_dims, H, W]
+    non_batch_dims = tuple(range(1, 1 + 1 + len(world_size), 1))
+    axes = tuple(range(-len(world_size), 0, 1))
 
-    @jit
-    def compute_stats(cells, field, potential, previous_total_shift_idx):
+    # @jit
+    def compute_stats(cells, field, potential, previous_total_shift_idx, previous_mass_centroid, previous_mass_angle):
+        """
+            Args:
+                - cells: jnp.ndarray[N, C, world_dims...]
+                - field: jnp.ndarray[N, C, world_dims...]
+                - potential: jnp.ndarray[N, C, world_dims...]
+                - previous_total_shift_idx: jnp.ndarray[N, 2]
+                - previous_mass_centroid: jnp.ndarray[2, N]
+                - previous_mass_angle: jnp.ndarray[2, N]
+        """
         # cells: # [N, C, H, W]
         # field: # [N, C, H, W]
         # potential: # [N, C, H, W]
-        non_batch_dims = tuple(range(1, cells.ndim, 1))
-        axes = tuple(range(-(cells.ndim - 2), 0, 1))
 
         # https://en.wikipedia.org/wiki/Image_moment
-        # Those statistic works on a centered world
-        centered_cells, centered_field, _ = center_world(cells, field, potential, previous_total_shift_idx, axes)
+        # To avoid weird behaviours when species are crossing the frontiers, we need to compute stats
+        # from a centered world
+        centered_cells, centered_field, _ = lenia_utils.center_world(
+            cells, field, potential, previous_total_shift_idx, axes
+        )
         positive_field = jnp.maximum(centered_field, 0)
 
         m_00 = centered_cells.sum(axis=non_batch_dims)
@@ -40,25 +52,25 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
         growth_volume = (positive_field > EPSILON).sum(axis=non_batch_dims) / R**2
         growth_density = growth / (growth_volume + EPSILON)
 
-        AX = [centered_cells * x for x in centered_coords]  # [nb_world_dims, N, C, world_dims...]
+        AX = [centered_cells * coord for coord in centered_coords]  # [nb_world_dims, N, C, world_dims...]
         MX = [ax.sum(axis=non_batch_dims) for ax in AX]  # [nb_world_dims, N]
         mass_centroid = jnp.array(MX) / (m_00 + EPSILON)
-        # This function returns "mass centered" cells so the previous mass_centroid is at origin
-        dm = jnp.linalg.norm(mass_centroid, axis=0)
-        mass_speed = dm / R / dt  # [N]
-        mass_angle_speed = jnp.degrees(jnp.arctan2(mass_centroid[1], mass_centroid[0])) / dt  # [N]
 
-        GX = [(positive_field * x).sum(axis=non_batch_dims) for x in centered_coords]
+        delta_mass = mass_centroid - previous_mass_centroid  # [nb_world_dims, N]
+        dist_m = jnp.linalg.norm(delta_mass, axis=0)  # [N]
+
+        mass_speed = dist_m / R / dt  # [N]
+        mass_angle = jnp.degrees(jnp.arctan2(delta_mass[1], delta_mass[0])) * (dist_m / R > 0.001)
+
+        mass_angle_speed = ((mass_angle - previous_mass_angle + 540) % 360 - 180) / dt  # [N]
+
+        GX = [(positive_field * coord).sum(axis=non_batch_dims) for coord in centered_coords]
         growth_centroid = jnp.array(GX) / (g_00 + EPSILON)
         mass_growth_dist = jnp.linalg.norm(growth_centroid - mass_centroid, axis=0) / R
 
-        MX2 = [(ax * x).sum(axis=non_batch_dims) for ax, x in zip(AX, centered_coords)]
+        MX2 = [(ax * coord).sum(axis=non_batch_dims) for ax, coord in zip(AX, centered_coords)]
         MuX2 = [mx2 - mc * mx for mc, mx, mx2 in zip(mass_centroid, MX, MX2)]
         inertia = jnp.array(MuX2).sum(axis=0) / R**2
-
-        shift_idx = mass_centroid.astype(int).T
-        world_shape = jnp.array(cells.shape[2:])
-        total_shift_idx = (previous_total_shift_idx + shift_idx) % world_shape
 
         stats = {
             'mass': mass,
@@ -73,7 +85,16 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
             'inertia': inertia,
         }
 
-        return (stats, total_shift_idx)
+        shift_idx = mass_centroid.astype(int).T
+        world_shape = jnp.array(cells.shape[2:])
+        total_shift_idx = (previous_total_shift_idx + shift_idx) % world_shape
+
+        # Since we will center the world before computing stats
+        # The mass_centroid will also be shifted, so here we make sure we avoid the
+        # shifting errors
+        mass_centroid = mass_centroid - mass_centroid.astype(int)
+
+        return (stats, total_shift_idx, mass_centroid, mass_angle)
 
     return compute_stats
 
@@ -105,10 +126,10 @@ def check_heuristics(stats: Dict[str, jnp.ndarray], R: float, dt: float):
         # cond = max_growth_heuristic(growth, R)
         # should_continue_cond *= cond
 
-        mass_speed = stat_t['mass_speed']
-        mass_speed_counter = counters['nb_slow_mass_step']
-        cond, counters['nb_slow_mass_step'] = min_mass_speed_heuristic(mass_speed, mass_speed_counter, R, dt)
-        should_continue_cond *= cond
+        # mass_speed = stat_t['mass_speed']
+        # mass_speed_counter = counters['nb_slow_mass_step']
+        # cond, counters['nb_slow_mass_step'] = min_mass_speed_heuristic(mass_speed, mass_speed_counter, R, dt)
+        # should_continue_cond *= cond
 
         mass_volume = stat_t['mass_volume']
         mass_volume_counter = counters['nb_max_volume_step']
@@ -116,6 +137,7 @@ def check_heuristics(stats: Dict[str, jnp.ndarray], R: float, dt: float):
         should_continue_cond *= cond
 
         should_continue *= should_continue_cond
+
         new_carry = {
             'should_continue': should_continue,
             'init_mass': init_mass,

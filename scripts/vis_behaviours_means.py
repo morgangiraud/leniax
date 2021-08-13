@@ -20,11 +20,13 @@ def run() -> None:
     os.chdir(exp_dir)
 
     all_mean_stats: Dict[str, List] = {}
-    all_var_stats: Dict[str, List] = {}
-    grid_shape = [50, 50]
+    all_std_stats: Dict[str, List] = {}
+    grid_shape = [10, 10, 10]
     mass_density_domain = [0, 1.]
-    mass_speed_domain = [0, 2.]
+    mass_speed_domain = [0, 1.]
+    # mass_volume_domain = [0, 20.]
     features_domain = [mass_density_domain, mass_speed_domain]
+    # features_domain = [mass_density_domain, mass_volume_domain, mass_speed_domain]
     fitness_domain = [0, 1024]
     subdirs = [x[0] for x in os.walk(exp_dir)]
     for subdir in subdirs:
@@ -63,7 +65,9 @@ def run() -> None:
         print(f"Found {len(real_bests)} beast in {file_path}")
 
         behaviour_archive = GridArchive(grid_shape, features_domain)
-        behaviour_archive.initialize(len(features_domain))
+        solution_dim = 2  # genome
+        behaviour_archive.initialize(solution_dim)
+        behaviour_archive.qd_config = qd_config
 
         for lenia in real_bests:
             config = lenia.get_config()
@@ -73,12 +77,14 @@ def run() -> None:
                     continue
                 if k not in all_mean_stats:
                     all_mean_stats[k] = []
-                    all_var_stats[k] = []
+                    all_std_stats[k] = []
 
                 all_mean_stats[k].append(stats_dict[k].squeeze()[-128:].mean())
-                all_var_stats[k].append(stats_dict[k].squeeze()[-128:].var())
+                all_std_stats[k].append(stats_dict[k].squeeze()[-128:].std())
 
-            behaviour = [all_mean_stats['mass'][-1], all_mean_stats['mass_speed'][-1]]
+            behaviour = [
+                all_mean_stats['mass'][-1], all_mean_stats['mass_volume'][-1], all_mean_stats['mass_speed'][-1]
+            ]
             behaviour_archive.add(lenia, 1024, behaviour, config)
 
         print(len(behaviour_archive._occupied_indices))
@@ -99,10 +105,10 @@ def run() -> None:
     fig, axs = plt.subplots(len(all_keys))
     fig.set_size_inches(10, 10)
     for i, k in enumerate(all_keys):
-        axs[i].set_title(k.capitalize() + '_var')
-        axs[i].plot(all_var_stats[k], jnp.zeros_like(jnp.array(all_mean_stats[k])), 'x')
+        axs[i].set_title(k.capitalize() + '_std')
+        axs[i].plot(all_std_stats[k], jnp.zeros_like(jnp.array(all_mean_stats[k])), 'x')
     plt.tight_layout()
-    fig.savefig(os.path.join(exp_dir, 'all_var_stats.png'))
+    fig.savefig(os.path.join(exp_dir, 'all_std_stats.png'))
     plt.close(fig)
 
 

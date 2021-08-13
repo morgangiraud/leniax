@@ -9,8 +9,8 @@ cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
 
 # final_dir = os.path.join(cdir, '..', 'outputs', '2021-08-08', '08-51-38')
-# final_dir = os.path.join(cdir, '..', 'outputs', 'test')
-final_dir = os.path.join(cdir, '..', 'experiments', '003_v1_1c1k_b0.5,1_m_s')
+final_dir = os.path.join(cdir, '..', 'outputs', 'test')
+# final_dir = os.path.join(cdir, '..', 'experiments', '003_v1_1c1k_b0.5,1_m_s')
 final_filename = os.path.join(final_dir, 'final.p')
 
 
@@ -19,7 +19,11 @@ def run() -> None:
         data = pickle.load(f)
         if isinstance(data, ArchiveBase):
             grid = data
-            qd_config = grid.qd_config
+            try:
+                qd_config = grid.qd_config
+            except Exception:
+                # backward compatibility
+                qd_config = grid.base_config
         else:
             if 'container' in data:
                 grid = data['container']

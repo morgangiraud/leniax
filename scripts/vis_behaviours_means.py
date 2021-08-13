@@ -21,7 +21,8 @@ def run() -> None:
 
     all_mean_stats: Dict[str, List] = {}
     all_std_stats: Dict[str, List] = {}
-    grid_shape = [10, 10, 10]
+    grid_shape = [10, 10]
+    # grid_shape = [10, 10, 10]
     mass_density_domain = [0, 1.]
     mass_speed_domain = [0, 1.]
     # mass_volume_domain = [0, 20.]

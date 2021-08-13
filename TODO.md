@@ -27,24 +27,6 @@ Non-critical parameters:
 Rendering paremeters are unrelated with the search.
 
 ### Remarks
-I made a surprising progress on the init search reducing the need to ~128 initializations.
--> Delay the need to explore CPPN or gradient based init search
-
-The progress on JAX opens up some nice potential. I can parallelize initializations and parameters as long as they all shared the same critical parameters.
-Current perf on Collab with a t4 nvidia gpu
-- 1 function call
-- 32 parameters set
-- 128 initialization
-- 1024 iterations
--> compiled time 110s (25ms per run)
-and
-- 4 function call
-- 8 parameters set
-- 128 initialization
-- 1024 iterations
--> compiled time
-It might be interesting to spot the perfect
-
 Any growth functions that would boost the 0 value is doomed to fail. This would create a process that generates mass from an empty world.
 
 About AQUARIUM specie: At that point, Bert remove the average in "weighted_select_average" function. This is like a v1.5?
@@ -57,7 +39,7 @@ There is a very strange behaviour that happens rarely but surely: it might happe
 It seems to occur mainly on the last element of the set.
 
 ## Now
-- Define a 2D set of behaviours (mass_speed ?, etc.)
+- Improve kernel and function plots
 - Dump species (center world + crop of last frame)
 - Dump cdf of all fitness, behaviours and genome
 - Do validation number 3

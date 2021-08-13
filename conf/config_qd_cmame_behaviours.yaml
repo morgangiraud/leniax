@@ -20,7 +20,7 @@ kernels_params:
     - k_id: 0
       q: 4
       r: 1
-      b: '1'
+      b: '0.5,1'
       gf_id: 0
       m: 0.17
       s: 0.015
@@ -72,8 +72,8 @@ grid:
     - - 0.
       - 1.
     - - 0.
-      - 2.
-  shape: [25, 25]
+      - 1.
+  shape: [20, 20]
   
 algo:
   # Generic

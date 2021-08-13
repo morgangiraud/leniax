@@ -10,6 +10,13 @@ fixture_dir = os.path.join(cfd, 'fixtures')
 
 
 class TestKernels(unittest.TestCase):
+    def test_st2fracs2float(self):
+        fracs = '1/2,2/3'
+        out = lenia_kernels.st2fracs2float(fracs)
+
+        assert out[0] == .5
+        assert out[1] == 2 / 3
+
     def test_crop_zero(self):
 
         kernels = jnp.array([[

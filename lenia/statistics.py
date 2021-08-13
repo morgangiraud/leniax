@@ -18,7 +18,7 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
     non_batch_dims = tuple(range(1, 1 + 1 + len(world_size), 1))
     axes = tuple(range(-len(world_size), 0, 1))
 
-    # @jit
+    @jit
     def compute_stats(cells, field, potential, previous_total_shift_idx, previous_mass_centroid, previous_mass_angle):
         """
             Args:

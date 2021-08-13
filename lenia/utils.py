@@ -10,9 +10,11 @@ import matplotlib.pyplot as plt
 import jax
 import jax.numpy as jnp
 import numpy as np
-from fractions import Fraction
 from PIL import Image
-from typing import Tuple, List, Callable, Dict, Any
+from typing import Tuple, List, Dict, Any
+
+from . import kernels as lenia_kernels
+from . import growth_functions as lenia_gf
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 save_dir = os.path.join(cdir, 'save')
@@ -24,10 +26,6 @@ DIM_DELIM = {0: '', 1: '$', 2: '%', 3: '#', 4: '@A', 5: '@B', 6: '@C', 7: '@D', 
 ###
 # Loader
 ###
-def st2fracs2float(st: str) -> List[float]:
-    return [float(Fraction(st)) for st in st.split(',')]
-
-
 def append_stack(list1: List, elem: Any, count, is_repeat=False):
     list1.append(elem)
     if count != '':
@@ -298,7 +296,7 @@ def save_images(
 
 
 def get_image(cells_buffer: jnp.ndarray, pixel_size: int, pixel_border_size: int, colormap):
-    _, y, x = cells_buffer.shape
+    c, y, x = cells_buffer.shape
     cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=1)
     cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=2)
     # zero = np.uint8(np.clip(normalize(0, vmin, vmax), 0, 1) * 252)
@@ -307,17 +305,22 @@ def get_image(cells_buffer: jnp.ndarray, pixel_size: int, pixel_border_size: int
         cells_buffer[:, i::pixel_size, :] = zero
         cells_buffer[:, :, i::pixel_size] = zero
 
-    img = colormap(cells_buffer)  # the colormap is applied to each channel, we just merge them
-    blank_img = np.zeros_like(img[0, :, :, :3]).astype(jnp.uint8)
-    blank_img = Image.fromarray(blank_img)
-    for i in range(img.shape[0]):
-        other_img = Image.fromarray((img[i, :, :, :3] * 255).astype(jnp.uint8))
-        if i == 0:
-            blank_img = Image.blend(blank_img, other_img, alpha=1.)
-        else:
-            blank_img = Image.blend(blank_img, other_img, alpha=0.5)
+    if c == 3:
+        cells_uint8 = np.uint8(cells_buffer * 255)
+        cells_uint8 = np.transpose(cells_uint8, (1, 2, 0))  # type: ignore
+        final_img = Image.fromarray(cells_uint8)
+    else:
+        img = colormap(cells_buffer)  # the colormap is applied to each channel, we just merge them
+        blank_img = np.zeros_like(img[0, :, :, :3]).astype(jnp.uint8)
+        final_img = Image.fromarray(blank_img)
+        for i in range(img.shape[0]):
+            other_img = Image.fromarray((img[i, :, :, :3] * 255).astype(jnp.uint8))
+            if i == 0:
+                final_img = Image.blend(final_img, other_img, alpha=1.)
+            else:
+                final_img = Image.blend(final_img, other_img, alpha=0.5)
 
-    return blank_img
+    return final_img
 
 
 def normalize(v: jnp.ndarray, vmin: float, vmax: float, is_square: bool = False, vmin2: float = 0, vmax2: float = 0):
@@ -327,61 +330,33 @@ def normalize(v: jnp.ndarray, vmin: float, vmax: float, is_square: bool = False,
         return (v - vmin) / max(vmax - vmin, vmax2 - vmin2)
 
 
-def plot_gfunction(save_dir: str, id: int, fn: Callable, m: float, s: float, h: float, T: float):
-    fullpath = os.path.join(save_dir, f"growth_function{str(id).zfill(2)}.{image_ext}")
+def plot_kernels(config, save_dir):
+    world_size = config['render_params']['world_size']
+    R = config['world_params']['R']
 
-    x_t = jnp.linspace(0., 1., 200)
-    dt = 1. / T
-    y = fn(x_t, m, s) * h
-    dty = dt * y
-    y_t_dt = x_t + dty
+    x = jnp.linspace(0, 1, 1000)
+    all_ks = []
+    all_gs = []
+    for k in config['kernels_params']['k']:
+        all_ks.append(lenia_kernels.get_kernel(k, world_size, R, True))
+        all_gs.append(lenia_gf.growth_fns[k['gf_id']](x, k['m'], k['s']) * k['h'])
+    Ks = lenia_kernels.crop_zero(jnp.vstack(all_ks))
+    K_size = Ks.shape[-1]
+    K_mid = K_size // 2
 
-    fig, axs = plt.subplots(ncols=3, sharey=True)
-    axs[0].grid(True, which='both')
-    axs[0].axhline(y=0, color='k')
-    axs[0].axvline(x=0, color='k')
-    axs[0].plot(x_t, y, 'r', label='y = gf(x) * h')
-    axs[0].legend(loc='upper left')
+    fullpath = f"{save_dir}/Ks.png"
+    fig, ax = plt.subplots(1, 2, figsize=(10, 2))
 
-    axs[1].grid(True, which='both')
-    axs[1].axhline(y=0, color='k')
-    axs[1].axvline(x=0, color='k')
-    axs[1].plot(x_t, dty, 'r', label='y = dt * gf(x) * h')
-    axs[1].legend(loc='upper left')
+    ax[0].plot(range(K_size), Ks[:, K_mid, :].T)
+    ax[0].title.set_text('Ks cross-sections')
+    ax[0].set_xlim([K_mid - R - 3, K_mid + R + 3])
 
-    axs[2].grid(True, which='both')
-    axs[2].axhline(y=0, color='k')
-    axs[2].axvline(x=0, color='k')
-    axs[2].plot(x_t, y_t_dt, 'r', label='y = x + dt * gf(x) * h')
-    axs[2].plot(x_t, x_t, 'b', label='y = x')
-    axs[2].legend(loc='upper left')
-    plt.yticks(np.arange(-1, 1, .1))
-    plt.xticks(np.arange(0., 1, .1))
+    ax[1].plot(x, jnp.asarray(all_gs).T)
+    ax[1].axhline(y=0, color='grey', linestyle='dotted')
+    ax[1].title.set_text('growths Gs')
 
     plt.tight_layout()
-    plt.savefig(fullpath)
-    plt.close(fig)
-
-    fullpath = os.path.join(save_dir, f"growth_function{str(id).zfill(2)}_iter.{image_ext}")
-    fig, axs = plt.subplots(nrows=5, ncols=4)
-    fig.set_size_inches(18.5, 10.5)
-    axs = axs.flatten()
-    for i in range(len(axs)):
-        x_0 = x_t = 1 / len(axs) + i * 1 / len(axs)
-        vals = [x_t]
-        for _ in range(25):
-            x_t = x_t + dt * fn(x_t, m, s)
-            x_t = max(0, min(1., x_t))
-            vals.append(x_t)
-        axs[i].grid(True, which='both')
-        # axs[i].axhline(y=0, color='k')
-        # axs[i].axvline(x=0, color='k')
-        axs[i].plot(vals, 'r', label=f"iteration x_0={x_0}")
-        axs[i].legend(loc='upper left')
-        plt.yticks(np.arange(0, 1, .1))
-
-    plt.tight_layout()
-    plt.savefig(fullpath)
+    fig.savefig(fullpath)
     plt.close(fig)
 
 

@@ -10,15 +10,15 @@ def poly_quad4(X: jnp.ndarray, m: float, s: float):
 
 
 def gaussian(X: jnp.ndarray, m: float, s: float):
-    out = -((X - m) / s)**2 / 2
-    out = jnp.exp(out) * 2 - 1
+    out = ((X - m) / s)**2
+    out = jnp.exp(-out / 2) * 2 - 1
 
     return out
 
 
 def gaussian_target(X: jnp.ndarray, m: float, s: float):
-    out = -((X - m) / s)**2 / 2
-    out = jnp.exp(out)
+    out = ((X - m) / s)**2
+    out = jnp.exp(-out / 2)
 
     return out
 

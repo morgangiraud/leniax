@@ -8,13 +8,6 @@ fixture_dir = os.path.join(cfd, 'fixtures')
 
 
 class TestUtils(unittest.TestCase):
-    def test_st2fracs2float(self):
-        fracs = '1/2,2/3'
-        out = lenia_utils.st2fracs2float(fracs)
-
-        assert out[0] == .5
-        assert out[1] == 2 / 3
-
     def test_val2ch_ch2val(self):
         cells_int_l = np.arange(0, 256).astype(int).tolist()
 

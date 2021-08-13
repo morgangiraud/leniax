@@ -22,8 +22,7 @@ from . import core as lenia_core
 from . import video as lenia_video
 from . import helpers as lenia_helpers
 from . import statistics as lenia_stat
-from .growth_functions import growth_fns
-from .kernels import get_kernels_and_mapping, draw_kernels
+from . import kernels as lenia_kernels
 from .statistics import build_compute_stats_fn
 
 QDMetrics = Dict[str, Dict[str, list]]
@@ -127,12 +126,13 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness=False)
     T = world_params['T']
     render_params = qd_config['render_params']
     update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
+    weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
     kernels_params = qd_config['kernels_params']['k']
     K, mapping = lenia_core.get_kernels_and_mapping(
         kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R']
     )
 
-    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version)
+    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version, weighted_average)
     compute_stats_fn = lenia_stat.build_compute_stats_fn(world_params, render_params)
 
     def eval_lenia_config_mem_optimized(lenia_sols: List[LeniaIndividual]) -> List[LeniaIndividual]:
@@ -164,6 +164,7 @@ def eval_lenia_init(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividual:
     R = world_params['R']
     T = world_params['T']
     update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
+    weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
 
     render_params = config['render_params']
     world_size = render_params['world_size']
@@ -180,8 +181,8 @@ def eval_lenia_init(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividual:
     np.random.seed(ind.rng_key[0])
     random.seed(ind.rng_key[0])
 
-    K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
-    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version)
+    K, mapping = lenia_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
+    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version, weighted_average)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
     compute_stats_fn = build_compute_stats_fn(config['world_params'], config['render_params'])
@@ -450,41 +451,34 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
         start_time = time.time()
         all_cells, _, _, stats_dict = lenia_helpers.init_and_run(config, True)
         stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
-        all_cells = all_cells[:int(stats_dict['N'])]
+        all_cells = all_cells[:int(stats_dict['N']), 0]
         total_time = time.time() - start_time
 
         nb_iter_done = len(all_cells)
         print(f"{nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
 
-        save_dir = os.path.join(os.getcwd(), str(id_best))  # changed by hydra
+        save_dir = os.getcwd()  # changed by hydra
         media_dir = os.path.join(save_dir, 'media')
         lenia_utils.check_dir(media_dir)
 
-        first_cells = all_cells[0, 0, ...]
+        first_cells = all_cells[0]
         config['run_params']['cells'] = lenia_utils.compress_array(first_cells)
         lenia_utils.save_config(save_dir, config)
 
         # print('Dumping cells')
         # with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
-        #     np.save(f, np.array(all_cells)[:, 0, 0, ...])
+        #     np.save(f, np.array(all_cells))
 
-        print('Plotting stats and functions')
+        # with open(os.path.join(save_dir, 'last_frame.p'), 'wb') as f:
+        #     import pickle
+        #     pickle.dump(np.array(all_cells[-1]), f)
+
         colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
+        print('Plotting stats')
         lenia_utils.plot_stats(save_dir, stats_dict)
 
         print('Plotting kernels and functions')
-        _, K, _ = lenia_core.init(config)
-        draw_kernels(K, save_dir, colormap)
-        for i, kernel in enumerate(config['kernels_params']['k']):
-            lenia_utils.plot_gfunction(
-                save_dir,
-                i,
-                growth_fns[kernel['gf_id']],
-                kernel['m'],
-                kernel['s'],
-                kernel['h'],
-                config['world_params']['T']
-            )
+        lenia_utils.plot_kernels(config, save_dir)
 
         print('Dumping video')
         render_params = config['render_params']

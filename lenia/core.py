@@ -267,13 +267,17 @@ def run_scan_mem_optimized(
 
 
 def build_update_fn(
-    world_params: Dict, K_shape: Tuple[int, ...], mapping: KernelMapping, update_fn_version: str = 'v1'
+    world_params: Dict,
+    K_shape: Tuple[int, ...],
+    mapping: KernelMapping,
+    update_fn_version: str = 'v1',
+    average_weight: bool = True,
 ) -> Callable:
     T = world_params['T']
     dt = 1 / T
 
     get_potential_fn = build_get_potential_fn(K_shape, mapping.true_channels)
-    get_field_fn = build_get_field_fn(mapping.cin_growth_fns)
+    get_field_fn = build_get_field_fn(mapping.cin_growth_fns, average_weight)
     if update_fn_version == 'v1':
         update_fn = update_cells
     elif update_fn_version == 'v2':
@@ -330,13 +334,18 @@ def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: jnp.nda
     return get_potential
 
 
-def build_get_field_fn(cin_growth_fns: Dict[str, List]) -> Callable:
+def build_get_field_fn(cin_growth_fns: Dict[str, List], average: bool = True) -> Callable:
     growth_fn_l = []
     for i in range(len(cin_growth_fns['gf_id'])):
         gf_id = cin_growth_fns['gf_id'][i]
         growth_fn = growth_fns[gf_id]
         growth_fn_l.append(growth_fn)
     nb_kernels = len(cin_growth_fns['gf_id'])
+
+    if average:
+        weighted_fn = weighted_select_average
+    else:
+        weighted_fn = weighted_select
 
     def get_field(
         potential: jnp.ndarray, gfn_params: jnp.ndarray, kernels_weight_per_channel: jnp.ndarray
@@ -364,14 +373,14 @@ def build_get_field_fn(cin_growth_fns: Dict[str, List]) -> Callable:
             fields.append(sub_field)
         fields_jnp = jnp.stack(fields, axis=1)  # [N, nb_kernels, world_dims...]
 
-        fields_jnp = weighted_select_average(fields_jnp, kernels_weight_per_channel)  # [N, C, H, W]
+        fields_jnp = weighted_fn(fields_jnp, kernels_weight_per_channel)  # [N, C, H, W]
 
         return fields_jnp
 
     return get_field
 
 
-def weighted_select_average(fields: jnp.ndarray, weights: jnp.ndarray) -> jnp.ndarray:
+def weighted_select(fields: jnp.ndarray, weights: jnp.ndarray) -> jnp.ndarray:
     """
         Args:
             - fields: jnp.ndarray[N, nb_kernels, world_dims...] shape must be kept constant to avoid recompiling
@@ -392,6 +401,21 @@ def weighted_select_average(fields: jnp.ndarray, weights: jnp.ndarray) -> jnp.nd
     out_tmp = jnp.matmul(weights, fields_reshaped)
     out_tmp = out_tmp.reshape([nb_channels, N] + world_dims)
     fields_out = out_tmp.swapaxes(0, 1)  # [N, nb_channels, world_dims...]
+
+    return fields_out
+
+
+def weighted_select_average(fields: jnp.ndarray, weights: jnp.ndarray) -> jnp.ndarray:
+    """
+        Args:
+            - fields: jnp.ndarray[N, nb_kernels, world_dims...] shape must be kept constant to avoid recompiling
+            - weights: jnp.ndarray[nb_channels, nb_kernels] shape must be kept constant to avoid recompiling
+                0. values are used to indicate that a given channels does not receive inputs from this kernel
+
+        Outputs:
+            - fields: jnp.ndarray[nb_channels, world_dims...]
+    """
+    fields_out = weighted_select(fields, weights)
     fields_normalized = fields_out / weights.sum(axis=1)[jnp.newaxis, :, jnp.newaxis, jnp.newaxis]
 
     return fields_normalized

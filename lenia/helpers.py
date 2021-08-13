@@ -36,6 +36,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Di
     world_params = config['world_params']
     nb_channels = world_params['nb_channels']
     update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
+    weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
     R = world_params['R']
     T = world_params['T']
 
@@ -51,7 +52,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Di
     K, mapping = lenia_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
-    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version)
+    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version, weighted_average)
     compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     if update_fn_version == 'v1':
@@ -107,12 +108,13 @@ def init_and_run(config: Dict, with_jit: bool = False) -> Tuple:
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
     world_params = config['world_params']
     update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
+    weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
 
     max_run_iter = config['run_params']['max_run_iter']
     R = config['world_params']['R']
     T = config['world_params']['T']
 
-    update_fn = lenia_core.build_update_fn(config['world_params'], K.shape, mapping, update_fn_version)
+    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version, weighted_average)
     compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     if with_jit is True:

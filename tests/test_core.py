@@ -53,12 +53,13 @@ class TestCore(unittest.TestCase):
         max_run_iter = qd_config['run_params']['max_run_iter']
         world_params = qd_config['world_params']
         update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
+        weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
         render_params = qd_config['render_params']
         kernels_params = qd_config['kernels_params']['k']
         K, mapping = lenia_core.get_kernels_and_mapping(
             kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R']
         )
-        update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version)
+        update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version, weighted_average)
         compute_stats_fn = lenia_stat.build_compute_stats_fn(world_params, render_params)
 
         # jax.profiler.start_trace("/tmp/tensorboard")
@@ -225,8 +226,9 @@ class TestCore(unittest.TestCase):
         mapping.cin_growth_fns['gf_id'] = [0, 0, 0]
         mapping.cin_growth_fns['m'] = [0.1, 0.2, 0.3]
         mapping.cin_growth_fns['s'] = [0.1, 0.2, 0.3]
+        average_weight = True
 
-        get_field = lenia_core.build_get_field_fn(mapping.cin_growth_fns)
+        get_field = lenia_core.build_get_field_fn(mapping.cin_growth_fns, average_weight)
         jit_fn = jax.jit(get_field)
 
         potential1 = jnp.ones([1, nb_kernels, 25, 25]) * .5

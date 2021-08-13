@@ -1,10 +1,7 @@
-import os
-import jax.numpy as jnp
-from jax import lax
 from dataclasses import dataclass
 from typing import List, Dict, Tuple
-
-from . import utils as lenia_utils
+from fractions import Fraction
+import jax.numpy as jnp
 
 
 @dataclass()
@@ -46,8 +43,8 @@ def gauss_bump(x: jnp.ndarray, q: float = 1):
 
 
 def gauss(x: jnp.ndarray, q: float = 1):
-    out = -((x - q) / (0.3 * q))**2
-    out = jnp.exp(out / 2)
+    out = ((x - q) / (0.3 * q))**2
+    out = jnp.exp(-out / 2)
 
     return out
 
@@ -74,6 +71,7 @@ def get_kernels_and_mapping(kernels_params: Dict, world_size: List[int], nb_chan
 
     kernels_list = []
     mapping = KernelMapping(nb_channels, len(kernels_params))
+
     for kernel_idx, param in enumerate(kernels_params):
         kernels_list.append(get_kernel(param, world_size, R))
 
@@ -85,6 +83,7 @@ def get_kernels_and_mapping(kernels_params: Dict, world_size: List[int], nb_chan
         mapping.cin_growth_fns["gf_id"].append(param["gf_id"])
         mapping.cin_growth_fns["m"].append(param["m"])
         mapping.cin_growth_fns["s"].append(param["s"])
+
     # ! vstack concantenate on the first dimension
     # Currently it works, because we only considere 1-channel kernels
     kernels = jnp.vstack(kernels_list)  # [nb_kernels, H, W]
@@ -115,7 +114,7 @@ def get_kernels_and_mapping(kernels_params: Dict, world_size: List[int], nb_chan
     return K, mapping
 
 
-def get_kernel(kernel_params: Dict, world_size: list, R: float) -> jnp.ndarray:
+def get_kernel(kernel_params: Dict, world_size: list, R: float, normalize=True) -> jnp.ndarray:
     """ Build one kernel """
     midpoint = jnp.asarray([size // 2 for size in world_size])  # [nb_dims]
     midpoint = midpoint.reshape([-1] + [1] * len(world_size))  # [nb_dims, 1, 1, ...]
@@ -126,14 +125,15 @@ def get_kernel(kernel_params: Dict, world_size: list, R: float) -> jnp.ndarray:
     distances = jnp.sqrt(jnp.sum(centered_coords**2, axis=0))  # [dim_0, dim_1, ...]
 
     kernel = kernel_shell(distances, kernel_params)
-    kernel = kernel / kernel.sum()
+    if normalize:
+        kernel = kernel / kernel.sum()
     kernel = kernel[jnp.newaxis, ...]  # [1, dim_0, dim_1, ...]
 
     return kernel
 
 
 def kernel_shell(distances: jnp.ndarray, kernel_params: Dict) -> jnp.ndarray:
-    bs = jnp.asarray(lenia_utils.st2fracs2float(kernel_params['b']))
+    bs = jnp.asarray(st2fracs2float(kernel_params['b']))
     nb_b = bs.shape[0]
 
     B_dist = nb_b * distances  # scale distances by the number of modes
@@ -147,6 +147,10 @@ def kernel_shell(distances: jnp.ndarray, kernel_params: Dict) -> jnp.ndarray:
     return kernel
 
 
+def st2fracs2float(st: str) -> List[float]:
+    return [float(Fraction(st)) for st in st.split(',')]
+
+
 def crop_zero(kernels: jnp.ndarray) -> jnp.ndarray:
     assert len(kernels.shape) == 3  # nb_dims == 2
 
@@ -154,31 +158,3 @@ def crop_zero(kernels: jnp.ndarray) -> jnp.ndarray:
     kernels = kernels[:, :, ~jnp.all(kernels == 0, axis=(0, 1))]  # remove 0 lines
 
     return kernels
-
-
-###
-# Viz
-###
-
-
-def draw_kernels(K, save_dir, colormap):
-    nb_dims = len(K.shape[2:])
-    data = jnp.ones(K.shape[2:])
-    padding = [(dim, dim) for dim in data.shape]
-    data = jnp.pad(data, padding, mode='constant')
-
-    pixel_size = 1
-    pixel_border_size = 0
-    for i in range(K.shape[0]):
-        id = str(i).zfill(2)
-        current_k = K[i:i + 1, 0]
-        img = lenia_utils.get_image(
-            lenia_utils.normalize(current_k, 0, jnp.max(current_k)), pixel_size, pixel_border_size, colormap
-        )
-        with open(os.path.join(save_dir, f"kernel{id}.png"), 'wb') as f:
-            img.save(f, format='png')
-
-        out = lax.conv(data[jnp.newaxis, jnp.newaxis], current_k[jnp.newaxis], [1] * nb_dims, 'valid')
-        img = lenia_utils.get_image(out[0], pixel_size, pixel_border_size, colormap)
-        with open(os.path.join(save_dir, f"kernel{id}_conv.png"), 'wb') as f:
-            img.save(f, format='png')

@@ -7,10 +7,7 @@ import hydra
 
 from lenia.helpers import search_for_init, get_container
 from lenia import utils as lenia_utils
-from lenia.growth_functions import growth_fns
-from lenia.core import init
 import lenia.video as lenia_video
-import lenia.kernels as lenia_kernels
 
 logging.set_verbosity(logging.ERROR)
 
@@ -34,7 +31,7 @@ def launch(omegaConf: DictConfig) -> None:
     _, best, nb_init_done = search_for_init(rng_key, config)
     print(f"Init search done in {time.time() - t0} (nb_inits done: {nb_init_done})")
 
-    all_cells = best['all_cells'][:int(best['N'])]
+    all_cells = best['all_cells'][:int(best['N']), 0]
     stats_dict = {k: v.squeeze() for k, v in best['all_stats'].items()}
 
     print(f"best run length: {best['N']}")
@@ -43,31 +40,24 @@ def launch(omegaConf: DictConfig) -> None:
     media_dir = os.path.join(save_dir, 'media')
     lenia_utils.check_dir(media_dir)
 
-    first_cells = all_cells[0, 0, ...]
+    first_cells = all_cells[0]
     config['run_params']['cells'] = lenia_utils.compress_array(first_cells)
     lenia_utils.save_config(save_dir, config)
 
     # print('Dumping cells')
     # with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
-    #     np.save(f, np.array(all_cells)[:, 0, 0, ...])
+    #     np.save(f, np.array(all_cells))
+
+    # with open(os.path.join(save_dir, 'last_frame.p'), 'wb') as f:
+    #     import pickle
+    #     pickle.dump(np.array(all_cells[-1]), f)
 
     colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
     print('Plotting stats')
     lenia_utils.plot_stats(save_dir, stats_dict)
 
     print('Plotting kernels and functions')
-    _, K, _ = init(config)
-    lenia_kernels.draw_kernels(K, save_dir, colormap)
-    for i, kernel in enumerate(config['kernels_params']['k']):
-        lenia_utils.plot_gfunction(
-            save_dir,
-            i,
-            growth_fns[kernel['gf_id']],
-            kernel['m'],
-            kernel['s'],
-            kernel['h'],
-            config['world_params']['T']
-        )
+    lenia_utils.plot_kernels(config, save_dir)
 
     print('Dumping video')
     render_params = config['render_params']

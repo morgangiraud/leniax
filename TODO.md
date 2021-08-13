@@ -57,7 +57,6 @@ There is a very strange behaviour that happens rarely but surely: it might happe
 It seems to occur mainly on the last element of the set.
 
 ## Now
-- Fix the progress bar for collab
 - Define a 2D set of behaviours (mass_speed ?, etc.)
 - Dump species (center world + crop of last frame)
 - Dump cdf of all fitness, behaviours and genome

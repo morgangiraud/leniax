@@ -103,5 +103,4 @@ dependencies:
   - zlib=1.2.11=h7795811_1010
   - zstd=1.5.0=h582d3a0_0
   - pip:
-    - alive-progress==1.6.2
     - types-pyyaml==5.4.3

@@ -243,9 +243,9 @@ def run_qd_search(
             print('!!!! n_workers set to 0 !!!!')
             n_workers == 0
 
-    print(f"{'iter'}{'coverage':>32}{'mean':>20}{'std':>20}{'min':>16}{'max':>16}{'QD Score':>20}")
-    # with alive_bar(nb_iter) as update_bar:
+    print(f"{'iter':>6}{'coverage':>30}{'mean':>20}{'std':>20}{'min':>16}{'max':>16}{'QD Score':>20}{'Duration':>20}")
     for itr in range(1, nb_iter + 1):
+        t0 = time.time()
         # Request models from the optimizer.
         sols = optimizer.ask()
         lenia_sols = []
@@ -297,13 +297,10 @@ def run_qd_search(
             save_all(itr, optimizer, fitness_domain, sols, fits, bcs)
 
             print(
-                f"{len(df):>23}/{nb_total_bins:<6}{mean_score:>20.6f}"
-                f"{std_score:>20.6f}{min_score:>16.6f}{max_score:>16.6f}{qd_score:>20.6f}"
+                f"{itr-1:>4}/{nb_iter:<4}{len(df):>22}/{nb_total_bins:<6}{mean_score:>20.4f}"
+                f"{std_score:>20.4f}{min_score:>16.4f}{max_score:>16.4f}{qd_score:>16.4f}"
+                f"{time.time() - t0:>20.4f}"
             )
-
-            # # Logging.
-            # if not DEBUG:
-            #     update_bar()
 
     return metrics
 

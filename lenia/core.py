@@ -334,13 +334,12 @@ def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: jnp.nda
     return get_potential
 
 
-def build_get_field_fn(cin_growth_fns: Dict[str, List], average: bool = True) -> Callable:
+def build_get_field_fn(cin_growth_fns: List[List[int]], average: bool = True) -> Callable:
     growth_fn_l = []
-    for i in range(len(cin_growth_fns['gf_id'])):
-        gf_id = cin_growth_fns['gf_id'][i]
-        growth_fn = growth_fns[gf_id]
-        growth_fn_l.append(growth_fn)
-    nb_kernels = len(cin_growth_fns['gf_id'])
+    for growth_fns_per_channel in cin_growth_fns:
+        for gf_id in growth_fns_per_channel:
+            growth_fn = growth_fns[gf_id]
+            growth_fn_l.append(growth_fn)
 
     if average:
         weighted_fn = weighted_select_average
@@ -363,7 +362,7 @@ def build_get_field_fn(cin_growth_fns: Dict[str, List], average: bool = True) ->
                 - fields: jnp.ndarray[N=1, nb_channels, world_dims]
         """
         fields = []
-        for i in range(nb_kernels):
+        for i in range(gfn_params.shape[0]):
             sub_potential = potential[:, i]
             current_gfn_params = gfn_params[i]
             growth_fn = growth_fn_l[i]

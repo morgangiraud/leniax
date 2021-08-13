@@ -12,16 +12,6 @@ render_params:
 kernels_params:
   k:
     - r: 1
-      b: '1'
-      m: 0.15
-      s: 0.015
-      h: 1
-      k_id: 0
-      q: 4
-      gf_id: 0
-      c_in: 0
-      c_out: 0
-    - r: 1
       b: "1"
       m: 0.29
       s: 0.045
@@ -31,6 +21,16 @@ kernels_params:
       gf_id: 0
       c_in: 1
       c_out: 1
+    - r: 1
+      b: '1'
+      m: 0.15
+      s: 0.015
+      h: 1
+      k_id: 0
+      q: 4
+      gf_id: 0
+      c_in: 0
+      c_out: 0
 run_params:
   code: "O2u-S1s"
   name: "Orbium unicaudatus + Scutium solidus"

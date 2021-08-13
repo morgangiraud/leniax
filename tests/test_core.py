@@ -122,7 +122,7 @@ class TestCore(unittest.TestCase):
 
         cells2 = jnp.ones(cells.shape) * 0.5
         K2 = jnp.ones(K.shape) * 0.5
-        mapping.cin_growth_fns['m'][0] = .3
+        mapping.gfn_params[0][0][0] = .3
         gfn_params2 = mapping.get_gfn_params()
         kernels_weight_per_channel2 = mapping.get_kernels_weight_per_channel()
 
@@ -157,7 +157,7 @@ class TestCore(unittest.TestCase):
 
         cells2 = jnp.ones(cells.shape) * 0.5
         K2 = jnp.ones(K.shape) * 0.5
-        mapping.cin_growth_fns['m'][0] = .3
+        mapping.gfn_params[0][0][0] = .3
         gfn_params2 = mapping.get_gfn_params()
         kernels_weight_per_channel2 = mapping.get_kernels_weight_per_channel()
 
@@ -222,10 +222,9 @@ class TestCore(unittest.TestCase):
         nb_channels = 2
         nb_kernels = 3
         mapping = lenia_kernel.KernelMapping(nb_channels, nb_kernels)
-        mapping.kernels_weight_per_channel = [[.5, .4, .0], [.5, .2, .0]]
-        mapping.cin_growth_fns['gf_id'] = [0, 0, 0]
-        mapping.cin_growth_fns['m'] = [0.1, 0.2, 0.3]
-        mapping.cin_growth_fns['s'] = [0.1, 0.2, 0.3]
+        mapping.kernels_weight_per_channel = [[.5, .4, .0], [0., 0., .2]]
+        mapping.cin_growth_fns = [[0, 0], [0]]
+        mapping.gfn_params = [[[0.1, 0.1], [0.2, 0.2]], [[0.3, 0.3]]]
         average_weight = True
 
         get_field = lenia_core.build_get_field_fn(mapping.cin_growth_fns, average_weight)
@@ -240,8 +239,7 @@ class TestCore(unittest.TestCase):
         delta_t = time.time() - t0
 
         potential2 = jnp.ones([1, nb_kernels, 25, 25]) * .5
-        mapping.cin_growth_fns['m'] = [0.2, 0.3, 0.4]
-        mapping.cin_growth_fns['s'] = [0.8, 0.7, 0.6]
+        mapping.gfn_params = [[[0.2, 0.5], [0.3, 0.6]], [[0.4, 0.7]]]
         gfn_params2 = mapping.get_gfn_params()
         kernels_weight_per_channel2 = mapping.get_kernels_weight_per_channel()
 

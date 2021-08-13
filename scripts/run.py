@@ -25,9 +25,9 @@ config_path_outputs = os.path.join(cdir, '..', 'outputs', '2021-08-09', '09-39-5
 # @hydra.main(config_path=config_path_1c1k, config_name="orbium")
 # @hydra.main(config_path=config_path_1c1k, config_name="vibratium")
 # @hydra.main(config_path=config_path_1c3k, config_name="fish")
-# @hydra.main(config_path=config_path_3c15k, config_name="aquarium")
+@hydra.main(config_path=config_path_3c15k, config_name="aquarium")
 # @hydra.main(config_path=config_path_1c1kv2, config_name="wanderer")
-@hydra.main(config_path=config_path, config_name="orbium-scutium")
+# @hydra.main(config_path=config_path, config_name="orbium-scutium")
 # @hydra.main(config_path=config_path_outputs, config_name="config")
 def run(omegaConf: DictConfig) -> None:
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
@@ -36,7 +36,7 @@ def run(omegaConf: DictConfig) -> None:
 
     print('Initialiazing and running')
     start_time = time.time()
-    all_cells, _, _, stats_dict = init_and_run(config, False)  # [nb_max_iter, N=1, C, world_dims...]
+    all_cells, _, _, stats_dict = init_and_run(config, True)  # [nb_max_iter, N=1, C, world_dims...]
     stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
     all_cells = all_cells[:int(stats_dict['N']), 0]  # [nb_iter, C, world_dims...]
     total_time = time.time() - start_time

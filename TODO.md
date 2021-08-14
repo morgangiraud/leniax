@@ -39,42 +39,25 @@ There is a very strange behaviour that happens rarely but surely: it might happe
 It seems to occur mainly on the last element of the set.
 
 ## Now
-- Improve kernel and function plots
-- Dump species (center world + crop of last frame)
-- Dump cdf of all fitness, behaviours and genome
-- Do validation number 3
-- Let's explore 1c-1k, 1c-2k, 1c-3k for now (looking for 10 species with interelation)
+- Launch a 3 channel search to see
+- Let's start the first face cube search
+
+
+# For the launch
+- We fix ourselves to D=2, C=1, nK=1 R=13, T= 10, gf_id=0, k_id=0, q=4
+- We are looking at the beta cube with the fraction 1/4 which leads to 61 (5 * 5 + 4 * 5 + 4 * 4) cases
+- For the launch we need one side (25)
+- The goal is to provide the community to choose whiche piece of the world to explore next (be part of cutting edge AI research, Each layer necessits more compute power)
+
+Hopefull goal at the end: Find 1337 species!
+
+## Maybe next?
+- Move on to 3d behaviours? 
+    - Dump cdf of all fitness, behaviours and genome
 - Let's explore with T and R
-- Let's expplore with different bs
-
-Validation:
-1. a big qd_search (OK!)
-2. a big qd_search with the new update rule (OK! need a more focused search)
-3. a big qd search using real behaviours
-
-## Next
+- Let's explore 1c-2k, 1c-3k for now (looking for 10 species with interelation)
 - Spend some time to get intimate with all parameters
 - explore other kernels
 - define a qd state
 - save/load qd search states
 -  Go beyond perlin noise with simplex noise ? (https://www.bit-101.com/blog/2021/07/perlin-vs-simplex/)
-
-## To be able to launch
-Find 1337 species!
-
-# Listo of experiments
-for bs
-- [1] Done
-
-- [0.5, 1] Done
-- [1, 0,5]
-- [1, 1]
-
-- [0.25, 0.5, 1]
-- [1, 0.5, 0.25]
-- [0.5, 1, 0.5]
-- [1, 1, 1]
-
-- [1, 0, 0.5]
-- [0.5, 0, 1]
-- [1, 0, 1]

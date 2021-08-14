@@ -1,5 +1,6 @@
 import os
 import unittest
+import jax.numpy as jnp
 import numpy as np
 from lenia import utils as lenia_utils
 
@@ -41,3 +42,28 @@ class TestUtils(unittest.TestCase):
         ]
 
         np.testing.assert_almost_equal(unit_distances, true_unit_distances, decimal=3)
+
+    def test_crop_zero(self):
+
+        kernels = jnp.array([[
+            [0., 0., 0., 0.],
+            [0., 1., 0., 0.],
+            [0., 1., 1., 0.],
+            [0., 0., 0., 0.],
+        ], [
+            [0., 0., 0., 0.],
+            [0., 0., 1., 1.],
+            [0., 1., 0., 0.],
+            [0., 0., 0., 0.],
+        ]])
+        true_kernels = jnp.array([[
+            [1., 0., 0.],
+            [1., 1., 0.],
+        ], [
+            [0., 1., 1.],
+            [1., 0., 0.],
+        ]])
+
+        kernels_out = lenia_utils.crop_zero(kernels)
+
+        np.testing.assert_array_equal(kernels_out, true_kernels)

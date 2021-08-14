@@ -13,9 +13,6 @@ import numpy as np
 from PIL import Image
 from typing import Tuple, List, Dict, Any
 
-from . import kernels as lenia_kernels
-from . import growth_functions as lenia_gf
-
 cdir = os.path.dirname(os.path.realpath(__file__))
 save_dir = os.path.join(cdir, 'save')
 image_ext = "png"
@@ -224,6 +221,20 @@ def center_world(cells: jnp.ndarray, field: jnp.ndarray, potential: jnp.ndarray,
     return cells, field, potential
 
 
+def crop_zero(kernels: jnp.ndarray) -> jnp.ndarray:
+    if len(kernels.shape) == 3:
+        kernels = kernels[:, ~jnp.all(kernels == 0, axis=(0, 2))]  # remove 0 columns
+        kernels = kernels[:, :, ~jnp.all(kernels == 0, axis=(0, 1))]  # remove 0 lines
+    elif len(kernels.shape) == 4:
+        kernels = kernels[:, ~jnp.all(kernels == 0, axis=(0, 2, 3))]  # remove 0 columns
+        kernels = kernels[:, :, ~jnp.all(kernels == 0, axis=(0, 1, 3))]  # remove 0 lines
+        kernels = kernels[:, :, :, ~jnp.all(kernels == 0, axis=(0, 1, 2))]  # remove 0 lines
+    else:
+        raise ValueError("Can't handle more than 3 dimensions")
+
+    return kernels
+
+
 ###
 # VIZ
 ###
@@ -328,36 +339,6 @@ def normalize(v: jnp.ndarray, vmin: float, vmax: float, is_square: bool = False,
         return (v - vmin) / (vmax - vmin)
     else:
         return (v - vmin) / max(vmax - vmin, vmax2 - vmin2)
-
-
-def plot_kernels(config, save_dir):
-    world_size = config['render_params']['world_size']
-    R = config['world_params']['R']
-
-    x = jnp.linspace(0, 1, 1000)
-    all_ks = []
-    all_gs = []
-    for k in config['kernels_params']['k']:
-        all_ks.append(lenia_kernels.get_kernel(k, world_size, R, True))
-        all_gs.append(lenia_gf.growth_fns[k['gf_id']](x, k['m'], k['s']) * k['h'])
-    Ks = lenia_kernels.crop_zero(jnp.vstack(all_ks))
-    K_size = Ks.shape[-1]
-    K_mid = K_size // 2
-
-    fullpath = f"{save_dir}/Ks.png"
-    fig, ax = plt.subplots(1, 2, figsize=(10, 2))
-
-    ax[0].plot(range(K_size), Ks[:, K_mid, :].T)
-    ax[0].title.set_text('Ks cross-sections')
-    ax[0].set_xlim([K_mid - R - 3, K_mid + R + 3])
-
-    ax[1].plot(x, jnp.asarray(all_gs).T)
-    ax[1].axhline(y=0, color='grey', linestyle='dotted')
-    ax[1].title.set_text('growths Gs')
-
-    plt.tight_layout()
-    fig.savefig(fullpath)
-    plt.close(fig)
 
 
 def plot_stats(save_dir: str, stats_dict: Dict):

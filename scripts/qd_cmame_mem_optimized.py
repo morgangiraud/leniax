@@ -23,6 +23,7 @@ config_path = os.path.join(cdir, '..', 'conf')
 
 
 @hydra.main(config_path=config_path, config_name="config_qd_cmame")
+# @hydra.main(config_path=config_path, config_name="config_qd_cmame_3c6k")
 def run(omegaConf: DictConfig) -> None:
     config = get_container(omegaConf)
     print(config)

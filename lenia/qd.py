@@ -19,11 +19,8 @@ from ribs.visualize import grid_archive_heatmap, cvt_archive_heatmap, parallel_a
 from .lenia import LeniaIndividual
 from . import utils as lenia_utils
 from . import core as lenia_core
-from . import video as lenia_video
 from . import helpers as lenia_helpers
 from . import statistics as lenia_stat
-from . import kernels as lenia_kernels
-from .statistics import build_compute_stats_fn
 
 QDMetrics = Dict[str, Dict[str, list]]
 
@@ -152,62 +149,6 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness=False)
     return eval_lenia_config_mem_optimized
 
 
-def eval_lenia_init(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividual:
-    # This function is usually called un sub-process, before launching any JAX code
-    # We silent it
-    # Disable JAX logging https://abseil.io/docs/python/guides/logging
-    logging.set_verbosity(logging.ERROR)
-
-    config = ind.get_config()
-    world_params = config['world_params']
-    nb_channels = world_params['nb_channels']
-    R = world_params['R']
-    T = world_params['T']
-    update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
-    weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
-
-    render_params = config['render_params']
-    world_size = render_params['world_size']
-
-    kernels_params = config['kernels_params']['k']
-
-    run_params = config['run_params']
-    max_run_iter = run_params['max_run_iter']
-
-    # We have a problem here for reproducibility
-    # This function can be called in an other computer and os the for numpy and random
-    # Whould be set again here.
-    # We use the first element of the jax rng key to do so
-    np.random.seed(ind.rng_key[0])
-    random.seed(ind.rng_key[0])
-
-    K, mapping = lenia_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
-    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version, weighted_average)
-    gfn_params = mapping.get_gfn_params()
-    kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
-    compute_stats_fn = build_compute_stats_fn(config['world_params'], config['render_params'])
-    noise = jnp.array(ind).reshape(K.shape)
-    cells_0 = lenia_core.init_cells(world_size, nb_channels, [noise])
-
-    all_cells, _, _, all_stats = lenia_core.run(
-        cells_0, K, gfn_params, kernels_weight_per_channel, max_run_iter, R, T, update_fn, compute_stats_fn
-    )
-
-    nb_steps = len(all_cells)
-    config['behaviours'] = all_stats
-
-    if neg_fitness is True:
-        fitness = -nb_steps
-    else:
-        fitness = nb_steps
-    features = [noise.mean(), noise.stddev()]
-
-    ind.fitness = fitness
-    ind.features = features
-
-    return ind
-
-
 def run_qd_search(
     eval_fn: Callable,
     nb_iter: int,
@@ -298,7 +239,7 @@ def run_qd_search(
             save_all(itr, optimizer, fitness_domain, sols, fits, bcs)
 
             print(
-                f"{itr-1:>4}/{nb_iter:<4}{len(df):>22}/{nb_total_bins:<6}{mean_score:>20.4f}"
+                f"{itr:>4}/{nb_iter:<4}{len(df):>22}/{nb_total_bins:<6}{mean_score:>20.4f}"
                 f"{std_score:>20.4f}{min_score:>16.4f}{max_score:>16.4f}{qd_score:>16.4f}"
                 f"{time.time() - t0:>20.4f}"
             )
@@ -450,16 +391,14 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
 
         start_time = time.time()
         all_cells, _, _, stats_dict = lenia_helpers.init_and_run(config, True)
-        stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
         all_cells = all_cells[:int(stats_dict['N']), 0]
         total_time = time.time() - start_time
 
         nb_iter_done = len(all_cells)
         print(f"{nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
 
-        save_dir = os.getcwd()  # changed by hydra
-        media_dir = os.path.join(save_dir, 'media')
-        lenia_utils.check_dir(media_dir)
+        save_dir = os.path.join(os.getcwd(), f"{str(id_best).zfill(4)}")  # changed by hydra
+        lenia_utils.check_dir(save_dir)
 
         first_cells = all_cells[0]
         config['run_params']['cells'] = lenia_utils.compress_array(first_cells)
@@ -472,16 +411,5 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
         # with open(os.path.join(save_dir, 'last_frame.p'), 'wb') as f:
         #     import pickle
         #     pickle.dump(np.array(all_cells[-1]), f)
-
-        colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
-        print('Plotting stats')
-        lenia_utils.plot_stats(save_dir, stats_dict)
-
-        print('Plotting kernels and functions')
-        lenia_utils.plot_kernels(config, save_dir)
-
-        print('Dumping video')
-        render_params = config['render_params']
-        lenia_video.dump_video(all_cells, render_params, media_dir, colormap)
 
         print('---')

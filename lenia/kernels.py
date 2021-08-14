@@ -3,6 +3,8 @@ from typing import List, Dict, Tuple
 from fractions import Fraction
 import jax.numpy as jnp
 
+from . import utils as lenia_utils
+
 
 @dataclass()
 class KernelMapping(object):
@@ -86,7 +88,7 @@ def get_kernels_and_mapping(kernels_params: List, world_size: List[int], nb_chan
     # ! vstack concantenate on the first dimension
     # Currently it works, because we only considere 1-channel kernels
     kernels = jnp.vstack(kernels_list)  # [nb_kernels, H, W]
-    kernels = crop_zero(kernels)  # [nb_kernels, K_h=max_k_h, K_w=max_k_w]
+    kernels = lenia_utils.crop_zero(kernels)  # [nb_kernels, K_h=max_k_h, K_w=max_k_w]
 
     K_h = kernels.shape[-2]
     K_w = kernels.shape[-1]
@@ -148,12 +150,3 @@ def kernel_shell(distances: jnp.ndarray, kernel_params: Dict) -> jnp.ndarray:
 
 def st2fracs2float(st: str) -> List[float]:
     return [float(Fraction(st)) for st in st.split(',')]
-
-
-def crop_zero(kernels: jnp.ndarray) -> jnp.ndarray:
-    assert len(kernels.shape) == 3  # nb_dims == 2
-
-    kernels = kernels[:, ~jnp.all(kernels == 0, axis=(0, 2))]  # remove 0 columns
-    kernels = kernels[:, :, ~jnp.all(kernels == 0, axis=(0, 1))]  # remove 0 lines
-
-    return kernels

@@ -1,16 +1,22 @@
 # import time
+import os
+import pickle
 import uuid
+import numpy as np
 import jax.numpy as jnp
 from typing import Dict, Tuple, List
 from omegaconf import DictConfig, OmegaConf
+import matplotlib.pyplot as plt
 
+from .constant import EPSILON
 from .lenia import LeniaIndividual
 from . import initializations as initializations
 from . import statistics as lenia_stat
 from . import core as lenia_core
 from . import utils as lenia_utils
-
 from . import kernels as lenia_kernels
+from . import growth_functions as lenia_gf
+from . import video as lenia_video
 
 
 def get_container(omegaConf: DictConfig) -> Dict:
@@ -118,15 +124,16 @@ def init_and_run(config: Dict, with_jit: bool = False) -> Tuple:
     compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     if with_jit is True:
-        outputs = lenia_core.run_scan(
+        all_cells, all_fields, all_potentials, stats_dict = lenia_core.run_scan(
             cells, K, gfn_params, kernels_weight_per_channel, max_run_iter, R, T, update_fn, compute_stats_fn
         )
     else:
-        outputs = lenia_core.run(
+        all_cells, all_fields, all_potentials, stats_dict = lenia_core.run(
             cells, K, gfn_params, kernels_weight_per_channel, max_run_iter, R, T, update_fn, compute_stats_fn
         )
+    stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
 
-    return outputs
+    return all_cells, all_fields, all_potentials, stats_dict
 
 
 def get_mem_optimized_inputs(qd_config: Dict, lenia_sols: List[LeniaIndividual]):
@@ -157,16 +164,17 @@ def get_mem_optimized_inputs(qd_config: Dict, lenia_sols: List[LeniaIndividual])
         gfn_params = mapping.get_gfn_params()
         kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 
+        nb_channels_to_init = nb_channels * nb_init_search
         if update_fn_version == 'v1':
-            rng_key, noises = initializations.perlin(ind.rng_key, nb_init_search, world_size, R, kernels_params[0])
+            rng_key, noises = initializations.perlin(ind.rng_key, nb_channels_to_init, world_size, R, kernels_params[0])
         elif update_fn_version == 'v2':
             rng_key, noises = initializations.perlin_local(
-                ind.rng_key, nb_init_search, world_size, R, kernels_params[0]
+                ind.rng_key, nb_channels_to_init, world_size, R, kernels_params[0]
             )
         else:
             raise ValueError('update_fn_version {update_fn_version} does not exist')
 
-        all_cells_0.append(noises)
+        all_cells_0.append(noises.reshape([nb_init_search, nb_channels] + world_size))
         all_Ks.append(K)
         all_gfn_params.append(gfn_params)
         all_kernels_weight_per_channel.append(kernels_weight_per_channel)
@@ -229,3 +237,84 @@ def update_individuals(
             ind.features = features
 
     return inds
+
+
+def dump_last_frame(save_dir: str, all_cells: jnp.ndarray):
+    """
+        Args:
+            - save_dir: str
+            - all_cells: jnp.ndarray[nb_iter, C, world_dims...]
+    """
+    last_frame = all_cells[-1]
+
+    world_size = last_frame.shape[1:]
+    axes = tuple(range(-len(world_size), 0, 1))
+
+    midpoint = jnp.asarray([size // 2 for size in world_size])[:, jnp.newaxis, jnp.newaxis]
+    coords = jnp.indices(world_size)
+    centered_coords = coords - midpoint
+
+    m_00 = last_frame.sum()
+    MX = [(last_frame * coord).sum() for coord in centered_coords]
+    mass_centroid = jnp.array(MX) / (m_00 + EPSILON)
+
+    shift_idx = mass_centroid.astype(int).T
+    centered_last_frame, _, _ = lenia_utils.center_world(
+        last_frame[jnp.newaxis],
+        last_frame[jnp.newaxis],
+        last_frame[jnp.newaxis],
+        shift_idx[jnp.newaxis],
+        axes,
+    )
+
+    cropped_last_frame = lenia_utils.crop_zero(centered_last_frame)
+
+    with open(os.path.join(save_dir, 'last_frame.p'), 'wb') as f:
+        pickle.dump(np.array(cropped_last_frame), f)
+
+
+###
+# Viz
+###
+def plot_everythings(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict: Dict):
+    colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
+
+    print('Plotting stats')
+    lenia_utils.plot_stats(save_dir, stats_dict)
+
+    print('Plotting kernels and functions')
+    plot_kernels(save_dir, config)
+
+    print('Dumping video')
+    render_params = config['render_params']
+    lenia_video.dump_video(save_dir, all_cells, render_params, colormap)
+
+
+def plot_kernels(save_dir, config):
+    world_size = config['render_params']['world_size']
+    R = config['world_params']['R']
+
+    x = jnp.linspace(0, 1, 1000)
+    all_ks = []
+    all_gs = []
+    for k in config['kernels_params']['k']:
+        all_ks.append(lenia_kernels.get_kernel(k, world_size, R, True))
+        all_gs.append(lenia_gf.growth_fns[k['gf_id']](x, k['m'], k['s']) * k['h'])
+    Ks = lenia_utils.crop_zero(jnp.vstack(all_ks))
+    K_size = Ks.shape[-1]
+    K_mid = K_size // 2
+
+    fullpath = f"{save_dir}/Ks.png"
+    fig, ax = plt.subplots(1, 2, figsize=(10, 2))
+
+    ax[0].plot(range(K_size), Ks[:, K_mid, :].T)
+    ax[0].title.set_text('Ks cross-sections')
+    ax[0].set_xlim([K_mid - R - 3, K_mid + R + 3])
+
+    ax[1].plot(x, jnp.asarray(all_gs).T)
+    ax[1].axhline(y=0, color='grey', linestyle='dotted')
+    ax[1].title.set_text('growths Gs')
+
+    plt.tight_layout()
+    fig.savefig(fullpath)
+    plt.close(fig)

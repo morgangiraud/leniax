@@ -6,15 +6,15 @@ import numpy as np
 from . import utils as lenia_utils
 
 
-def dump_video(all_cells, render_params, media_dir, colormap):
+def dump_video(save_dir, all_cells, render_params, colormap):
     assert len(all_cells.shape) == 4  # [nb_iter, C, H, W]
 
     nb_iter_done = len(all_cells)
     width = all_cells[0].shape[-1] * render_params['pixel_size']
     height = all_cells[0].shape[-2] * render_params['pixel_size']
-    output_fullpath = os.path.join(media_dir, 'beast.mp4')
+    output_fullpath = os.path.join(save_dir, 'beast.mp4')
     process = (
-        ffmpeg.input('pipe:', format='rawvideo', pix_fmt='rgb24', s=f"{width}x{height}", framerate=24
+        ffmpeg.input('pipe:', format='rawvideo', pix_fmt='rgb24', s=f"{width}x{height}", framerate=32
                      ).output(output_fullpath, crf=20, preset='slower', movflags='faststart',
                               pix_fmt='yuv420p').overwrite_output().run_async(pipe_stdin=True)
     )

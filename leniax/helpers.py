@@ -11,12 +11,12 @@ import matplotlib.pyplot as plt
 from .constant import EPSILON
 from .lenia import LeniaIndividual
 from . import initializations as initializations
-from . import statistics as lenia_stat
-from . import core as lenia_core
-from . import utils as lenia_utils
-from . import kernels as lenia_kernels
-from . import growth_functions as lenia_gf
-from . import video as lenia_video
+from . import statistics as leniax_stat
+from . import core as leniax_core
+from . import utils as leniax_utils
+from . import kernels as leniax_kernels
+from . import growth_functions as leniax_gf
+from . import video as leniax_video
 
 
 def get_container(omegaConf: DictConfig) -> Dict:
@@ -55,11 +55,11 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Di
     nb_init_search = run_params['nb_init_search']
     max_run_iter = run_params['max_run_iter']
 
-    K, mapping = lenia_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
+    K, mapping = leniax_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
-    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version, weighted_average)
-    compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
+    update_fn = leniax_core.build_update_fn(world_params, K.shape, mapping, update_fn_version, weighted_average)
+    compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     if update_fn_version == 'v1':
         rng_key, noises = initializations.perlin(rng_key, nb_init_search, world_size, R, kernels_params[0])
@@ -70,7 +70,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Di
 
     all_cells_0 = []
     for i in range(nb_init_search):
-        cells_0 = lenia_core.init_cells(world_size, nb_channels, [noises[i]])
+        cells_0 = leniax_core.init_cells(world_size, nb_channels, [noises[i]])
         all_cells_0.append(cells_0)
     all_cells_0_jnp = jnp.array(all_cells_0)
 
@@ -79,7 +79,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Di
     for i in range(nb_init_search):
         # t0 = time.time()
 
-        all_cells, _, _, all_stats = lenia_core.run_scan(
+        all_cells, _, _, all_stats = leniax_core.run_scan(
             all_cells_0_jnp[i],
             K,
             gfn_params,
@@ -109,7 +109,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Di
 
 
 def init_and_run(config: Dict, with_jit: bool = False) -> Tuple:
-    cells, K, mapping = lenia_core.init(config)
+    cells, K, mapping = leniax_core.init(config)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
     world_params = config['world_params']
@@ -120,15 +120,15 @@ def init_and_run(config: Dict, with_jit: bool = False) -> Tuple:
     R = config['world_params']['R']
     T = config['world_params']['T']
 
-    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version, weighted_average)
-    compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
+    update_fn = leniax_core.build_update_fn(world_params, K.shape, mapping, update_fn_version, weighted_average)
+    compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     if with_jit is True:
-        all_cells, all_fields, all_potentials, stats_dict = lenia_core.run_scan(
+        all_cells, all_fields, all_potentials, stats_dict = leniax_core.run_scan(
             cells, K, gfn_params, kernels_weight_per_channel, max_run_iter, R, T, update_fn, compute_stats_fn
         )
     else:
-        all_cells, all_fields, all_potentials, stats_dict = lenia_core.run(
+        all_cells, all_fields, all_potentials, stats_dict = leniax_core.run(
             cells, K, gfn_params, kernels_weight_per_channel, max_run_iter, R, T, update_fn, compute_stats_fn
         )
     stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
@@ -160,7 +160,7 @@ def get_mem_optimized_inputs(qd_config: Dict, lenia_sols: List[LeniaIndividual])
         config = ind.get_config()
         kernels_params = config['kernels_params']['k']
 
-        K, mapping = lenia_core.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
+        K, mapping = leniax_core.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
         gfn_params = mapping.get_gfn_params()
         kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 
@@ -224,7 +224,7 @@ def update_individuals(
                 continue
             truncated_stat = stats[k][i, :int(nb_steps), max_idx]
             config['behaviours'][k] = truncated_stat[-128:].mean()
-        ind.set_init_cells(lenia_utils.compress_array(cells0))
+        ind.set_init_cells(leniax_utils.compress_array(cells0))
 
         if neg_fitness is True:
             fitness = -nb_steps
@@ -233,7 +233,7 @@ def update_individuals(
         ind.fitness = fitness
 
         if 'phenotype' in ind.qd_config:
-            features = [lenia_utils.get_param(config, key_string) for key_string in ind.qd_config['phenotype']]
+            features = [leniax_utils.get_param(config, key_string) for key_string in ind.qd_config['phenotype']]
             ind.features = features
 
     return inds
@@ -259,7 +259,7 @@ def dump_last_frame(save_dir: str, all_cells: jnp.ndarray):
     mass_centroid = jnp.array(MX) / (m_00 + EPSILON)
 
     shift_idx = mass_centroid.astype(int).T
-    centered_last_frame, _, _ = lenia_utils.center_world(
+    centered_last_frame, _, _ = leniax_utils.center_world(
         last_frame[jnp.newaxis],
         last_frame[jnp.newaxis],
         last_frame[jnp.newaxis],
@@ -267,7 +267,7 @@ def dump_last_frame(save_dir: str, all_cells: jnp.ndarray):
         axes,
     )
 
-    cropped_last_frame = lenia_utils.crop_zero(centered_last_frame)
+    cropped_last_frame = leniax_utils.crop_zero(centered_last_frame)
 
     with open(os.path.join(save_dir, 'last_frame.p'), 'wb') as f:
         pickle.dump(np.array(cropped_last_frame), f)
@@ -280,14 +280,14 @@ def plot_everythings(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_
     colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
 
     print('Plotting stats')
-    lenia_utils.plot_stats(save_dir, stats_dict)
+    leniax_utils.plot_stats(save_dir, stats_dict)
 
     print('Plotting kernels and functions')
     plot_kernels(save_dir, config)
 
     print('Dumping video')
     render_params = config['render_params']
-    lenia_video.dump_video(save_dir, all_cells, render_params, colormap)
+    leniax_video.dump_video(save_dir, all_cells, render_params, colormap)
 
 
 def plot_kernels(save_dir, config):
@@ -298,9 +298,9 @@ def plot_kernels(save_dir, config):
     all_ks = []
     all_gs = []
     for k in config['kernels_params']['k']:
-        all_ks.append(lenia_kernels.get_kernel(k, world_size, R, True))
-        all_gs.append(lenia_gf.growth_fns[k['gf_id']](x, k['m'], k['s']) * k['h'])
-    Ks = lenia_utils.crop_zero(jnp.vstack(all_ks))
+        all_ks.append(leniax_kernels.get_kernel(k, world_size, R, True))
+        all_gs.append(leniax_gf.growth_fns[k['gf_id']](x, k['m'], k['s']) * k['h'])
+    Ks = leniax_utils.crop_zero(jnp.vstack(all_ks))
     K_size = Ks.shape[-1]
     K_mid = K_size // 2
 

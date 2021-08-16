@@ -10,7 +10,7 @@ from jax.nn.initializers import glorot_normal
 from jax.experimental import stax, optimizers
 from jax._src.nn.initializers import _compute_fans
 
-from . import utils as lenia_utils
+from . import utils as leniax_utils
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 tmp_dir = os.path.join(cdir, '..', 'tmp')
@@ -224,11 +224,11 @@ if __name__ == '__main__':
     colormap = plt.get_cmap('plasma')
 
     out = out.reshape(1, height, width)
-    img = lenia_utils.get_image(out, 1, 0, colormap)
+    img = leniax_utils.get_image(out, 1, 0, colormap)
     with open(os.path.join(tmp_dir, "cppn.png"), 'wb') as f:
         img.save(f, format='png')
 
     target_out = target_cell.reshape(1, height, width)
-    target_img = lenia_utils.get_image(target_out, 1, 0, colormap)
+    target_img = leniax_utils.get_image(target_out, 1, 0, colormap)
     with open(os.path.join(tmp_dir, "cppn_target.png"), 'wb') as f:
         target_img.save(f, format='png')

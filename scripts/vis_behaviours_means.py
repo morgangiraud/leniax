@@ -6,9 +6,9 @@ from typing import Dict, List
 
 from ribs.archives import ArchiveBase, GridArchive
 
-from lenia import qd as lenia_qd
-from lenia import utils as lenia_utils
-from lenia import helpers as lenia_helpers
+from leniax import qd as leniax_qd
+from leniax import utils as leniax_utils
+from leniax import helpers as leniax_helpers
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
@@ -50,8 +50,8 @@ def run() -> None:
             qd_config = grid.base_config
 
         seed = qd_config['run_params']['seed']
-        rng_key = lenia_utils.seed_everything(seed)
-        generator_builder = lenia_qd.genBaseIndividual(qd_config, rng_key)
+        rng_key = leniax_utils.seed_everything(seed)
+        generator_builder = leniax_qd.genBaseIndividual(qd_config, rng_key)
         lenia_generator = generator_builder()
 
         real_bests = []
@@ -72,7 +72,7 @@ def run() -> None:
 
         for lenia in real_bests:
             config = lenia.get_config()
-            _, _, _, stats_dict = lenia_helpers.init_and_run(config, True)
+            _, _, _, stats_dict = leniax_helpers.init_and_run(config, True)
             for k, v in stats_dict.items():
                 if k == 'N':
                     continue
@@ -89,7 +89,7 @@ def run() -> None:
             behaviour_archive.add(lenia, 1024, behaviour, config)
 
         print(len(behaviour_archive._occupied_indices))
-        lenia_qd.save_heatmap(behaviour_archive, fitness_domain, f"{subdir}/behaviour_archive_heatmap.png")
+        leniax_qd.save_heatmap(behaviour_archive, fitness_domain, f"{subdir}/behaviour_archive_heatmap.png")
         with open(f"{subdir}/behaviour_final.p", 'wb') as handle:
             pickle.dump(behaviour_archive, handle, protocol=pickle.HIGHEST_PROTOCOL)
 

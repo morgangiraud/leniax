@@ -3,7 +3,7 @@ import pickle
 
 from ribs.archives import ArchiveBase
 
-from lenia import qd as lenia_qd
+from leniax import qd as leniax_qd
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
@@ -37,7 +37,7 @@ def run() -> None:
     max_val = qd_config['run_params']['max_run_iter']
 
     os.chdir(final_dir)
-    lenia_qd.dump_best(grid, max_val)
+    leniax_qd.dump_best(grid, max_val)
 
 
 if __name__ == '__main__':

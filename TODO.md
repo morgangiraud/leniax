@@ -39,8 +39,12 @@ There is a very strange behaviour that happens rarely but surely: it might happe
 It seems to occur mainly on the last element of the set.
 
 ## Now
-- Launch a 3 channel search to see
 - Let's start the first face cube search
+- Build the script to run over all the beta values
+    - Create the list of beta values
+    - Iterate over beta values
+    - Zip each search
+    - Copy the zip file in the Drive
 
 
 # For the launch
@@ -52,6 +56,7 @@ It seems to occur mainly on the last element of the set.
 Hopefull goal at the end: Find 1337 species!
 
 ## Maybe next?
+- For heuristics, add that each channel should be within mass bounds
 - Move on to 3d behaviours? 
     - Dump cdf of all fitness, behaviours and genome
 - Let's explore with T and R

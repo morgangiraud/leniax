@@ -4,7 +4,7 @@ import numpy as np
 from hydra import compose, initialize
 import pickle
 
-import lenia.helpers as lenia_helpers
+import leniax.helpers as leniax_helpers
 
 cfd = os.path.dirname(os.path.realpath(__file__))
 fixture_dir = os.path.join(cfd, 'fixtures')
@@ -18,9 +18,9 @@ class TestPipeline(unittest.TestCase):
         last_frame_fullpath = f"{fixture_dir}/orbium-test_last_frame.p"
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="orbium-test")
-            config = lenia_helpers.get_container(omegaConf)
+            config = leniax_helpers.get_container(omegaConf)
 
-        all_cells, _, _, _ = lenia_helpers.init_and_run(config)
+        all_cells, _, _, _ = leniax_helpers.init_and_run(config)
         all_cells = all_cells[:, 0]
 
         with open(last_frame_fullpath, "rb") as f:
@@ -33,9 +33,9 @@ class TestPipeline(unittest.TestCase):
         last_frame_fullpath = f"{fixture_dir}/orbium-scutium-test_last_frame2.p"
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="orbium-scutium-test")
-            config = lenia_helpers.get_container(omegaConf)
+            config = leniax_helpers.get_container(omegaConf)
 
-        all_cells, _, _, _ = lenia_helpers.init_and_run(config)
+        all_cells, _, _, _ = leniax_helpers.init_and_run(config)
         all_cells = all_cells[:, 0]
 
         with open(last_frame_fullpath, "rb") as f:
@@ -48,9 +48,9 @@ class TestPipeline(unittest.TestCase):
         last_frame_fullpath = f"{fixture_dir}/orbium-test_last_frame.p"
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="orbium-test")
-            config = lenia_helpers.get_container(omegaConf)
+            config = leniax_helpers.get_container(omegaConf)
 
-        all_cells, _, _, _ = lenia_helpers.init_and_run(config, True)
+        all_cells, _, _, _ = leniax_helpers.init_and_run(config, True)
         all_cells = all_cells[:, 0]
 
         with open(last_frame_fullpath, "rb") as f:

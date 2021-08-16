@@ -3,7 +3,7 @@ import time
 import ffmpeg
 import numpy as np
 
-from . import utils as lenia_utils
+from . import utils as leniax_utils
 
 
 def dump_video(save_dir, all_cells, render_params, colormap):
@@ -22,7 +22,7 @@ def dump_video(save_dir, all_cells, render_params, colormap):
 
     for i in range(nb_iter_done):
         start_time = time.time()
-        img = lenia_utils.get_image(
+        img = leniax_utils.get_image(
             all_cells[i], render_params['pixel_size'], render_params['pixel_border_size'], colormap
         )
         process.stdin.write(img.tobytes())

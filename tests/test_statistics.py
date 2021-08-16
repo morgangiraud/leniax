@@ -4,7 +4,7 @@ import unittest
 import jax.numpy as jnp
 import numpy as np
 
-from lenia import statistics as lenia_stats
+from leniax import statistics as leniax_stat
 
 cfd = os.path.dirname(os.path.realpath(__file__))
 fixture_dir = os.path.join(cfd, 'fixtures')
@@ -16,7 +16,7 @@ class TestStatistics(unittest.TestCase):
         mass_volume = jnp.array([1600, 3200, 4800, 6400]) / R**2
         mass_volume_counter = jnp.array([10, 70, 49, 50])
 
-        should_continue_cond, mass_volume_counter_next = lenia_stats.mass_volume_heuristic(
+        should_continue_cond, mass_volume_counter_next = leniax_stat.mass_volume_heuristic(
             mass_volume, mass_volume_counter, R
         )
 
@@ -30,7 +30,7 @@ class TestStatistics(unittest.TestCase):
         previous_sign = jnp.array([1, 1, -1, -1])
         monotone_counter = jnp.array([70, 80, 30, 80])
 
-        should_continue_cond, monotone_counter_next = lenia_stats.monotonic_heuristic(
+        should_continue_cond, monotone_counter_next = leniax_stat.monotonic_heuristic(
             sign, previous_sign, monotone_counter
         )
 

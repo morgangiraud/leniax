@@ -4,9 +4,9 @@ import jax.numpy as jnp
 import numpy as np
 from hydra import compose, initialize
 
-from lenia import helpers as lenia_helpers
-from lenia import utils as lenia_utils
-from lenia.lenia import LeniaIndividual
+from leniax import helpers as leniax_helpers
+from leniax import utils as leniax_utils
+from leniax.lenia import LeniaIndividual
 
 cfd = os.path.dirname(os.path.realpath(__file__))
 fixture_dir = os.path.join(cfd, 'fixtures')
@@ -16,7 +16,7 @@ class TestHelpers(unittest.TestCase):
     def test_get_mem_optimized_inputs(self):
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="qd_config-test")
-            qd_config = lenia_helpers.get_container(omegaConf)
+            qd_config = leniax_helpers.get_container(omegaConf)
         world_params = qd_config['world_params']
         nb_channels = world_params['nb_channels']
         R = world_params['R']
@@ -27,13 +27,13 @@ class TestHelpers(unittest.TestCase):
         world_size = render_params['world_size']
 
         seed = qd_config['run_params']['seed']
-        rng_key = lenia_utils.seed_everything(seed)
+        rng_key = leniax_utils.seed_everything(seed)
 
         lenia_sols = [LeniaIndividual(qd_config, rng_key), LeniaIndividual(qd_config, rng_key)]
         lenia_sols[0][:] = [0.2, 0.02]
         lenia_sols[1][:] = [0.3, 0.03]
 
-        rng_key, run_scan_mem_optimized_parameters = lenia_helpers.get_mem_optimized_inputs(qd_config, lenia_sols)
+        rng_key, run_scan_mem_optimized_parameters = leniax_helpers.get_mem_optimized_inputs(qd_config, lenia_sols)
 
         assert len(run_scan_mem_optimized_parameters) == 4
         all_cells_0_jnp = run_scan_mem_optimized_parameters[0]
@@ -49,10 +49,10 @@ class TestHelpers(unittest.TestCase):
     def test_update_individuals(self):
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="qd_config-test")
-            qd_config = lenia_helpers.get_container(omegaConf)
+            qd_config = leniax_helpers.get_container(omegaConf)
 
         seed = qd_config['run_params']['seed']
-        rng_key = lenia_utils.seed_everything(seed)
+        rng_key = leniax_utils.seed_everything(seed)
 
         inds = [LeniaIndividual(qd_config, rng_key), LeniaIndividual(qd_config, rng_key)]
         inds[0][:] = [0.2, 0.02]
@@ -60,7 +60,7 @@ class TestHelpers(unittest.TestCase):
         stats = {'N': jnp.array([[1, 2, 3], [1, 3, 4]])}
         cells0s = jnp.ones([2, 3] + qd_config["render_params"]["world_size"])
 
-        new_inds = lenia_helpers.update_individuals(inds, stats, cells0s)
+        new_inds = leniax_helpers.update_individuals(inds, stats, cells0s)
 
         assert len(new_inds) == 2
         assert new_inds[0].fitness == 3

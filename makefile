@@ -27,7 +27,7 @@ endif
 update_env:
 ifeq (True,$(HAS_CONDA))
 	@echo ">>> Detected conda, exporting conda environment."
-	conda env update --name lenia-nft --file environment_$(OS).yml
+	conda env update --name leniax --file environment_$(OS).yml
 	@echo ">>> Conda env exported."
 else
 	@echo ">>> Please install conda first: brew cask install anaconda"
@@ -37,7 +37,7 @@ endif
 export_env:
 ifeq (True,$(HAS_CONDA))
 	@echo ">>> Detected conda, exporting conda environment."
-	conda env export -n lenia-nft | grep -v "^prefix: " > environment_$(OS).yml
+	conda env export -n leniax | grep -v "^prefix: " > environment_$(OS).yml
 
 	@echo ">>> Conda env exported."
 else
@@ -50,13 +50,13 @@ endif
 # CI
 ###
 yapf:
-	yapf --style tox.ini -r -i lenia/. tests/. scripts/.
+	yapf --style tox.ini -r -i leniax/. tests/. scripts/.
 
 lint:
-	flake8 lenia/. tests/. scripts/.
+	flake8 leniax/. tests/. scripts/.
 
 typecheck:
-	mypy $(CURRENT_DIR)/lenia $(CURRENT_DIR)/scripts
+	mypy $(CURRENT_DIR)/leniax $(CURRENT_DIR)/scripts
 
 test:
 	pytest --disable-pytest-warnings .

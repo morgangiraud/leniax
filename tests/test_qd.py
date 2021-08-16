@@ -1,8 +1,8 @@
 import os
 import unittest
 
-from lenia.lenia import LeniaIndividual
-from lenia import utils as lenia_utils
+from leniax.lenia import LeniaIndividual
+from leniax import utils as leniax_utils
 
 cfd = os.path.dirname(os.path.realpath(__file__))
 fixture_dir = os.path.join(cfd, 'fixtures')
@@ -30,7 +30,7 @@ class TestQD(unittest.TestCase):
                 'key': 'kernels_params.k.0.s', 'domain': [0., 2.], 'type': 'float'
             }]
         }
-        rng_key = lenia_utils.seed_everything(1)
+        rng_key = leniax_utils.seed_everything(1)
         ind = LeniaIndividual(config, rng_key)
         ind[:] = [0.7, 0.3]
 

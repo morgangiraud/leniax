@@ -1,5 +1,5 @@
-# Lenia
-Lenia NFT collection 
+# Leniax
+Lenia JAX library
 
 
 ## Install

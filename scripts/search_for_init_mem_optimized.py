@@ -5,10 +5,10 @@ import jax
 from omegaconf import DictConfig
 import hydra
 
-from lenia.lenia import LeniaIndividual
-import lenia.utils as lenia_utils
-import lenia.helpers as lenia_helpers
-import lenia.qd as lenia_qd
+from leniax.lenia import LeniaIndividual
+import leniax.utils as leniax_utils
+import leniax.helpers as leniax_helpers
+import leniax.qd as leniax_qd
 
 logging.set_verbosity(logging.ERROR)
 
@@ -22,18 +22,18 @@ config_path_1c1kv2 = os.path.join(cdir, '..', 'conf', 'species', '1c-1k-v2')
 # @hydra.main(config_path=config_path_1c1k, config_name="prototype")
 @hydra.main(config_path=config_path_1c1kv2, config_name="wanderer")
 def launch(omegaConf: DictConfig) -> None:
-    config = lenia_helpers.get_container(omegaConf)
+    config = leniax_helpers.get_container(omegaConf)
     # config['run_params']['nb_init_search'] = 16
     # config['run_params']['max_run_iter'] = 512
     print(config)
 
-    rng_key = lenia_utils.seed_everything(config['run_params']['seed'])
+    rng_key = leniax_utils.seed_everything(config['run_params']['seed'])
     lenia_sols = []
     for _ in range(1):
         rng_key, subkey = jax.random.split(rng_key)
         lenia_sols.append(LeniaIndividual(config, subkey))
 
-    eval_fn = lenia_qd.build_eval_lenia_config_mem_optimized_fn(config)
+    eval_fn = leniax_qd.build_eval_lenia_config_mem_optimized_fn(config)
 
     t0 = time.time()
     results = eval_fn(lenia_sols)
@@ -43,25 +43,23 @@ def launch(omegaConf: DictConfig) -> None:
         print(f"best run length: {best.fitness}")
         config = best.get_config()
 
-        all_cells, _, _, stats_dict = lenia_helpers.init_and_run(config, True)
+        all_cells, _, _, stats_dict = leniax_helpers.init_and_run(config, True)
         all_cells = all_cells[:int(stats_dict['N']), 0]
 
         save_dir = os.path.join(os.getcwd(), f"{str(id_best).zfill(4)}")  # changed by hydra
-        lenia_utils.check_dir(save_dir)
+        leniax_utils.check_dir(save_dir)
 
         first_cells = all_cells[0]
-        config['run_params']['cells'] = lenia_utils.compress_array(first_cells)
-        lenia_utils.save_config(save_dir, config)
+        config['run_params']['cells'] = leniax_utils.compress_array(first_cells)
+        leniax_utils.save_config(save_dir, config)
 
         # print('Dumping cells')
         # with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
         #     np.save(f, np.array(all_cells))
 
-        # with open(os.path.join(save_dir, 'last_frame.p'), 'wb') as f:
-        #     import pickle
-        #     pickle.dump(np.array(all_cells[-1]), f)
+        leniax_helpers.dump_last_frame(save_dir, all_cells)
 
-        lenia_helpers.plot_everythings(save_dir, config, all_cells, stats_dict)
+        leniax_helpers.plot_everythings(save_dir, config, all_cells, stats_dict)
 
 
 if __name__ == '__main__':

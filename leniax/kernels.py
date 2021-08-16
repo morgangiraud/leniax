@@ -3,7 +3,7 @@ from typing import List, Dict, Tuple
 from fractions import Fraction
 import jax.numpy as jnp
 
-from . import utils as lenia_utils
+from . import utils as leniax_utils
 
 
 @dataclass()
@@ -88,7 +88,7 @@ def get_kernels_and_mapping(kernels_params: List, world_size: List[int], nb_chan
     # ! vstack concantenate on the first dimension
     # Currently it works, because we only considere 1-channel kernels
     kernels = jnp.vstack(kernels_list)  # [nb_kernels, H, W]
-    kernels = lenia_utils.crop_zero(kernels)  # [nb_kernels, K_h=max_k_h, K_w=max_k_w]
+    kernels = leniax_utils.crop_zero(kernels)  # [nb_kernels, K_h=max_k_h, K_w=max_k_w]
 
     K_h = kernels.shape[-2]
     K_w = kernels.shape[-1]

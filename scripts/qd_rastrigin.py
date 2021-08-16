@@ -12,10 +12,10 @@ from ribs.archives import CVTArchive
 from ribs.emitters import GaussianEmitter, ImprovementEmitter, OptimizingEmitter, RandomDirectionEmitter
 from ribs.optimizers import Optimizer
 
-from lenia.helpers import get_container
-from lenia import qd as lenia_qd
-from lenia import utils as lenia_utils
-from lenia import video as lenia_video
+from leniax.helpers import get_container
+from leniax import qd as leniax_qd
+from leniax import utils as leniax_utils
+from leniax import video as leniax_video
 
 # Disable JAX logging https://abseil.io/docs/python/guides/logging
 logging.set_verbosity(logging.ERROR)
@@ -36,8 +36,8 @@ def run(omegaConf: DictConfig) -> None:
     print(config)
 
     seed = config['run_params']['seed']
-    rng_key = lenia_utils.seed_everything(seed)
-    generator_builder = lenia_qd.genBaseIndividual(config, rng_key)
+    rng_key = leniax_utils.seed_everything(seed)
+    generator_builder = leniax_qd.genBaseIndividual(config, rng_key)
     lenia_generator = generator_builder()
 
     fitness_domain = [-65, 0]  # negative rastrigin domain in(to maximise)
@@ -78,20 +78,20 @@ def run(omegaConf: DictConfig) -> None:
     # See https://stackoverflow.com/questions/40217873/multiprocessing-use-only-the-physical-cores
     n_workers = psutil.cpu_count(logical=False) - 1
     nb_iter = config['algo']['budget'] // (batch_size * len(emitters))
-    eval_fn = jax.partial(lenia_qd.eval_debug, neg_fitness=True)
-    metrics = lenia_qd.run_qd_search(eval_fn, nb_iter, lenia_generator, optimizer, fitness_domain, log_freq, n_workers)
+    eval_fn = jax.partial(leniax_qd.eval_debug, neg_fitness=True)
+    metrics = leniax_qd.run_qd_search(eval_fn, nb_iter, lenia_generator, optimizer, fitness_domain, log_freq, n_workers)
 
     # Save results
     save_dir = os.getcwd()
     with open(f"{save_dir}/final.p", 'wb') as handle:
         pickle.dump(archive, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    lenia_utils.save_config(save_dir, archive.qd_config)
+    leniax_utils.save_config(save_dir, archive.qd_config)
 
-    lenia_qd.save_ccdf(optimizer.archive, f"{save_dir}/archive_ccdf.png")
-    lenia_qd.save_metrics(metrics, save_dir)
-    lenia_qd.save_heatmap(optimizer.archive, fitness_domain, f"{save_dir}/archive_heatmap.png")
-    lenia_qd.save_parallel_axes_plot(optimizer.archive, fitness_domain, f"{save_dir}/archive_parralel_plot.png")
-    lenia_video.dump_qd_ribs_result(os.path.join(save_dir, 'qd_search.mp4'))
+    leniax_qd.save_ccdf(optimizer.archive, f"{save_dir}/archive_ccdf.png")
+    leniax_qd.save_metrics(metrics, save_dir)
+    leniax_qd.save_heatmap(optimizer.archive, fitness_domain, f"{save_dir}/archive_heatmap.png")
+    leniax_qd.save_parallel_axes_plot(optimizer.archive, fitness_domain, f"{save_dir}/archive_parralel_plot.png")
+    leniax_video.dump_qd_ribs_result(os.path.join(save_dir, 'qd_search.mp4'))
 
 
 if __name__ == '__main__':

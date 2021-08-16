@@ -7,12 +7,12 @@ import jax.numpy as jnp
 import numpy as np
 from hydra import compose, initialize
 
-from lenia.helpers import get_container, get_mem_optimized_inputs
-from lenia import core as lenia_core
-from lenia import kernels as lenia_kernel
-from lenia import statistics as lenia_stat
-from lenia import utils as lenia_utils
-from lenia.lenia import LeniaIndividual
+from leniax.helpers import get_container, get_mem_optimized_inputs
+from leniax import core as leniax_core
+from leniax import kernels as leniax_kernels
+from leniax import statistics as leniax_stat
+from leniax import utils as leniax_utils
+from leniax.lenia import LeniaIndividual
 
 cfd = os.path.dirname(os.path.realpath(__file__))
 fixture_dir = os.path.join(cfd, 'fixtures')
@@ -28,7 +28,7 @@ class TestCore(unittest.TestCase):
         T = qd_config['world_params']['T']
         max_run_iter = qd_config['run_params']['max_run_iter']
         seed = qd_config['run_params']['seed']
-        rng_key = lenia_utils.seed_everything(seed)
+        rng_key = leniax_utils.seed_everything(seed)
 
         nb_lenia = 4
 
@@ -56,16 +56,16 @@ class TestCore(unittest.TestCase):
         weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
         render_params = qd_config['render_params']
         kernels_params = qd_config['kernels_params']['k']
-        K, mapping = lenia_core.get_kernels_and_mapping(
+        K, mapping = leniax_core.get_kernels_and_mapping(
             kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R']
         )
-        update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version, weighted_average)
-        compute_stats_fn = lenia_stat.build_compute_stats_fn(world_params, render_params)
+        update_fn = leniax_core.build_update_fn(world_params, K.shape, mapping, update_fn_version, weighted_average)
+        compute_stats_fn = leniax_stat.build_compute_stats_fn(world_params, render_params)
 
         # jax.profiler.start_trace("/tmp/tensorboard")
 
         t0 = time.time()
-        stats1 = lenia_core.run_scan_mem_optimized(
+        stats1 = leniax_core.run_scan_mem_optimized(
             *run_scan_mem_optimized_parameters1,
             max_run_iter,
             R,
@@ -77,7 +77,7 @@ class TestCore(unittest.TestCase):
         delta_t = time.time() - t0
 
         t0 = time.time()
-        stats2 = lenia_core.run_scan_mem_optimized(
+        stats2 = leniax_core.run_scan_mem_optimized(
             *run_scan_mem_optimized_parameters2,
             max_run_iter,
             R,
@@ -100,13 +100,13 @@ class TestCore(unittest.TestCase):
             config = get_container(omegaConf)
 
         max_run_iter = 32
-        cells, K, mapping = lenia_core.init(config)
+        cells, K, mapping = leniax_core.init(config)
         world_params = config['world_params']
         R = world_params['R']
         T = world_params['T']
         update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
-        update_fn = lenia_core.build_update_fn(config['world_params'], K.shape, mapping, update_fn_version)
-        compute_stats_fn = lenia_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
+        update_fn = leniax_core.build_update_fn(config['world_params'], K.shape, mapping, update_fn_version)
+        compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
         cells1 = jnp.ones(cells.shape) * 0.2
         K1 = jnp.ones(K.shape) * 0.3
@@ -114,7 +114,7 @@ class TestCore(unittest.TestCase):
         kernels_weight_per_channel1 = mapping.get_kernels_weight_per_channel()
 
         t0 = time.time()
-        out1, _, _, _ = lenia_core.run_scan(
+        out1, _, _, _ = leniax_core.run_scan(
             cells1, K1, gfn_params1, kernels_weight_per_channel1, max_run_iter, R, T, update_fn, compute_stats_fn
         )
         out1.block_until_ready()
@@ -127,7 +127,7 @@ class TestCore(unittest.TestCase):
         kernels_weight_per_channel2 = mapping.get_kernels_weight_per_channel()
 
         t0 = time.time()
-        out2, _, _, _ = lenia_core.run_scan(
+        out2, _, _, _ = leniax_core.run_scan(
             cells2, K2, gfn_params2, kernels_weight_per_channel2, max_run_iter, R, T, update_fn, compute_stats_fn
         )
         out2.block_until_ready()
@@ -140,10 +140,10 @@ class TestCore(unittest.TestCase):
             omegaConf = compose(config_name="orbium-test")
             config = get_container(omegaConf)
 
-        cells, K, mapping = lenia_core.init(config)
+        cells, K, mapping = leniax_core.init(config)
         world_params = config['world_params']
         update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
-        update_fn = lenia_core.build_update_fn(config['world_params'], K.shape, mapping, update_fn_version)
+        update_fn = leniax_core.build_update_fn(config['world_params'], K.shape, mapping, update_fn_version)
 
         cells1 = jnp.ones(cells.shape) * 0.2
         K1 = jnp.ones(K.shape) * 0.3
@@ -190,7 +190,7 @@ class TestCore(unittest.TestCase):
 
         true_channels = jnp.array([True, True, True, False])
 
-        get_potential = lenia_core.build_get_potential_fn(K.shape, true_channels)
+        get_potential = leniax_core.build_get_potential_fn(K.shape, true_channels)
         jit_fn = jax.jit(get_potential)
 
         t0 = time.time()
@@ -221,13 +221,13 @@ class TestCore(unittest.TestCase):
     def test_get_field_jit_perf(self):
         nb_channels = 2
         nb_kernels = 3
-        mapping = lenia_kernel.KernelMapping(nb_channels, nb_kernels)
+        mapping = leniax_kernels.KernelMapping(nb_channels, nb_kernels)
         mapping.kernels_weight_per_channel = [[.5, .4, .0], [0., 0., .2]]
         mapping.cin_growth_fns = [[0, 0], [0]]
         mapping.gfn_params = [[[0.1, 0.1], [0.2, 0.2]], [[0.3, 0.3]]]
         average_weight = True
 
-        get_field = lenia_core.build_get_field_fn(mapping.cin_growth_fns, average_weight)
+        get_field = leniax_core.build_get_field_fn(mapping.cin_growth_fns, average_weight)
         jit_fn = jax.jit(get_field)
 
         potential1 = jnp.ones([1, nb_kernels, 25, 25]) * .5
@@ -251,7 +251,7 @@ class TestCore(unittest.TestCase):
         assert delta_t_compiled < 1 / 100 * delta_t
 
     def test_weighted_select_average_jit_perf(self):
-        jit_fn = jax.jit(lenia_core.weighted_select_average)
+        jit_fn = jax.jit(leniax_core.weighted_select_average)
 
         nb_kernels = 3
         field1 = jnp.ones([1, nb_kernels, 25, 25]) * .5
@@ -273,7 +273,7 @@ class TestCore(unittest.TestCase):
         assert delta_t_compiled < 1 / 100 * delta_t
 
     def test_update_cells_v1_jit_perf(self):
-        jit_fn = jax.jit(lenia_core.update_cells)
+        jit_fn = jax.jit(leniax_core.update_cells)
 
         world_shape = [25, 25]
 
@@ -300,7 +300,7 @@ class TestCore(unittest.TestCase):
         np.testing.assert_array_almost_equal(out2, jnp.ones(world_shape) * .7)
 
     def test_update_cells_v2_jit_perf(self):
-        jit_fn = jax.jit(lenia_core.update_cells_v2)
+        jit_fn = jax.jit(leniax_core.update_cells_v2)
 
         world_shape = [25, 25]
 

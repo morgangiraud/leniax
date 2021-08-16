@@ -17,10 +17,10 @@ from ribs.archives import GridArchive, CVTArchive
 from ribs.visualize import grid_archive_heatmap, cvt_archive_heatmap, parallel_axes_plot
 
 from .lenia import LeniaIndividual
-from . import utils as lenia_utils
-from . import core as lenia_core
-from . import helpers as lenia_helpers
-from . import statistics as lenia_stat
+from . import utils as leniax_utils
+from . import core as leniax_core
+from . import helpers as leniax_helpers
+from . import statistics as leniax_stat
 
 QDMetrics = Dict[str, Dict[str, list]]
 
@@ -92,7 +92,7 @@ def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividua
     np.random.seed(ind.rng_key[0])
     random.seed(ind.rng_key[0])
 
-    _, best, _ = lenia_helpers.search_for_init(ind.rng_key, config)
+    _, best, _ = leniax_helpers.search_for_init(ind.rng_key, config)
 
     nb_steps = best['N']
     stats = best['all_stats']
@@ -102,13 +102,13 @@ def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividua
             continue
         config['behaviours'][k] = stats[k][-128:].mean()
     init_cells = best['all_cells'][0][:, 0, 0, ...]
-    ind.set_init_cells(lenia_utils.compress_array(init_cells))
+    ind.set_init_cells(leniax_utils.compress_array(init_cells))
 
     if neg_fitness is True:
         fitness = -nb_steps
     else:
         fitness = nb_steps
-    features = [lenia_utils.get_param(config, key_string) for key_string in ind.qd_config['phenotype']]
+    features = [leniax_utils.get_param(config, key_string) for key_string in ind.qd_config['phenotype']]
 
     ind.fitness = fitness
     ind.features = features
@@ -125,24 +125,24 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness=False)
     update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
     weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
     kernels_params = qd_config['kernels_params']['k']
-    K, mapping = lenia_core.get_kernels_and_mapping(
+    K, mapping = leniax_core.get_kernels_and_mapping(
         kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R']
     )
 
-    update_fn = lenia_core.build_update_fn(world_params, K.shape, mapping, update_fn_version, weighted_average)
-    compute_stats_fn = lenia_stat.build_compute_stats_fn(world_params, render_params)
+    update_fn = leniax_core.build_update_fn(world_params, K.shape, mapping, update_fn_version, weighted_average)
+    compute_stats_fn = leniax_stat.build_compute_stats_fn(world_params, render_params)
 
     def eval_lenia_config_mem_optimized(lenia_sols: List[LeniaIndividual]) -> List[LeniaIndividual]:
         qd_config = lenia_sols[0].qd_config
-        _, run_scan_mem_optimized_parameters = lenia_helpers.get_mem_optimized_inputs(qd_config, lenia_sols)
+        _, run_scan_mem_optimized_parameters = leniax_helpers.get_mem_optimized_inputs(qd_config, lenia_sols)
 
-        stats = lenia_core.run_scan_mem_optimized(
+        stats = leniax_core.run_scan_mem_optimized(
             *run_scan_mem_optimized_parameters, max_run_iter, R, T, update_fn, compute_stats_fn
         )
         stats['N'].block_until_ready()
 
         cells0s = run_scan_mem_optimized_parameters[0]
-        results = lenia_helpers.update_individuals(lenia_sols, stats, cells0s, neg_fitness)
+        results = leniax_helpers.update_individuals(lenia_sols, stats, cells0s, neg_fitness)
 
         return results
 
@@ -372,7 +372,7 @@ def save_all(current_iter: int, optimizer, fitness_domain, sols: List, fits: Lis
 def dump_best(grid: ArchiveBase, fitness_threshold: float):
     qd_config = grid.qd_config
     seed = qd_config['run_params']['seed']
-    rng_key = lenia_utils.seed_everything(seed)
+    rng_key = leniax_utils.seed_everything(seed)
     generator_builder = genBaseIndividual(qd_config, rng_key)
     lenia_generator = generator_builder()
 
@@ -390,7 +390,7 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
         config = best.get_config()
 
         start_time = time.time()
-        all_cells, _, _, stats_dict = lenia_helpers.init_and_run(config, True)
+        all_cells, _, _, stats_dict = leniax_helpers.init_and_run(config, True)
         all_cells = all_cells[:int(stats_dict['N']), 0]
         total_time = time.time() - start_time
 
@@ -398,18 +398,18 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
         print(f"{nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
 
         save_dir = os.path.join(os.getcwd(), f"{str(id_best).zfill(4)}")  # changed by hydra
-        lenia_utils.check_dir(save_dir)
+        leniax_utils.check_dir(save_dir)
 
         first_cells = all_cells[0]
-        config['run_params']['cells'] = lenia_utils.compress_array(first_cells)
-        lenia_utils.save_config(save_dir, config)
+        config['run_params']['cells'] = leniax_utils.compress_array(first_cells)
+        leniax_utils.save_config(save_dir, config)
 
         # print('Dumping cells')
         # with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
         #     np.save(f, np.array(all_cells))
 
-        lenia_helpers.dump_last_frame(save_dir, all_cells)
+        leniax_helpers.dump_last_frame(save_dir, all_cells)
 
-        lenia_helpers.plot_everythings(save_dir, config, all_cells, stats_dict)
+        leniax_helpers.plot_everythings(save_dir, config, all_cells, stats_dict)
 
         print('---')

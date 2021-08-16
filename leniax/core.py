@@ -5,7 +5,7 @@ import jax.numpy as jnp
 from typing import Callable, List, Dict, Tuple
 
 from . import utils
-from . import statistics as lenia_stat
+from . import statistics as leniax_stat
 from .kernels import get_kernels_and_mapping, KernelMapping
 from .growth_functions import growth_fns
 from .constant import EPSILON, START_CHECK_STOP
@@ -73,7 +73,7 @@ def run(
 
     previous_mass = init_mass
     previous_sign = jnp.zeros(N)
-    counters = lenia_stat.init_counters(N)
+    counters = leniax_stat.init_counters(N)
     should_continue = jnp.ones(N)
     total_shift_idx = jnp.zeros([N, nb_world_dims], dtype=jnp.int32)
     mass_centroid = jnp.zeros([nb_world_dims, N])
@@ -92,14 +92,14 @@ def run(
         all_stats.append(stat_t)
 
         mass = stat_t['mass']
-        cond = lenia_stat.min_mass_heuristic(EPSILON, mass)
+        cond = leniax_stat.min_mass_heuristic(EPSILON, mass)
         should_continue_cond = cond
-        cond = lenia_stat.max_mass_heuristic(init_mass, mass)
+        cond = leniax_stat.max_mass_heuristic(init_mass, mass)
         should_continue_cond *= cond
 
         sign = jnp.sign(mass - previous_mass)
         monotone_counter = counters['nb_monotone_step']
-        cond, counters['nb_monotone_step'] = lenia_stat.monotonic_heuristic(sign, previous_sign, monotone_counter)
+        cond, counters['nb_monotone_step'] = leniax_stat.monotonic_heuristic(sign, previous_sign, monotone_counter)
         should_continue_cond *= cond
 
         # growth = stat_t['growth']
@@ -109,14 +109,14 @@ def run(
         # # Looking for non-static species
         # mass_speed = stat_t['mass_speed']
         # mass_speed_counter = counters['nb_slow_mass_step']
-        # cond, counters['nb_slow_mass_step'] = lenia_stat.min_mass_speed_heuristic(
+        # cond, counters['nb_slow_mass_step'] = leniax_stat.min_mass_speed_heuristic(
         #     mass_speed, mass_speed_counter, R, 1. / T
         # )
         # should_continue_cond *= cond
 
         mass_volume = stat_t['mass_volume']
         mass_volume_counter = counters['nb_max_volume_step']
-        cond, counters['nb_max_volume_step'] = lenia_stat.mass_volume_heuristic(mass_volume, mass_volume_counter, R)
+        cond, counters['nb_max_volume_step'] = leniax_stat.mass_volume_heuristic(mass_volume, mass_volume_counter, R)
         should_continue_cond *= cond
 
         should_continue *= should_continue_cond
@@ -132,7 +132,7 @@ def run(
     all_fields_jnp = jnp.array(all_fields)
     all_potentials_jnp = jnp.array(all_potentials)
 
-    stats_dict = lenia_stat.stats_list_to_dict(all_stats)
+    stats_dict = leniax_stat.stats_list_to_dict(all_stats)
     stats_dict['N'] = jnp.array(current_iter)
 
     return all_cells_jnp, all_fields_jnp, all_potentials_jnp, stats_dict
@@ -193,7 +193,7 @@ def run_scan(
 
     _, ys = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
 
-    continue_stat = lenia_stat.check_heuristics(ys['stats'], R, 1 / T)
+    continue_stat = leniax_stat.check_heuristics(ys['stats'], R, 1 / T)
     ys['stats']['N'] = continue_stat.sum(axis=0)
 
     return ys['cells'], ys['field'], ys['potential'], ys['stats']
@@ -260,7 +260,7 @@ def run_scan_mem_optimized(
 
     _, stats = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
 
-    continue_stat = lenia_stat.check_heuristics(stats, R, 1 / T)
+    continue_stat = leniax_stat.check_heuristics(stats, R, 1 / T)
     stats['N'] = continue_stat.sum(axis=0)
 
     return stats

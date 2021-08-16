@@ -1,6 +1,7 @@
 import os
 import unittest
-from lenia.lenia import update_dict
+
+from leniax.lenia import update_dict
 
 cfd = os.path.dirname(os.path.realpath(__file__))
 fixture_dir = os.path.join(cfd, 'fixtures')

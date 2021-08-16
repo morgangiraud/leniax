@@ -4,7 +4,7 @@ import unittest
 import jax
 import jax.numpy as jnp
 
-from lenia import growth_functions as lenia_gf
+from leniax import growth_functions as leniax_gf
 
 cfd = os.path.dirname(os.path.realpath(__file__))
 fixture_dir = os.path.join(cfd, 'fixtures')
@@ -12,7 +12,7 @@ fixture_dir = os.path.join(cfd, 'fixtures')
 
 class TestGrowthFunctions(unittest.TestCase):
     def test_jit_perf(self):
-        jitted_poly_quad4 = jax.jit(lenia_gf.poly_quad4)
+        jitted_poly_quad4 = jax.jit(leniax_gf.poly_quad4)
 
         a = jnp.array([[
             [0., 0., 0., 0.],

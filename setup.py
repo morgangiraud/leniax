@@ -6,17 +6,17 @@ def load_long_description():
     return text
 
 setup(
-    name="jax-lenia",
-    version='0.1a1',
+    name="leniax",
+    version='1.0a1',
     python_requires='>=3.7.10',
     description='Lenia using the JAX library',
-    url='https://github.com/stockmouton/lenia',
+    url='https://github.com/stockmouton/leniax',
     author='Morgan Giraud',
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
         'Topic :: Scientific/Engineering :: Artificial Intelligence',
-        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.8',
     ],
     keywords=['jax', 'alife', 'lenia', 'leniax'],
     long_description=load_long_description(),

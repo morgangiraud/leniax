@@ -408,8 +408,8 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
         # with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
         #     np.save(f, np.array(all_cells))
 
-        # with open(os.path.join(save_dir, 'last_frame.p'), 'wb') as f:
-        #     import pickle
-        #     pickle.dump(np.array(all_cells[-1]), f)
+        lenia_helpers.dump_last_frame(save_dir, all_cells)
+
+        lenia_helpers.plot_everythings(save_dir, config, all_cells, stats_dict)
 
         print('---')

@@ -134,7 +134,10 @@ def get_kernel(kernel_params: Dict, world_size: list, R: float, normalize=True) 
 
 
 def kernel_shell(distances: jnp.ndarray, kernel_params: Dict) -> jnp.ndarray:
-    bs = jnp.asarray(st2fracs2float(kernel_params['b']))
+    if type(kernel_params['b']) == str:
+        bs = jnp.asarray(st2fracs2float(kernel_params['b']))
+    else:
+        bs = jnp.asarray(kernel_params['b'])
     nb_b = bs.shape[0]
 
     B_dist = nb_b * distances  # scale distances by the number of modes

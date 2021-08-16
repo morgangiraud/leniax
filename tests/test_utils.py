@@ -68,3 +68,12 @@ class TestUtils(unittest.TestCase):
         kernels_out = leniax_utils.crop_zero(kernels)
 
         np.testing.assert_array_equal(kernels_out, true_kernels)
+
+    def test_generate_beta_faces(self):
+        denominator = 3
+
+        face1, face2, face3 = leniax_utils.generate_beta_faces(denominator)
+
+        assert len(face1) == (denominator + 1)**2
+        assert len(face2) == (denominator + 1) * denominator
+        assert len(face3) == denominator**2

@@ -383,6 +383,31 @@ def plot_stats(save_dir: str, stats_dict: Dict):
     plt.close(fig)
 
 
+def generate_beta_faces(denominator: int):
+    face1 = []
+    for i in range(denominator + 1):
+        for j in range(denominator + 1):
+            if j == 0:
+                if i == 0:
+                    face1.append([1.])
+                else:
+                    face1.append([1., i / denominator])
+            else:
+                face1.append([1., i / denominator, j / denominator])
+
+    face2 = []
+    for i in range(denominator):
+        for j in range(denominator + 1):
+            if j == 0:
+                face2.append([i / denominator, 1.])
+            else:
+                face2.append([i / denominator, 1., j / denominator])
+
+    face3 = [[i / denominator, j / denominator, 1.] for j in range(denominator) for i in range(denominator)]
+
+    return face1, face2, face3
+
+
 ###
 # OS
 ###

@@ -3,7 +3,11 @@ Lenia JAX library
 
 
 ## Install
-`make install`
+Install Leniax library with conda (make sure you have it before typing the following command): `make install`
+Then activate the environment: `conda activate leniax`
+Now, install the lib itself in the conda env: `pip install -e .`
+
+Finally make sure, everything is fine by running the following command: `make ci`
 
 ## About
 In lenia we have multiple things interacting with each other:

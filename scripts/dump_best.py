@@ -12,7 +12,8 @@ config_path = os.path.join(cdir, '..', 'conf')
 # final_dir = os.path.join(cdir, '..', 'outputs', 'test')
 # final_dir = os.path.join(cdir, '..', 'experiments', '003_v1_1c1k_b0.5,1_m_s')
 # final_dir = os.path.join(cdir, '..', 'experiments', '005_behaviours')
-final_dir = os.path.join(cdir, '..', 'experiments', '006_v1_3c6k')
+# final_dir = os.path.join(cdir, '..', 'experiments', '006_v1_3c6k')
+final_dir = os.path.join(cdir, '..', 'experiments', 'content', 'leniax-1.0a1', 'outputs', '09-19-19')
 final_filename = os.path.join(final_dir, 'final.p')
 
 

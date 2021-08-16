@@ -22,51 +22,27 @@ run_params:
   max_run_iter: 1024
 
 genotype:
-  # - key: kernels_params.k.0.r
-  #   domain: 
-  #     - 0.5
-  #     - 1.5
-  #   type: float
-  # - key: kernels_params.k.0.b
-  #   domain: 
-  #     - "1"
-  #     - "1,1"
-  #     - "1,1,1"
-  #   type: choice
   - key: kernels_params.k.0.m
     domain: 
       - .1
-      - .5
+      - .6
     type: float
   - key: kernels_params.k.0.s
     domain: 
       - 0.
       - .1
     type: float
-  # - key: kernels_params.k.0.k_id
-  #   domain: 
-  #     - 0
-  #     - 4
-  #   type: int
-  # - key: kernels_params.k.0.gf_id
-  #   domain: 
-  #     - 0
-  #     - 2
-  #   type: int
 
 phenotype:
-  - kernels_params.k.0.m
-  - kernels_params.k.0.s
-  # - behaviours.mass_speed
+  - behaviours.mass_density
+  - behaviours.mass_speed
 
 grid:
   features_domain:
-    - - .1
-      - .5
     - - 0.
-      - .1
-    # - - 0.
-    #   - 0.5
+      - 1.
+    - - 0.
+      - 1.
   shape: [25, 25]
   
 algo:

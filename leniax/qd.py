@@ -397,7 +397,7 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
         nb_iter_done = len(all_cells)
         print(f"{nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
 
-        save_dir = os.path.join(os.getcwd(), f"{str(id_best).zfill(4)}")  # changed by hydra
+        save_dir = os.path.join(os.getcwd(), f"c-{str(id_best).zfill(4)}")  # changed by hydra
         leniax_utils.check_dir(save_dir)
 
         first_cells = all_cells[0]

@@ -77,7 +77,7 @@ def eval_debug(ind: LeniaIndividual, neg_fitness=False):
     return ind
 
 
-def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividual:
+def eval_lenia_config(ind: LeniaIndividual, neg_fitness: bool = False, fft: bool = True) -> LeniaIndividual:
     # This function is usually called in forked processes, before launching any JAX code
     # We silent it
     # Disable JAX logging https://abseil.io/docs/python/guides/logging
@@ -92,7 +92,7 @@ def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividua
     np.random.seed(ind.rng_key[0])
     random.seed(ind.rng_key[0])
 
-    _, best, _ = leniax_helpers.search_for_init(ind.rng_key, config)
+    _, best, _ = leniax_helpers.search_for_init(ind.rng_key, config, fft)
 
     nb_steps = best['N']
     stats = best['all_stats']
@@ -116,7 +116,7 @@ def eval_lenia_config(ind: LeniaIndividual, neg_fitness=False) -> LeniaIndividua
     return ind
 
 
-def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness=False) -> Callable:
+def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness: bool = False, fft: bool = True) -> Callable:
     max_run_iter = qd_config['run_params']['max_run_iter']
     world_params = qd_config['world_params']
     R = world_params['R']
@@ -126,10 +126,10 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness=False)
     weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
     kernels_params = qd_config['kernels_params']['k']
     K, mapping = leniax_core.get_kernels_and_mapping(
-        kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R']
+        kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R'], fft
     )
 
-    update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version, weighted_average)
+    update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
     compute_stats_fn = leniax_stat.build_compute_stats_fn(world_params, render_params)
 
     def eval_lenia_config_mem_optimized(lenia_sols: List[LeniaIndividual]) -> List[LeniaIndividual]:

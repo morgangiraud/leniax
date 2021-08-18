@@ -60,21 +60,27 @@ def staircase(x: jnp.ndarray, q: float = 1 / 4):
 kernel_core = {0: poly_quad4, 1: gauss_bump, 2: step4, 3: staircase, 4: gauss}
 
 
-def get_kernels_and_mapping(kernels_params: List, world_size: List[int], nb_channels: int,
-                            R: float) -> Tuple[jnp.ndarray, KernelMapping]:
+def get_kernels_and_mapping(kernels_params: List,
+                            world_size: List[int],
+                            nb_channels: int,
+                            R: float,
+                            fft: bool = True) -> Tuple[jnp.ndarray, KernelMapping]:
     """
         Build the kernel and the mapping used in the update function by JAX.
         To take advantages of JAX vmap and conv_generalized function, we stack all kernels
         and keep track of the kernel graph in mapping:
         - Each kernel is applied to one channel and the result is added to one other channel
     """
+    if fft is True and len(world_size) > 2:
+        raise ValueError("fft cannot be used to compute the update for world in more than 2D")
 
     kernels_list = []
     mapping = KernelMapping(nb_channels, len(kernels_params))
     # We need to sort those kernels_params to make sure kernels_weight_per_channel is in the right order
     kernels_params.sort(key=lambda d: d['c_in'])
     for kernel_idx, param in enumerate(kernels_params):
-        kernels_list.append(get_kernel(param, world_size, R))
+        k = get_kernel(param, world_size, R)
+        kernels_list.append(k)
 
         channel_in = param["c_in"]
         channel_out = param["c_out"]
@@ -88,7 +94,8 @@ def get_kernels_and_mapping(kernels_params: List, world_size: List[int], nb_chan
     # ! vstack concantenate on the first dimension
     # Currently it works, because we only considere 1-channel kernels
     kernels = jnp.vstack(kernels_list)  # [nb_kernels, H, W]
-    kernels = leniax_utils.crop_zero(kernels)  # [nb_kernels, K_h=max_k_h, K_w=max_k_w]
+    if fft is False:
+        kernels = leniax_utils.crop_zero(kernels)  # [nb_kernels, K_h=max_k_h, K_w=max_k_w]
 
     K_h = kernels.shape[-2]
     K_w = kernels.shape[-1]
@@ -107,10 +114,18 @@ def get_kernels_and_mapping(kernels_params: List, world_size: List[int], nb_chan
 
         K_tmp = K_tmp[:, jnp.newaxis, ...]  # [O=max_k_per_channel, I=1, K_h, K_w]
         kernels_per_channel.append(K_tmp)
-    K = jnp.vstack(kernels_per_channel)  # [O=nb_channels*max_k_per_channel, I=1, K_h, K_w]
-    assert K.shape[0] == nb_channels * max_k_per_channel
-
     mapping.true_channels = jnp.concatenate(true_channels)
+
+    if fft is True:
+        K = jnp.stack(kernels_per_channel)[jnp.newaxis, :, :, 0, ...]  # [1, nb_channels, max_k_per_channel, H, W]
+        K = jnp.fft.fft2(jnp.fft.fftshift(K, axes=(-2, -1)), axes=(-2, -1))
+        assert K.shape[0] == 1
+        assert K.shape[1] == nb_channels
+        assert K.shape[2] == max_k_per_channel
+    else:
+        K = jnp.vstack(kernels_per_channel)  # [O=nb_channels*max_k_per_channel, I=1, K_h, K_w]
+        assert K.shape[0] == nb_channels * max_k_per_channel
+        assert K.shape[1] == 1
 
     return K, mapping
 

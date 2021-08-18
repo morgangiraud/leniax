@@ -11,7 +11,7 @@ from .growth_functions import growth_fns
 from .constant import EPSILON, START_CHECK_STOP
 
 
-def init(config: Dict) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
+def init(config: Dict, fft: bool = True) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
     nb_dims = config['world_params']['nb_dims']
     nb_channels = config['world_params']['nb_channels']
     world_size = config['render_params']['world_size']
@@ -27,7 +27,7 @@ def init(config: Dict) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
 
     kernels_params = config['kernels_params']['k']
     R = config['world_params']['R']
-    K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
+    K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)
 
     return cells, K, mapping
 
@@ -57,7 +57,8 @@ def run(
     max_run_iter: int,
     R: float,
     update_fn: Callable,
-    compute_stats_fn: Callable
+    compute_stats_fn: Callable,
+    fft: bool = True,
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
     assert max_run_iter > 0, f"max_run_iter must be positive, value given: {max_run_iter}"
     assert cells.shape[0] == 1
@@ -272,8 +273,9 @@ def build_update_fn(
     mapping: KernelMapping,
     update_fn_version: str = 'v1',
     average_weight: bool = True,
+    fft: bool = True,
 ) -> Callable:
-    get_potential_fn = build_get_potential_fn(K_shape, mapping.true_channels)
+    get_potential_fn = build_get_potential_fn(K_shape, mapping.true_channels, fft)
     get_field_fn = build_get_field_fn(mapping.cin_growth_fns, average_weight)
     if update_fn_version == 'v1':
         update_fn = update_cells
@@ -293,7 +295,7 @@ def build_update_fn(
         """
             Args:
                 - cells:                        jnp.ndarray[N, nb_channels, world_dims...]
-                - K:                            jnp.ndarray[K_o=nb_channels * max_k_per_kernel, K_i=1, kernel_dims...]
+                - K:                            jnp.ndarray[K_o=nb_channels * max_k_per_channel, K_i=1, kernel_dims...]
                 - gfn_params:                   jnp.ndarray[nb_kernels, 2]
                 - kernels_weight_per_channel:   jnp.ndarray[nb_channels, nb_kernels]
                 - T:                            jnp.ndarray[N]
@@ -313,26 +315,54 @@ def build_update_fn(
     return update
 
 
-def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: jnp.ndarray) -> Callable:
+def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: jnp.ndarray, fft: bool = True) -> Callable:
     # First 2 dimensions are for fake batch dim and nb_channels
-    padding = jnp.array([[0, 0]] * 2 + [[dim // 2, dim // 2] for dim in kernel_shape[2:]])
+    if fft is True:
+        max_k_per_channel = kernel_shape[1]
+        C = kernel_shape[2]
 
-    def get_potential(cells: jnp.ndarray, K: jnp.ndarray) -> jnp.ndarray:
-        """
-            Args:
-                - cells: jnp.ndarray[N, nb_channels, world_dims...]
-                - K: jnp.ndarray[K_o=nb_channels * max_k_per_kernel, K_i=1, kernel_dims...]
+        def get_potential(cells: jnp.ndarray, K: jnp.ndarray) -> jnp.ndarray:
+            """
+                Args:
+                    - cells: jnp.ndarray[N, nb_channels, world_dims...]
+                    - K: jnp.ndarray[1, nb_channels, max_k_per_channel, world_dims...]
 
-            The first dimension of cells and K is the vmap dimension
-        """
-        padded_cells = jnp.pad(cells, padding, mode='wrap')
-        nb_channels = cells.shape[1]
-        # the beauty of feature_group_count for depthwise convolution
-        conv_out_reshaped = lax.conv_general_dilated(padded_cells, K, (1, 1), 'VALID', feature_group_count=nb_channels)
+                The first dimension of cells and K is the vmap dimension
+            """
+            fft_cells = jnp.fft.fft2(cells, axes=(-2, -1))[:, :, jnp.newaxis, ...]  # [N, nb_channels, 1, world_dims...]
+            fft_out = fft_cells * K
+            conv_out = jnp.real(
+                jnp.fft.ifft2(fft_out, axes=(-2, -1))
+            )  # [N, nb_channels, max_k_per_channel, world_dims...]
 
-        potential = conv_out_reshaped[:, true_channels]  # [N, nb_kernels, H, W]
+            world_shape = cells.shape[2:]
+            final_shape = (-1, max_k_per_channel * C) + world_shape
+            conv_out_reshaped = conv_out.reshape(final_shape)
 
-        return potential
+            potential = conv_out_reshaped[:, true_channels]  # [N, nb_kernels, world_dims...]
+
+            return potential
+    else:
+        padding = jnp.array([[0, 0]] * 2 + [[dim // 2, dim // 2] for dim in kernel_shape[2:]])
+
+        def get_potential(cells: jnp.ndarray, K: jnp.ndarray) -> jnp.ndarray:
+            """
+                Args:
+                    - cells: jnp.ndarray[N, nb_channels, world_dims...]
+                    - K: jnp.ndarray[K_o=nb_channels * max_k_per_channel, K_i=1, kernel_dims...]
+
+                The first dimension of cells and K is the vmap dimension
+            """
+            padded_cells = jnp.pad(cells, padding, mode='wrap')
+            nb_channels = cells.shape[1]
+            # the beauty of feature_group_count for depthwise convolution
+            conv_out_reshaped = lax.conv_general_dilated(
+                padded_cells, K, (1, 1), 'VALID', feature_group_count=nb_channels
+            )
+
+            potential = conv_out_reshaped[:, true_channels]  # [N, nb_kernels, H, W]
+
+            return potential
 
     return get_potential
 

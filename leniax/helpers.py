@@ -38,7 +38,7 @@ def get_container(omegaConf: DictConfig) -> Dict:
     return config
 
 
-def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Dict, int]:
+def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tuple[jnp.ndarray, Dict, int]:
     world_params = config['world_params']
     nb_channels = world_params['nb_channels']
     update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
@@ -55,10 +55,10 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Di
     nb_init_search = run_params['nb_init_search']
     max_run_iter = run_params['max_run_iter']
 
-    K, mapping = leniax_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
+    K, mapping = leniax_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
-    update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version, weighted_average)
+    update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
     compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     if update_fn_version == 'v1':
@@ -108,19 +108,20 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Di
     return rng_key, best_run, i
 
 
-def init_and_run(config: Dict, with_jit: bool = False) -> Tuple:
-    cells, K, mapping = leniax_core.init(config)
+def init_and_run(config: Dict, with_jit: bool = False, fft: bool = True) -> Tuple:
+    cells, K, mapping = leniax_core.init(config, fft)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
+
     world_params = config['world_params']
     update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
     weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
-
-    max_run_iter = config['run_params']['max_run_iter']
     R = config['world_params']['R']
     T = jnp.array(config['world_params']['T'])
 
-    update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version, weighted_average)
+    max_run_iter = config['run_params']['max_run_iter']
+
+    update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
     compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     if with_jit is True:
@@ -136,7 +137,7 @@ def init_and_run(config: Dict, with_jit: bool = False) -> Tuple:
     return all_cells, all_fields, all_potentials, stats_dict
 
 
-def get_mem_optimized_inputs(qd_config: Dict, lenia_sols: List[LeniaIndividual]):
+def get_mem_optimized_inputs(qd_config: Dict, lenia_sols: List[LeniaIndividual], fft: bool = True):
     """
         All critical parameters are taken from the qd_config.
         All non-critical parameters are taken from each potential lenia solutions
@@ -161,7 +162,7 @@ def get_mem_optimized_inputs(qd_config: Dict, lenia_sols: List[LeniaIndividual])
         config = ind.get_config()
         kernels_params = config['kernels_params']['k']
 
-        K, mapping = leniax_core.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
+        K, mapping = leniax_core.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)
         gfn_params = mapping.get_gfn_params()
         kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 
@@ -243,7 +244,7 @@ def update_individuals(
     return inds
 
 
-def dump_last_frame(save_dir: str, all_cells: jnp.ndarray):
+def dump_last_frame(save_dir: str, all_cells: jnp.ndarray, raw: bool = False):
     """
         Args:
             - save_dir: str
@@ -251,30 +252,31 @@ def dump_last_frame(save_dir: str, all_cells: jnp.ndarray):
     """
     last_frame = all_cells[-1]
 
-    world_size = last_frame.shape[1:]
-    axes = tuple(range(-len(world_size), 0, 1))
+    if raw is False:
+        world_size = last_frame.shape[1:]
+        axes = tuple(range(-len(world_size), 0, 1))
 
-    midpoint = jnp.asarray([size // 2 for size in world_size])[:, jnp.newaxis, jnp.newaxis]
-    coords = jnp.indices(world_size)
-    centered_coords = coords - midpoint
+        midpoint = jnp.asarray([size // 2 for size in world_size])[:, jnp.newaxis, jnp.newaxis]
+        coords = jnp.indices(world_size)
+        centered_coords = coords - midpoint
 
-    m_00 = last_frame.sum()
-    MX = [(last_frame * coord).sum() for coord in centered_coords]
-    mass_centroid = jnp.array(MX) / (m_00 + EPSILON)
+        m_00 = last_frame.sum()
+        MX = [(last_frame * coord).sum() for coord in centered_coords]
+        mass_centroid = jnp.array(MX) / (m_00 + EPSILON)
 
-    shift_idx = mass_centroid.astype(int).T
-    centered_last_frame, _, _ = leniax_utils.center_world(
-        last_frame[jnp.newaxis],
-        last_frame[jnp.newaxis],
-        last_frame[jnp.newaxis],
-        shift_idx[jnp.newaxis],
-        axes,
-    )
+        shift_idx = mass_centroid.astype(int).T
+        centered_last_frame, _, _ = leniax_utils.center_world(
+            last_frame[jnp.newaxis],
+            last_frame[jnp.newaxis],
+            last_frame[jnp.newaxis],
+            shift_idx[jnp.newaxis],
+            axes,
+        )
 
-    cropped_last_frame = leniax_utils.crop_zero(centered_last_frame)
+        last_frame = leniax_utils.crop_zero(centered_last_frame)
 
     with open(os.path.join(save_dir, 'last_frame.p'), 'wb') as f:
-        pickle.dump(np.array(cropped_last_frame), f)
+        pickle.dump(np.array(last_frame), f)
 
 
 ###

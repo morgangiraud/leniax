@@ -2,23 +2,23 @@
 
 ## Parameters
 Criticial parameters are parameters that forces JAX to recompile the evaluation function, either because they change the memory allocation of the graph or they change the computation graph itself. Those are:
-- world_size
-- nb_channels
-- nb_kernels
-- gf_id
-- c_in
-- c_out
-- nb_init_search
-- max_run_iter ? (no sure yet, depends on the behaviour of the scan function)
+- world_size        (change cells shape)
+- nb_channels       (change cells shape)
+- nb_kernels        (change kernels shape)
+- gf_id             (change computation graph)
+- c_in              (change computation graph)
+- c_out             (change computation graph)
+- nb_init_search    (change cells shape)
+- max_run_iter ?    (might change computation graph, depends on the behaviour of the scan function)
 
 Half-critical parameters (those can be made non-criticial with some engineering):
-- K_id
+- R
 - r
 
 Non-critical parameters:
-- R
 - T
 - b
+- k_id
 - q
 - m
 - s

@@ -188,7 +188,7 @@ class TestCore(unittest.TestCase):
 
         true_channels = jnp.array([True, True, True, False])
 
-        get_potential = leniax_core.build_get_potential_fn(K.shape, true_channels)
+        get_potential = leniax_core.build_get_potential_fn(K.shape, true_channels, False)
         jit_fn = jax.jit(get_potential)
 
         t0 = time.time()

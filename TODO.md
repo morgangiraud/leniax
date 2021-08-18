@@ -29,8 +29,6 @@ Rendering paremeters are unrelated with the search.
 ### Remarks
 Any growth functions that would boost the 0 value is doomed to fail. This would create a process that generates mass from an empty world.
 
-About AQUARIUM specie: At that point, Bert remove the average in "weighted_select_average" function. This is like a v1.5?
-
 ##### 1c1k notes
 - A random uniform initialisation convolved with a big enough kernel wil result in a neat constant field around the mean of the uniform distribution.
 
@@ -39,13 +37,7 @@ There is a very strange behaviour that happens rarely but surely: it might happe
 It seems to occur mainly on the last element of the set.
 
 ## Now
-- Let's start the first face cube search
-- Build the script to run over all the beta values
-    - Create the list of beta values
-    - Iterate over beta values
-    - Zip each search
-    - Copy the zip file in the Drive
-
+- On failed search, test altering T
 
 # For the launch
 - We fix ourselves to D=2, C=1, nK=1 R=13, T= 10, gf_id=0, k_id=0, q=4

@@ -70,7 +70,8 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
 
         MX2 = [(ax * coord).sum(axis=non_batch_dims) for ax, coord in zip(AX, centered_coords)]
         MuX2 = [mx2 - mc * mx for mc, mx, mx2 in zip(mass_centroid, MX, MX2)]
-        inertia = jnp.array(MuX2).sum(axis=0) / R**2
+        mass2_centroid = jnp.array(MuX2) / (m_00**2 + EPSILON)
+        inertia = mass2_centroid.sum(axis=0)
 
         stats = {
             'mass': mass,
@@ -215,9 +216,9 @@ def max_growth_heuristic(growth: jnp.ndarray, R: float):
 
 # Those are 3200 pixels activated
 # This number comes from the early days when I set the threshold
-# at 20% of a 128*128 ~= 3277 pixels
-MASS_VOLUME_THRESHOLD = 3200
-MASS_VOLUME_STOP_STEP = 50
+# at 10% of a 128*128 ~= 1600 pixels
+MASS_VOLUME_THRESHOLD = 1600
+MASS_VOLUME_STOP_STEP = 128
 
 
 def mass_volume_heuristic(mass_volume: jnp.ndarray, mass_volume_counter: jnp.ndarray, R: float):

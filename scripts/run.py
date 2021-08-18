@@ -19,16 +19,18 @@ config_path_1c2k = os.path.join(cdir, '..', 'conf', 'species', '1c-2k')
 config_path_1c3k = os.path.join(cdir, '..', 'conf', 'species', '1c-3k')
 config_path_3c15k = os.path.join(cdir, '..', 'conf', 'species', '3c-15k')
 config_path_outputs = os.path.join(cdir, '..', 'outputs', '2021-08-09', '09-39-59')
+config_path_exp = os.path.join(cdir, '..', 'experiments', '007_beta_cube_face1', 'run-b[1.0]', 'c-0002')
 
 
-# @hydra.main(config_path=config_path_1c1k, config_name="orbium")
+@hydra.main(config_path=config_path_1c1k, config_name="orbium")
 # @hydra.main(config_path=config_path_1c1k, config_name="vibratium")
-@hydra.main(config_path=config_path_1c2k, config_name="squiggle")
+# @hydra.main(config_path=config_path_1c2k, config_name="squiggle")
 # @hydra.main(config_path=config_path_1c3k, config_name="fish")
 # @hydra.main(config_path=config_path_3c15k, config_name="aquarium")
 # @hydra.main(config_path=config_path_1c1kv2, config_name="wanderer")
 # @hydra.main(config_path=config_path, config_name="orbium-scutium")
 # @hydra.main(config_path=config_path_outputs, config_name="config")
+# @hydra.main(config_path=config_path_exp, config_name="config")
 def run(omegaConf: DictConfig) -> None:
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 

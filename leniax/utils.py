@@ -13,6 +13,8 @@ import numpy as np
 from PIL import Image
 from typing import Tuple, List, Dict, Any
 
+from .constant import NB_STATS_STEPS
+
 cdir = os.path.dirname(os.path.realpath(__file__))
 save_dir = os.path.join(cdir, 'save')
 image_ext = "png"
@@ -342,7 +344,7 @@ def normalize(v: jnp.ndarray, vmin: float, vmax: float, is_square: bool = False,
 
 
 def plot_stats(save_dir: str, stats_dict: Dict):
-    nb_steps = stats_dict['N']
+    nb_steps = int(stats_dict['N'])
     del stats_dict['N']
 
     all_keys = list(stats_dict.keys())
@@ -351,23 +353,22 @@ def plot_stats(save_dir: str, stats_dict: Dict):
     fig.set_size_inches(10, 10)
     for i, k in enumerate(all_keys):
         axs[i].set_title(k.capitalize())
-        axs[i].plot(stats_dict[k])
-    # axs[-1].set_title('mass fft'.capitalize())
-    # axs[-1].plot(jnp.abs(jnp.fft.fft(stats_dict['mass'])[1:]))
+        axs[i].plot(stats_dict[k][:nb_steps])
     plt.tight_layout()
     plt.xticks(np.arange(0, nb_steps, ticks))
     fig.savefig(os.path.join(save_dir, 'stats.png'))
     plt.close(fig)
 
     # Running means
+    conv_len = 32
     fig, axs = plt.subplots(len(all_keys), sharex=True)
     fig.set_size_inches(10, 10)
     for i, k in enumerate(all_keys):
         axs[i].set_title(k.capitalize())
-        axs[i].plot(jnp.convolve(stats_dict[k], jnp.ones(24) / 24, mode='valid'))
+        axs[i].plot(jnp.convolve(stats_dict[k][conv_len:nb_steps], jnp.ones(conv_len) / conv_len, mode='valid'))
     plt.tight_layout()
-    plt.xticks(np.arange(0, nb_steps, ticks))
-    fig.savefig(os.path.join(save_dir, 'stats_running_means.png'))
+    plt.xticks(np.arange(0, nb_steps - 2 * conv_len, ticks))
+    fig.savefig(os.path.join(save_dir, f"stats_trunc_running_means_{conv_len}.png"))
     plt.close(fig)
 
     # Remove init transition
@@ -375,9 +376,10 @@ def plot_stats(save_dir: str, stats_dict: Dict):
     fig.set_size_inches(10, 10)
     for i, k in enumerate(all_keys):
         axs[i].set_title(k.capitalize())
-        axs[i].plot(stats_dict[k][-128:])
+        tmp_stat = stats_dict[k][:nb_steps]
+        axs[i].plot(tmp_stat[-NB_STATS_STEPS:])
     plt.tight_layout()
-    truncated_nb_steps = min(nb_steps, 128)
+    truncated_nb_steps = min(nb_steps, NB_STATS_STEPS)
     plt.xticks(np.arange(0, truncated_nb_steps, 8))
     fig.savefig(os.path.join(save_dir, f"stats_last_{truncated_nb_steps}.png"))
     plt.close(fig)

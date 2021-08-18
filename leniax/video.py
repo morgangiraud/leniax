@@ -16,7 +16,7 @@ def dump_video(save_dir, all_cells, render_params, colormap):
     process = (
         ffmpeg.input('pipe:', format='rawvideo', pix_fmt='rgb24', s=f"{width}x{height}", framerate=32
                      ).output(output_fullpath, crf=20, preset='slower', movflags='faststart',
-                              pix_fmt='yuv420p').overwrite_output().run_async(pipe_stdin=True)
+                              pix_fmt='yuv420p').overwrite_output().run_async(pipe_stdin=True, quiet=True)
     )
     all_times = []
 

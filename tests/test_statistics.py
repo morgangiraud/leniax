@@ -26,7 +26,9 @@ class TestStatistics(unittest.TestCase):
         )
 
         np.testing.assert_array_equal(should_continue_cond, [True, True, True, False])
-        np.testing.assert_array_equal(mass_volume_counter_next, [1, 1, 128, 129])
+        np.testing.assert_array_equal(mass_volume_counter_next, [
+            1, 1, leniax_stat.MASS_VOLUME_STOP_STEP, leniax_stat.MASS_VOLUME_STOP_STEP + 1
+        ])
 
     def test_monotonic_heuristic(self):
         mass = jnp.array([1.1, 0.9, 0.9, 0.9])
@@ -34,7 +36,7 @@ class TestStatistics(unittest.TestCase):
         sign = jnp.sign(mass - previous_mass)
         previous_sign = jnp.array([1, 1, -1, -1])
         monotone_counter = jnp.array([
-            70,
+            40,
             leniax_stat.MONOTONIC_STOP_STEP,
             30,
             leniax_stat.MONOTONIC_STOP_STEP,
@@ -45,4 +47,6 @@ class TestStatistics(unittest.TestCase):
         )
 
         np.testing.assert_array_equal(should_continue_cond, [True, True, True, False])
-        np.testing.assert_array_equal(monotone_counter_next, [71, 1, 31, 81])
+        np.testing.assert_array_equal(monotone_counter_next, [
+            41, 1, 31, leniax_stat.MONOTONIC_STOP_STEP + 1
+        ])

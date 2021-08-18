@@ -38,6 +38,7 @@ It seems to occur mainly on the last element of the set.
 
 ## Now
 - On failed search, test altering T
+- Add heuristic for static species (no speed, no inertia change)
 
 # For the launch
 - We fix ourselves to D=2, C=1, nK=1 R=13, T= 10, gf_id=0, k_id=0, q=4

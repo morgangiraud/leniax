@@ -35,16 +35,18 @@ class TestHelpers(unittest.TestCase):
 
         rng_key, run_scan_mem_optimized_parameters = leniax_helpers.get_mem_optimized_inputs(qd_config, lenia_sols)
 
-        assert len(run_scan_mem_optimized_parameters) == 4
+        assert len(run_scan_mem_optimized_parameters) == 5
         all_cells_0_jnp = run_scan_mem_optimized_parameters[0]
         all_Ks_jnp = run_scan_mem_optimized_parameters[1]
         all_gfn_params_jnp = run_scan_mem_optimized_parameters[2]
         all_kernels_weight_per_channel_jnp = run_scan_mem_optimized_parameters[3]
+        all_Ts_jnp = run_scan_mem_optimized_parameters[4]
 
         np.testing.assert_array_equal(all_cells_0_jnp.shape, [2, 3, nb_channels] + world_size)
         np.testing.assert_array_equal(all_Ks_jnp.shape, [2, nb_channels * nb_kernels, 1, R * 2 - 1, R * 2 - 1])
         np.testing.assert_array_equal(all_gfn_params_jnp.shape, [2, nb_kernels, 2])
         np.testing.assert_array_equal(all_kernels_weight_per_channel_jnp.shape, [2, 1, nb_kernels])
+        np.testing.assert_array_equal(all_Ts_jnp.shape, [2])
 
     def test_update_individuals(self):
         with initialize(config_path='fixtures'):

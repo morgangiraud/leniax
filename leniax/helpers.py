@@ -44,7 +44,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Di
     update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
     weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
     R = world_params['R']
-    T = world_params['T']
+    T = jnp.array(world_params['T'])
 
     render_params = config['render_params']
     world_size = render_params['world_size']
@@ -58,7 +58,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Di
     K, mapping = leniax_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
-    update_fn = leniax_core.build_update_fn(world_params, K.shape, mapping, update_fn_version, weighted_average)
+    update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version, weighted_average)
     compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     if update_fn_version == 'v1':
@@ -84,9 +84,9 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict) -> Tuple[jnp.ndarray, Di
             K,
             gfn_params,
             kernels_weight_per_channel,
+            T,
             max_run_iter,
             R,
-            T,
             update_fn,
             compute_stats_fn,
         )
@@ -118,18 +118,18 @@ def init_and_run(config: Dict, with_jit: bool = False) -> Tuple:
 
     max_run_iter = config['run_params']['max_run_iter']
     R = config['world_params']['R']
-    T = config['world_params']['T']
+    T = jnp.array(config['world_params']['T'])
 
-    update_fn = leniax_core.build_update_fn(world_params, K.shape, mapping, update_fn_version, weighted_average)
+    update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version, weighted_average)
     compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     if with_jit is True:
         all_cells, all_fields, all_potentials, stats_dict = leniax_core.run_scan(
-            cells, K, gfn_params, kernels_weight_per_channel, max_run_iter, R, T, update_fn, compute_stats_fn
+            cells, K, gfn_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
         )
     else:
         all_cells, all_fields, all_potentials, stats_dict = leniax_core.run(
-            cells, K, gfn_params, kernels_weight_per_channel, max_run_iter, R, T, update_fn, compute_stats_fn
+            cells, K, gfn_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
         )
     stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
 
@@ -156,6 +156,7 @@ def get_mem_optimized_inputs(qd_config: Dict, lenia_sols: List[LeniaIndividual])
     all_Ks = []
     all_gfn_params = []
     all_kernels_weight_per_channel = []
+    all_Ts = []
     for ind in lenia_sols:
         config = ind.get_config()
         kernels_params = config['kernels_params']['k']
@@ -178,17 +179,20 @@ def get_mem_optimized_inputs(qd_config: Dict, lenia_sols: List[LeniaIndividual])
         all_Ks.append(K)
         all_gfn_params.append(gfn_params)
         all_kernels_weight_per_channel.append(kernels_weight_per_channel)
+        all_Ts.append(config['world_params']['T'])
 
     all_cells_0_jnp = jnp.stack(all_cells_0)  # add a dimension
     all_Ks_jnp = jnp.stack(all_Ks)
     all_gfn_params_jnp = jnp.stack(all_gfn_params)
     all_kernels_weight_per_channel_jnp = jnp.stack(all_kernels_weight_per_channel)
+    all_Ts_jnp = jnp.stack(all_Ts)
 
     run_scan_mem_optimized_parameters = (
         all_cells_0_jnp,
         all_Ks_jnp,
         all_gfn_params_jnp,
         all_kernels_weight_per_channel_jnp,
+        all_Ts_jnp,
     )
 
     return rng_key, run_scan_mem_optimized_parameters

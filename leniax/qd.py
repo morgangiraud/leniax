@@ -120,7 +120,7 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness=False)
     max_run_iter = qd_config['run_params']['max_run_iter']
     world_params = qd_config['world_params']
     R = world_params['R']
-    T = world_params['T']
+
     render_params = qd_config['render_params']
     update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
     weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
@@ -129,7 +129,7 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness=False)
         kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R']
     )
 
-    update_fn = leniax_core.build_update_fn(world_params, K.shape, mapping, update_fn_version, weighted_average)
+    update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version, weighted_average)
     compute_stats_fn = leniax_stat.build_compute_stats_fn(world_params, render_params)
 
     def eval_lenia_config_mem_optimized(lenia_sols: List[LeniaIndividual]) -> List[LeniaIndividual]:
@@ -137,7 +137,7 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness=False)
         _, run_scan_mem_optimized_parameters = leniax_helpers.get_mem_optimized_inputs(qd_config, lenia_sols)
 
         stats = leniax_core.run_scan_mem_optimized(
-            *run_scan_mem_optimized_parameters, max_run_iter, R, T, update_fn, compute_stats_fn
+            *run_scan_mem_optimized_parameters, max_run_iter, R, update_fn, compute_stats_fn
         )
         stats['N'].block_until_ready()
 

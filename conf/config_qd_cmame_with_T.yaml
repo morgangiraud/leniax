@@ -17,50 +17,25 @@ kernels_params:
       h: 1
       c_in: 0
       c_out: 0
-    - k_id: 0
-      q: 4
-      r: 1
-      b: '0.5,1'
-      gf_id: 0
-      m: 0.17
-      s: 0.015
-      h: 1
-      c_in: 0
-      c_out: 0
 run_params:
   nb_init_search: 128
   max_run_iter: 1024
 
 genotype:
+  - key: world_params.T
+    domain: 
+      - 2.
+      - 20.
+    type: float
   - key: kernels_params.k.0.m
     domain: 
       - .1
-      - .5
+      - .6
     type: float
   - key: kernels_params.k.0.s
     domain: 
       - 0.
       - .1
-    type: float
-  - key: kernels_params.k.0.h
-    domain: 
-      - 0.1
-      - 1.
-    type: float
-  - key: kernels_params.k.1.m
-    domain: 
-      - .1
-      - .5
-    type: float
-  - key: kernels_params.k.1.s
-    domain: 
-      - 0.
-      - .1
-    type: float
-  - key: kernels_params.k.1.h
-    domain: 
-      - 0.1
-      - 1.
     type: float
 
 phenotype:
@@ -73,7 +48,7 @@ grid:
       - 1.
     - - 0.
       - 1.
-  shape: [20, 20]
+  shape: [25, 25]
   
 algo:
   # Generic

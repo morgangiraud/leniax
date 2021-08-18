@@ -103,8 +103,8 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
 ###
 # Heuristics
 ###
-@jax.partial(jit, static_argnums=(1, 2))
-def check_heuristics(stats: Dict[str, jnp.ndarray], R: float, dt: float):
+@jax.partial(jit, static_argnums=(1, ))
+def check_heuristics(stats: Dict[str, jnp.ndarray], R: float, dt: jnp.ndarray):
     def fn(carry, stat_t):
         should_continue = carry['should_continue']
         init_mass = carry['init_mass']
@@ -182,7 +182,7 @@ def max_mass_heuristic(init_mass: jnp.ndarray, mass: jnp.ndarray):
     return should_continue_cond
 
 
-MONOTONIC_STOP_STEP = 80
+MONOTONIC_STOP_STEP = 64
 
 
 def monotonic_heuristic(sign: jnp.ndarray, previous_sign: jnp.ndarray, monotone_counter: jnp.ndarray):

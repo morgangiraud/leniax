@@ -25,7 +25,6 @@ class TestCore(unittest.TestCase):
             qd_config = get_container(omegaConf)
 
         R = qd_config['world_params']['R']
-        T = qd_config['world_params']['T']
         max_run_iter = qd_config['run_params']['max_run_iter']
         seed = qd_config['run_params']['seed']
         rng_key = leniax_utils.seed_everything(seed)
@@ -59,7 +58,7 @@ class TestCore(unittest.TestCase):
         K, mapping = leniax_core.get_kernels_and_mapping(
             kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R']
         )
-        update_fn = leniax_core.build_update_fn(world_params, K.shape, mapping, update_fn_version, weighted_average)
+        update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version, weighted_average)
         compute_stats_fn = leniax_stat.build_compute_stats_fn(world_params, render_params)
 
         # jax.profiler.start_trace("/tmp/tensorboard")
@@ -69,7 +68,6 @@ class TestCore(unittest.TestCase):
             *run_scan_mem_optimized_parameters1,
             max_run_iter,
             R,
-            T,
             update_fn,
             compute_stats_fn,
         )
@@ -81,7 +79,6 @@ class TestCore(unittest.TestCase):
             *run_scan_mem_optimized_parameters2,
             max_run_iter,
             R,
-            T,
             update_fn,
             compute_stats_fn,
         )
@@ -103,9 +100,9 @@ class TestCore(unittest.TestCase):
         cells, K, mapping = leniax_core.init(config)
         world_params = config['world_params']
         R = world_params['R']
-        T = world_params['T']
+        T = jnp.array(world_params['T'])
         update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
-        update_fn = leniax_core.build_update_fn(config['world_params'], K.shape, mapping, update_fn_version)
+        update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version)
         compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
         cells1 = jnp.ones(cells.shape) * 0.2
@@ -115,7 +112,7 @@ class TestCore(unittest.TestCase):
 
         t0 = time.time()
         out1, _, _, _ = leniax_core.run_scan(
-            cells1, K1, gfn_params1, kernels_weight_per_channel1, max_run_iter, R, T, update_fn, compute_stats_fn
+            cells1, K1, gfn_params1, kernels_weight_per_channel1, T, max_run_iter, R, update_fn, compute_stats_fn
         )
         out1.block_until_ready()
         delta_t = time.time() - t0
@@ -128,7 +125,7 @@ class TestCore(unittest.TestCase):
 
         t0 = time.time()
         out2, _, _, _ = leniax_core.run_scan(
-            cells2, K2, gfn_params2, kernels_weight_per_channel2, max_run_iter, R, T, update_fn, compute_stats_fn
+            cells2, K2, gfn_params2, kernels_weight_per_channel2, T, max_run_iter, R, update_fn, compute_stats_fn
         )
         out2.block_until_ready()
         delta_t_compiled = time.time() - t0
@@ -142,8 +139,9 @@ class TestCore(unittest.TestCase):
 
         cells, K, mapping = leniax_core.init(config)
         world_params = config['world_params']
+        T = jnp.array(world_params['T'])
         update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
-        update_fn = leniax_core.build_update_fn(config['world_params'], K.shape, mapping, update_fn_version)
+        update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version)
 
         cells1 = jnp.ones(cells.shape) * 0.2
         K1 = jnp.ones(K.shape) * 0.3
@@ -151,7 +149,7 @@ class TestCore(unittest.TestCase):
         kernels_weight_per_channel1 = mapping.get_kernels_weight_per_channel()
 
         t0 = time.time()
-        out1 = update_fn(cells1, K1, gfn_params1, kernels_weight_per_channel1)
+        out1 = update_fn(cells1, K1, gfn_params1, kernels_weight_per_channel1, 1. / T)
         out1[0].block_until_ready()
         delta_t = time.time() - t0
 
@@ -162,7 +160,7 @@ class TestCore(unittest.TestCase):
         kernels_weight_per_channel2 = mapping.get_kernels_weight_per_channel()
 
         t0 = time.time()
-        out2 = update_fn(cells2, K2, gfn_params2, kernels_weight_per_channel2)
+        out2 = update_fn(cells2, K2, gfn_params2, kernels_weight_per_channel2, 1. / T)
         out2[0].block_until_ready()
         delta_t_compiled = time.time() - t0
 
@@ -279,7 +277,7 @@ class TestCore(unittest.TestCase):
 
         cells1 = jnp.ones(world_shape) * .5
         field1 = jnp.ones(world_shape) * 3
-        dt1 = 1. / 3.
+        dt1 = jnp.array(1. / 3.)
 
         t0 = time.time()
         out1 = jit_fn(cells1, field1, dt1)
@@ -288,7 +286,7 @@ class TestCore(unittest.TestCase):
 
         cells2 = jnp.ones(world_shape, ) * .2
         field2 = jnp.ones(world_shape) * 3
-        dt2 = 1. / 6.
+        dt2 = jnp.array(1. / 6.)
 
         t0 = time.time()
         out2 = jit_fn(cells2, field2, dt2)
@@ -306,7 +304,7 @@ class TestCore(unittest.TestCase):
 
         cells1 = jnp.ones(world_shape) * .5
         field1 = jnp.ones(world_shape) * 3
-        dt1 = 1. / 3.
+        dt1 = jnp.array(1. / 3.)
 
         t0 = time.time()
         out1 = jit_fn(cells1, field1, dt1)
@@ -315,7 +313,7 @@ class TestCore(unittest.TestCase):
 
         cells2 = jnp.ones(world_shape, ) * .2
         field2 = jnp.ones(world_shape) * 3
-        dt2 = 1. / 6.
+        dt2 = jnp.array(1. / 6.)
 
         t0 = time.time()
         out2 = jit_fn(cells2, field2, dt2)

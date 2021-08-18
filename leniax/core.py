@@ -53,9 +53,9 @@ def run(
     K: jnp.ndarray,
     gfn_params: jnp.ndarray,
     kernels_weight_per_channel: jnp.ndarray,
+    T: jnp.ndarray,
     max_run_iter: int,
     R: float,
-    T: float,
     update_fn: Callable,
     compute_stats_fn: Callable
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
@@ -79,7 +79,7 @@ def run(
     mass_centroid = jnp.zeros([nb_world_dims, N])
     mass_angle = jnp.zeros([N])
     for current_iter in range(max_run_iter):
-        new_cells, field, potential = update_fn(cells, K, gfn_params, kernels_weight_per_channel)
+        new_cells, field, potential = update_fn(cells, K, gfn_params, kernels_weight_per_channel, 1. / T)
 
         stat_t, total_shift_idx, mass_centroid, mass_angle = compute_stats_fn(
             cells, field, potential, total_shift_idx, mass_centroid, mass_angle
@@ -138,15 +138,15 @@ def run(
     return all_cells_jnp, all_fields_jnp, all_potentials_jnp, stats_dict
 
 
-@jax.partial(jit, static_argnums=(4, 5, 6, 7, 8))
+@jax.partial(jit, static_argnums=(5, 6, 7, 8))
 def run_scan(
     cells0: jnp.ndarray,
     K: jnp.ndarray,
     gfn_params: jnp.ndarray,
     kernels_weight_per_channel: jnp.ndarray,
+    T: jnp.ndarray,
     max_run_iter: int,
     R: float,
-    T: float,
     update_fn: Callable,
     compute_stats_fn: Callable
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict[str, jnp.ndarray]]:
@@ -154,8 +154,8 @@ def run_scan(
     nb_world_dims = cells0.ndim - 2
 
     def fn(carry, x):
-        cells, K, gfn_params, kernels_weight_per_channel = carry['fn_params']
-        new_cells, field, potential = update_fn(cells, K, gfn_params, kernels_weight_per_channel)
+        cells, K, gfn_params, kernels_weight_per_channel, T = carry['fn_params']
+        new_cells, field, potential = update_fn(cells, K, gfn_params, kernels_weight_per_channel, 1. / T)
 
         stat_props = carry['stats_properties']
         total_shift_idx = stat_props['total_shift_idx']
@@ -169,7 +169,7 @@ def run_scan(
 
         cells = new_cells
         new_carry = {
-            'fn_params': (cells, K, gfn_params, kernels_weight_per_channel),
+            'fn_params': (cells, K, gfn_params, kernels_weight_per_channel, T),
             'stats_properties': {
                 'total_shift_idx': total_shift_idx,
                 'mass_centroid': mass_centroid,
@@ -183,7 +183,7 @@ def run_scan(
     mass_centroid = jnp.zeros([nb_world_dims, N])
     mass_angle = jnp.zeros([N])
     init_carry = {
-        'fn_params': (cells0, K, gfn_params, kernels_weight_per_channel),
+        'fn_params': (cells0, K, gfn_params, kernels_weight_per_channel, T),
         'stats_properties': {
             'total_shift_idx': total_shift_idx,
             'mass_centroid': mass_centroid,
@@ -193,22 +193,22 @@ def run_scan(
 
     _, ys = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
 
-    continue_stat = leniax_stat.check_heuristics(ys['stats'], R, 1 / T)
+    continue_stat = leniax_stat.check_heuristics(ys['stats'], R, 1. / T)
     ys['stats']['N'] = continue_stat.sum(axis=0)
 
     return ys['cells'], ys['field'], ys['potential'], ys['stats']
 
 
-@jax.partial(jit, static_argnums=(4, 5, 6, 7, 8))
-@jax.partial(vmap, in_axes=(0, 0, 0, 0, None, None, None, None, None), out_axes=0)
+@jax.partial(jit, static_argnums=(5, 6, 7, 8))
+@jax.partial(vmap, in_axes=(0, 0, 0, 0, 0, None, None, None, None), out_axes=0)
 def run_scan_mem_optimized(
     cells0: jnp.ndarray,
     K: jnp.ndarray,
     gfn_params: jnp.ndarray,
     kernels_weight_per_channel: jnp.ndarray,
+    T: jnp.ndarray,
     max_run_iter: int,
     R: float,
-    T: float,
     update_fn: Callable,
     compute_stats_fn: Callable
 ) -> Dict[str, jnp.ndarray]:
@@ -218,13 +218,14 @@ def run_scan_mem_optimized(
             - K: jnp.ndarray[max_k_per_channel, nb_kernels * nb_channels, K_dims...]
             - gfn_params: jnp.ndarray[N, nb_kernels, 2]
             - kernels_weight_per_channel: jnp.ndarray[N, nb_channels, nb_kernels]
+            - T: jnp.ndarray[N]
     """
     N = cells0.shape[0]
     nb_world_dims = cells0.ndim - 2
 
     def fn(carry, x):
-        cells, K, gfn_params, kernels_weight_per_channel = carry['fn_params']
-        new_cells, field, potential = update_fn(cells, K, gfn_params, kernels_weight_per_channel)
+        cells, K, gfn_params, kernels_weight_per_channel, T = carry['fn_params']
+        new_cells, field, potential = update_fn(cells, K, gfn_params, kernels_weight_per_channel, 1. / T)
 
         stat_props = carry['stats_properties']
         total_shift_idx = stat_props['total_shift_idx']
@@ -236,7 +237,7 @@ def run_scan_mem_optimized(
 
         cells = new_cells
         new_carry = {
-            'fn_params': (cells, K, gfn_params, kernels_weight_per_channel),
+            'fn_params': (cells, K, gfn_params, kernels_weight_per_channel, T),
             'stats_properties': {
                 'total_shift_idx': total_shift_idx,
                 'mass_centroid': mass_centroid,
@@ -250,7 +251,7 @@ def run_scan_mem_optimized(
     mass_centroid = jnp.zeros([nb_world_dims, N])
     mass_angle = jnp.zeros([N])
     init_carry = {
-        'fn_params': (cells0, K, gfn_params, kernels_weight_per_channel),
+        'fn_params': (cells0, K, gfn_params, kernels_weight_per_channel, T),
         'stats_properties': {
             'total_shift_idx': total_shift_idx,
             'mass_centroid': mass_centroid,
@@ -260,22 +261,18 @@ def run_scan_mem_optimized(
 
     _, stats = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
 
-    continue_stat = leniax_stat.check_heuristics(stats, R, 1 / T)
+    continue_stat = leniax_stat.check_heuristics(stats, R, 1. / T)
     stats['N'] = continue_stat.sum(axis=0)
 
     return stats
 
 
 def build_update_fn(
-    world_params: Dict,
     K_shape: Tuple[int, ...],
     mapping: KernelMapping,
     update_fn_version: str = 'v1',
     average_weight: bool = True,
 ) -> Callable:
-    T = world_params['T']
-    dt = 1 / T
-
     get_potential_fn = build_get_potential_fn(K_shape, mapping.true_channels)
     get_field_fn = build_get_field_fn(mapping.cin_growth_fns, average_weight)
     if update_fn_version == 'v1':
@@ -286,14 +283,20 @@ def build_update_fn(
         raise ValueError(f"version {update_fn_version} does not exist")
 
     @jit
-    def update(cells: jnp.ndarray, K: jnp.ndarray, gfn_params: jnp.ndarray,
-               kernels_weight_per_channel: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    def update(
+        cells: jnp.ndarray,
+        K: jnp.ndarray,
+        gfn_params: jnp.ndarray,
+        kernels_weight_per_channel: jnp.ndarray,
+        dt: jnp.ndarray
+    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         """
             Args:
                 - cells:                        jnp.ndarray[N, nb_channels, world_dims...]
                 - K:                            jnp.ndarray[K_o=nb_channels * max_k_per_kernel, K_i=1, kernel_dims...]
                 - gfn_params:                   jnp.ndarray[nb_kernels, 2]
                 - kernels_weight_per_channel:   jnp.ndarray[nb_channels, nb_kernels]
+                - T:                            jnp.ndarray[N]
 
             Outputs:
                 - cells:        jnp.ndarray[N, nb_channels, world_dims...]
@@ -420,25 +423,25 @@ def weighted_select_average(fields: jnp.ndarray, weights: jnp.ndarray) -> jnp.nd
     return fields_normalized
 
 
-def update_cells(cells: jnp.ndarray, field: jnp.ndarray, dt: float) -> jnp.ndarray:
+def update_cells(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp.ndarray:
     """
         Args:
-            - cells: jnp.ndarray, shape must be kept constant to avoid recompiling
-            - field: jnp.ndarray, shape must be kept constant to avoid recompiling
-            - float: can change without recompiling
+            - cells: jnp.ndarray[N, nb_channels, world_dims...], shape must be kept constant to avoid recompiling
+            - field: jnp.ndarray[N, nb_channels, world_dims...], shape must be kept constant to avoid recompiling
+            - dt:     jnp.ndarray[N], shape must be kept constant to avoid recompiling
     """
     cells_new = cells + dt * field
-    cells_new = jnp.clip(cells_new, 0., 1.)
+    clipped_cells = jnp.clip(cells_new, 0., 1.)
 
-    return cells_new
+    return clipped_cells
 
 
-def update_cells_v2(cells: jnp.ndarray, field: jnp.ndarray, dt: float) -> jnp.ndarray:
+def update_cells_v2(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp.ndarray:
     """
         Args:
-            - cells: jnp.ndarray, shape must be kept constant to avoid recompiling
-            - field: jnp.ndarray, shape must be kept constant to avoid recompiling
-            - float: can change without recompiling
+            - cells: jnp.ndarray[N, nb_channels, world_dims...], shape must be kept constant to avoid recompiling
+            - field: jnp.ndarray[N, nb_channels, world_dims...], shape must be kept constant to avoid recompiling
+            - dt:     jnp.ndarray[N], shape must be kept constant to avoid recompiling
     """
     cells_new = jnp.array(cells * (1 - dt) + dt * field)
 

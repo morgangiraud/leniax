@@ -1,10 +1,8 @@
 import time
 import os
-import logging
 from absl import logging as absl_logging
 from omegaconf import DictConfig
 import hydra
-import numpy as np
 
 import leniax.utils as leniax_utils
 import leniax.helpers as leniax_helpers
@@ -22,28 +20,32 @@ config_path_outputs = os.path.join(cdir, '..', 'outputs', '2021-08-18', '10-50-5
 config_path_exp = os.path.join(cdir, '..', 'experiments', '007_beta_cube_face1', 'run-b[1.0]', 'c-0002')
 config_path_fixtures = os.path.join(cdir, '..', 'tests', 'fixtures')
 
+scale = 1.
+stat_trunc = False
 
-# @hydra.main(config_path=config_path_1c1k, config_name="orbium")
+
+@hydra.main(config_path=config_path_1c1k, config_name="orbium")
 # @hydra.main(config_path=config_path_1c1k, config_name="vibratium")
 # @hydra.main(config_path=config_path_1c2k, config_name="squiggle")
 # @hydra.main(config_path=config_path_1c3k, config_name="fish")
-@hydra.main(config_path=config_path_3c15k, config_name="aquarium")
+# @hydra.main(config_path=config_path_3c15k, config_name="aquarium")
 # @hydra.main(config_path=config_path_1c1kv2, config_name="wanderer")
 # @hydra.main(config_path=config_path, config_name="orbium-scutium")
 # @hydra.main(config_path=config_path_outputs, config_name="config")
 # @hydra.main(config_path=config_path_exp, config_name="config")
 # @hydra.main(config_path=config_path_fixtures, config_name="aquarium-test.yaml")
 def run(omegaConf: DictConfig) -> None:
-    logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
-
     config = leniax_helpers.get_container(omegaConf)
 
     print('Initialiazing and running')
     start_time = time.time()
     all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
-        config, True, True
+        config, scale, with_jit=True, fft=True
     )  # [nb_max_iter, N=1, C, world_dims...]
-    all_cells = all_cells[:int(stats_dict['N']), 0]  # [nb_iter, C, world_dims...]
+    if stat_trunc is True:
+        all_cells = all_cells[:int(stats_dict['N']), 0]  # [nb_iter, C, world_dims...]
+    else:
+        all_cells = all_cells[:, 0]  # [nb_iter, C, world_dims...]
     total_time = time.time() - start_time
 
     nb_iter_done = len(all_cells)
@@ -56,13 +58,8 @@ def run(omegaConf: DictConfig) -> None:
     config['run_params']['cells'] = leniax_utils.compress_array(first_cells)
     leniax_utils.save_config(save_dir, config)
 
-    print('Dumping cells')
-    with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
-        np.save(f, np.array(all_cells))
-
-    leniax_helpers.dump_last_frame(save_dir, all_cells)
-
-    leniax_helpers.plot_everythings(save_dir, config, all_cells, stats_dict)
+    print("Dumping assets")
+    leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict)
 
 
 if __name__ == '__main__':

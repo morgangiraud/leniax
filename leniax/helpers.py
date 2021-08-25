@@ -1,12 +1,16 @@
-# import time
+import time
 import os
+import json
 import pickle
 import uuid
 import numpy as np
 import jax.numpy as jnp
+from shutil import copy2
 from typing import Dict, Tuple, List
+from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
 import matplotlib.pyplot as plt
+from absl import logging as absl_logging
 
 from .constant import EPSILON
 from .lenia import LeniaIndividual
@@ -20,6 +24,15 @@ from . import video as leniax_video
 
 
 def get_container(omegaConf: DictConfig) -> Dict:
+    main_path = ''
+    # We try to get the Hydra main config if we can
+    try:
+        for source in HydraConfig.get().runtime.config_sources:
+            if source.provider == 'main':
+                main_path = source.path
+    except ValueError:
+        pass
+
     # TODO: Need to check if missing first
     omegaConf.run_params.code = str(uuid.uuid4())
 
@@ -34,6 +47,7 @@ def get_container(omegaConf: DictConfig) -> Dict:
     # so we can extract primitives to use with other libs
     config = OmegaConf.to_container(omegaConf)
     assert isinstance(config, dict)
+    config['main_path'] = main_path
 
     return config
 
@@ -108,8 +122,8 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
     return rng_key, best_run, i
 
 
-def init_and_run(config: Dict, with_jit: bool = False, fft: bool = True) -> Tuple:
-    cells, K, mapping = leniax_core.init(config, fft)
+def init_and_run(config: Dict, scale: float = 1., with_jit: bool = False, fft: bool = True) -> Tuple:
+    cells, K, mapping = leniax_core.init(config, scale=scale, fft=fft)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 
@@ -244,6 +258,38 @@ def update_individuals(
     return inds
 
 
+def process_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
+    # This function is usually called in forked processes, before launching any JAX code
+    # We silent it
+    # Disable JAX logging https://abseil.io/docs/python/guides/logging
+    absl_logging.set_verbosity(absl_logging.ERROR)
+
+    id_lenia, lenia = enum_lenia
+    padded_id = str(id_lenia).zfill(4)
+    config = lenia.get_config()
+
+    save_dir = os.path.join(os.getcwd(), f"c-{padded_id}")  # changed by hydra
+    if os.path.isdir(save_dir):
+        # If the lenia folder already exists at that path, we consider the work alreayd done
+        return
+    leniax_utils.check_dir(save_dir)
+
+    start_time = time.time()
+    all_cells, _, _, stats_dict = init_and_run(config, with_jit=True)
+    all_cells = all_cells[:int(stats_dict['N']), 0]
+    total_time = time.time() - start_time
+
+    nb_iter_done = len(all_cells)
+    print(f"[{padded_id}] - {nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
+
+    first_cells = all_cells[0]
+    config['run_params']['cells'] = leniax_utils.compress_array(first_cells)
+    leniax_utils.save_config(save_dir, config)
+
+    print(f"[{padded_id}] - Dumping assets")
+    dump_assets(save_dir, config, all_cells, stats_dict)
+
+
 def dump_last_frame(save_dir: str, all_cells: jnp.ndarray, raw: bool = False):
     """
         Args:
@@ -273,25 +319,48 @@ def dump_last_frame(save_dir: str, all_cells: jnp.ndarray, raw: bool = False):
             axes,
         )
 
-        last_frame = leniax_utils.crop_zero(centered_last_frame)
+        last_frame = leniax_utils.crop_zero(centered_last_frame[0])
 
     with open(os.path.join(save_dir, 'last_frame.p'), 'wb') as f:
         pickle.dump(np.array(last_frame), f)
+
+    colormap = plt.get_cmap('plasma')
+    img = leniax_utils.get_image(last_frame, 1, 0, colormap)
+    with open(os.path.join(save_dir, "last_frame.png"), 'wb') as f:
+        img.save(f, format='png')
 
 
 ###
 # Viz
 ###
-def plot_everythings(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict: Dict):
+def dump_assets(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict: Dict):
     colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
 
-    print('Plotting stats')
     leniax_utils.plot_stats(save_dir, stats_dict)
 
-    print('Plotting kernels and functions')
     plot_kernels(save_dir, config)
 
-    print('Dumping video')
+    with open(os.path.join(save_dir, 'stats_dict.p'), 'wb') as f:
+        pickle.dump(stats_dict, f)
+
+    # with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
+    #     np.save(f, np.array(all_cells))
+
+    dump_last_frame(save_dir, all_cells)
+
+    viz_data: Dict = {'stats': {}}
+    for k, v in stats_dict.items():
+        if k == 'N':
+            continue
+        viz_data['stats'][k + '_mean'] = round(float(v[-128:].mean()), 5)
+        viz_data['stats'][k + '_std'] = round(float(v[-128:].std()), 5)
+    viz_data['img_url'] = 'last_frame.png'
+    viz_data['k'] = config['kernels_params']['k']
+    viz_data['R'] = config['world_params']['R']
+    viz_data['T'] = config['world_params']['T']
+    with open(os.path.join(save_dir, 'viz_data.json'), 'w') as fviz:
+        json.dump(viz_data, fviz)
+
     render_params = config['render_params']
     leniax_video.dump_video(save_dir, all_cells, render_params, colormap)
 
@@ -324,3 +393,28 @@ def plot_kernels(save_dir, config):
     plt.tight_layout()
     fig.savefig(fullpath)
     plt.close(fig)
+
+
+def gather_viz_data(main_dir: str):
+    viz_dir = os.path.join(main_dir, 'viz_data')
+    leniax_utils.check_dir(viz_dir)
+
+    all_viz_data: List[Dict] = []
+    for (subdir, _, _) in os.walk(main_dir):
+        viz_data_filename = os.path.join(subdir, 'viz_data.json')
+        if not os.path.isfile(viz_data_filename):
+            continue
+
+        with open(viz_data_filename, 'r') as f:
+            current_viz_data = json.load(f)
+
+        last_frame_fullpath = os.path.join(subdir, current_viz_data['img_url'])
+        last_frame_new_name = str(len(all_viz_data)) + '-' + current_viz_data['img_url']
+        last_frame_newpath = os.path.join(viz_dir, last_frame_new_name)
+        copy2(last_frame_fullpath, last_frame_newpath)
+
+        current_viz_data['img_url'] = last_frame_new_name
+        all_viz_data.append(current_viz_data)
+
+    with open(os.path.join(viz_dir, 'all_viz_data.json'), 'w') as f:
+        json.dump(all_viz_data, f)

@@ -43,7 +43,7 @@ def launch(omegaConf: DictConfig) -> None:
         print(f"best run length: {best.fitness}")
         config = best.get_config()
 
-        all_cells, _, _, stats_dict = leniax_helpers.init_and_run(config, True)
+        all_cells, _, _, stats_dict = leniax_helpers.init_and_run(config, with_jit=True)
         all_cells = all_cells[:int(stats_dict['N']), 0]
 
         save_dir = os.path.join(os.getcwd(), f"{str(id_best).zfill(4)}")  # changed by hydra
@@ -53,13 +53,8 @@ def launch(omegaConf: DictConfig) -> None:
         config['run_params']['cells'] = leniax_utils.compress_array(first_cells)
         leniax_utils.save_config(save_dir, config)
 
-        # print('Dumping cells')
-        # with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
-        #     np.save(f, np.array(all_cells))
-
-        leniax_helpers.dump_last_frame(save_dir, all_cells)
-
-        leniax_helpers.plot_everythings(save_dir, config, all_cells, stats_dict)
+        print("Dumping assets")
+        leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict)
 
 
 if __name__ == '__main__':

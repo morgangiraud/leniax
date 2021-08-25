@@ -72,7 +72,7 @@ def run() -> None:
 
         for lenia in real_bests:
             config = lenia.get_config()
-            _, _, _, stats_dict = leniax_helpers.init_and_run(config, True)
+            _, _, _, stats_dict = leniax_helpers.init_and_run(config, with_jit=True)
             for k, v in stats_dict.items():
                 if k == 'N':
                     continue

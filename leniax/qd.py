@@ -1,11 +1,12 @@
 import os
+import psutil
 import time
 import pickle
 import json
 import math
 import matplotlib.pyplot as plt
 from multiprocessing import get_context
-from absl import logging
+from absl import logging as absl_logging
 import random
 from typing import Dict, Callable, List
 import jax
@@ -63,7 +64,7 @@ def eval_debug(ind: LeniaIndividual, neg_fitness=False):
     # This function is usually called in forked processes, before launching any JAX code
     # We silent it
     # Disable JAX logging https://abseil.io/docs/python/guides/logging
-    logging.set_verbosity(logging.ERROR)
+    absl_logging.set_verbosity(absl_logging.ERROR)
 
     if neg_fitness is True:
         fitness = -rastrigin(jnp.array(ind)[jnp.newaxis, jnp.newaxis, :]).squeeze()
@@ -81,7 +82,7 @@ def eval_lenia_config(ind: LeniaIndividual, neg_fitness: bool = False, fft: bool
     # This function is usually called in forked processes, before launching any JAX code
     # We silent it
     # Disable JAX logging https://abseil.io/docs/python/guides/logging
-    logging.set_verbosity(logging.ERROR)
+    absl_logging.set_verbosity(absl_logging.ERROR)
 
     config = ind.get_config()
 
@@ -386,30 +387,8 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
 
     print(f"Found {len(real_bests)} beast!")
 
-    for id_best, best in enumerate(real_bests):
-        config = best.get_config()
-
-        start_time = time.time()
-        all_cells, _, _, stats_dict = leniax_helpers.init_and_run(config, True)
-        all_cells = all_cells[:int(stats_dict['N']), 0]
-        total_time = time.time() - start_time
-
-        nb_iter_done = len(all_cells)
-        print(f"{nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
-
-        save_dir = os.path.join(os.getcwd(), f"c-{str(id_best).zfill(4)}")  # changed by hydra
-        leniax_utils.check_dir(save_dir)
-
-        first_cells = all_cells[0]
-        config['run_params']['cells'] = leniax_utils.compress_array(first_cells)
-        leniax_utils.save_config(save_dir, config)
-
-        # print('Dumping cells')
-        # with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
-        #     np.save(f, np.array(all_cells))
-
-        leniax_helpers.dump_last_frame(save_dir, all_cells)
-
-        leniax_helpers.plot_everythings(save_dir, config, all_cells, stats_dict)
-
-        print('---')
+    nb_cpus = psutil.cpu_count(logical=False)
+    with get_context("spawn").Pool(processes=nb_cpus) as pool:
+        pool.map(leniax_helpers.process_lenia, enumerate(real_bests))
+    # for lenia_tuple in enumerate(real_bests):
+    #     leniax_helpers.process_lenia(lenia_tuple)

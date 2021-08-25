@@ -1,7 +1,10 @@
+import os
+import pickle
 import jax
 from jax import vmap, lax, jit
 import jax.numpy as jnp
 # import numpy as np
+import scipy
 from typing import Callable, List, Dict, Tuple
 
 from . import utils
@@ -11,22 +14,31 @@ from .growth_functions import growth_fns
 from .constant import EPSILON, START_CHECK_STOP
 
 
-def init(config: Dict, fft: bool = True) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
+def init(config: Dict, scale: float = 1., fft: bool = True) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
     nb_dims = config['world_params']['nb_dims']
     nb_channels = config['world_params']['nb_channels']
     world_size = config['render_params']['world_size']
+    kernels_params = config['kernels_params']['k']
+    R = config['world_params']['R']
     assert len(world_size) == nb_dims
     assert nb_channels > 0
 
     cells = config['run_params']['cells']
     if type(cells) is str:
-        cells = utils.decompress_array(cells, nb_dims + 1)  # we add the channel dim
+        if cells == 'last_frame.p':
+            with open(os.path.join(config['main_path'], 'last_frame.p'), 'rb') as f:
+                cells = jnp.array(pickle.load(f))
+        else:
+            # Backward compatibility
+            cells = utils.decompress_array(cells, nb_dims + 1)  # we add the channel dim
     elif type(cells) is list:
         cells = jnp.array(cells)
+    if scale != 1.:
+        cells = jnp.array([scipy.ndimage.zoom(cells[i], scale, order=0) for i in range(nb_channels)])
+        R *= scale
+
     cells = init_cells(world_size, nb_channels, [cells])
 
-    kernels_params = config['kernels_params']['k']
-    R = config['world_params']['R']
     K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)
 
     return cells, K, mapping

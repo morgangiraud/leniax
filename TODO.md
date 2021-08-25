@@ -1,7 +1,7 @@
 # TODO 
 
 ## Parameters
-Criticial parameters are parameters that forces JAX to recompile the evaluation function, either because they change the memory allocation of the graph or they change the computation graph itself. Those are:
+Criticial parameters force JAX to recompile the evaluation function, either because they change the memory allocation of the graph or they change the computation graph itself. Those are:
 - world_size        (change cells shape)
 - nb_channels       (change cells shape)
 - nb_kernels        (change kernels shape)
@@ -15,7 +15,7 @@ Half-critical parameters (those can be made non-criticial with some engineering)
 - R
 - r
 
-Non-critical parameters:
+On the other hand, non-critical parameters are parameters that can be changed without having to recompile anything. Those are the ones that can be searched over:
 - T
 - b
 - k_id
@@ -37,24 +37,27 @@ There is a very strange behaviour that happens rarely but surely: it might happe
 It seems to occur mainly on the last element of the set.
 
 ## Now
-- On failed search, test altering T
-- Add heuristic for static species (no speed, no inertia change)
+- Dump all_stats
+- Create 2d maps of all dumped species for all 2-statistics
+- Choose the best 2d statistics and build a d3js hover plot with last frame as a tooltip (https://stackoverflow.com/questions/57401949/displaying-images-on-hovering-over-points-in-d3-js-scatter-plot)
+- Dump every species
+- Build the script to scale a creature
 
 # For the launch
-- We fix ourselves to D=2, C=1, nK=1 R=13, T= 10, gf_id=0, k_id=0, q=4
+- We fix ourselves to D=2, C=1, nK=1 R=13, T=10, gf_id=0, k_id=0, q=4
 - We are looking at the beta cube with the fraction 1/4 which leads to 61 (5 * 5 + 4 * 5 + 4 * 4) cases
-- For the launch we need one side (25)
 - The goal is to provide the community to choose whiche piece of the world to explore next (be part of cutting edge AI research, Each layer necessits more compute power)
 
 Hopefull goal at the end: Find 1337 species!
 
 ## Maybe next?
+- Add heuristic for static species (no speed, no inertia change)
+- The first pass of the cube exploration was with m[0.1, 0.6] et s[0., 0.1]. It could be interesting to finish the exploration: m[0.6, 0.9] et s[0.1, 0.2]
 - For heuristics, add that each channel should be within mass bounds
 - Move on to 3d behaviours? 
     - Dump cdf of all fitness, behaviours and genome
 - Let's explore with T and R
 - Let's explore 1c-2k, 1c-3k for now (looking for 10 species with interelation)
-- Spend some time to get intimate with all parameters
 - explore other kernels
 - define a qd state
 - save/load qd search states

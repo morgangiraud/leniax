@@ -23,7 +23,7 @@ class TestPipeline(unittest.TestCase):
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        all_cells, _, _, _ = leniax_helpers.init_and_run(config, False)
+        all_cells, _, _, _ = leniax_helpers.init_and_run(config, with_jit=False)
         last_frame = all_cells[-1, 0]
 
         assert len(all_cells) == 128
@@ -38,7 +38,7 @@ class TestPipeline(unittest.TestCase):
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        all_cells, _, _, _ = leniax_helpers.init_and_run(config, True)
+        all_cells, _, _, _ = leniax_helpers.init_and_run(config, with_jit=True)
         last_frame = all_cells[-1, 0]
 
         assert len(all_cells) == 128
@@ -53,7 +53,7 @@ class TestPipeline(unittest.TestCase):
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        all_cells, _, _, _ = leniax_helpers.init_and_run(config, True)
+        all_cells, _, _, _ = leniax_helpers.init_and_run(config, with_jit=True)
         last_frame = all_cells[-1, 0]
 
         assert len(all_cells) == 128
@@ -68,7 +68,7 @@ class TestPipeline(unittest.TestCase):
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        all_cells, _, _, _ = leniax_helpers.init_and_run(config, True, fft=True)
+        all_cells, _, _, _ = leniax_helpers.init_and_run(config, with_jit=True, fft=True)
         last_frame = all_cells[-1, 0]
 
         assert len(all_cells) == 128
@@ -83,7 +83,7 @@ class TestPipeline(unittest.TestCase):
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        all_cells, _, _, _ = leniax_helpers.init_and_run(config, True)
+        all_cells, _, _, _ = leniax_helpers.init_and_run(config, with_jit=True)
         last_frame = all_cells[-1, 0]
 
         assert len(all_cells) == 32
@@ -98,7 +98,7 @@ class TestPipeline(unittest.TestCase):
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        all_cells, _, _, _ = leniax_helpers.init_and_run(config, True, fft=True)
+        all_cells, _, _, _ = leniax_helpers.init_and_run(config, with_jit=True, fft=True)
         last_frame = all_cells[-1, 0]
 
         assert len(all_cells) == 32

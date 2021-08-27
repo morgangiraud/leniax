@@ -5,6 +5,12 @@ outputs
 multirun
 tmp
 
+## Experiments
+experiments/*
+!experiments/007_beta_cube_4/
+experiments/007_beta_cube_4/*
+!experiments/007_beta_cube_4/config.yaml
+
 # OSX
 .DS_Store
 .vscode

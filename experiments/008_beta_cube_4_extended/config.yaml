@@ -1,0 +1,71 @@
+world_params:
+  update_fn_version: 'v1'
+  weighted_average: true
+  nb_dims: 2
+  nb_channels: 1
+  R: 13
+  T: 10
+render_params:
+  pixel_size_power2: 2
+  size_power2: 7
+  pixel_border_size: 0
+  world_size: MISSING
+  pixel_size: MISSING
+run_params:
+  code: MISSING
+  cells: MISSING
+  seed: 1
+  nb_init_search: 128
+  max_run_iter: 1024
+kernels_params:
+  k:
+    - k_id: 0
+      q: 4
+      r: 1
+      b: '1'
+      gf_id: 0
+      m: 0.17
+      s: 0.015
+      h: 1
+      c_in: 0
+      c_out: 0
+
+genotype:
+  - key: kernels_params.k.0.m
+    domain: 
+      - .45
+      - .1
+    type: float
+  - key: kernels_params.k.0.s
+    domain: 
+      - 0.07
+      - .2
+    type: float
+
+phenotype:
+  - behaviours.mass_density
+  - behaviours.mass_volume
+
+grid:
+  features_domain:
+    - - 0.
+      - 1.
+    - - 0.
+      - 10.
+  shape: [20, 20]
+  
+algo:
+  # Generic
+  budget: 6144
+  batch_size: 16
+  sampling_domain:
+    - 0.
+    - 1.
+  # cmaes
+  mut_sigma0: 0.01
+  sigma0: 0.15
+  separable_cma: false
+  ignore_if_not_added_to_container: false
+
+other:
+  dump_bests: True

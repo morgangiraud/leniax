@@ -2,3 +2,5 @@ include scripts/*.py
 
 include conf/*.yaml
 include conf/**/*.yaml
+
+include experiments/**/*.yaml

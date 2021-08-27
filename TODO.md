@@ -36,12 +36,17 @@ Any growth functions that would boost the 0 value is doomed to fail. This would 
 There is a very strange behaviour that happens rarely but surely: it might happens that when running the vmap version of run_scan the check_heurisitics function returns different values N than when running each init separately.
 It seems to occur mainly on the last element of the set.
 
+#### Current best 2d behaviours statistics
+- mass_density_mean on last 128 steps
+- mass_volume_mean on last 128 steps
+
 ## Now
-- Dump all_stats
-- Create 2d maps of all dumped species for all 2-statistics
-- Choose the best 2d statistics and build a d3js hover plot with last frame as a tooltip (https://stackoverflow.com/questions/57401949/displaying-images-on-hovering-over-points-in-d3-js-scatter-plot)
-- Dump every species
-- Build the script to scale a creature
+- Make a UI to interact with species
+    - Refactor the way we gather viz_data (use links)
+    - Click to select a specie and show more of it
+    - Classify it (add a field in hte config?)
+    - serve the index.html file using a nodejs script?
+- Classify every species in 3 parts (uniq, variation and junk)
 
 # For the launch
 - We fix ourselves to D=2, C=1, nK=1 R=13, T=10, gf_id=0, k_id=0, q=4

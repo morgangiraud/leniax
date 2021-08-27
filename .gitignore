@@ -11,6 +11,12 @@ experiments/*
 experiments/007_beta_cube_4/*
 !experiments/007_beta_cube_4/config.yaml
 
+## UI
+ui/*
+!ui/*.py
+!ui/css
+!viz.html
+
 # OSX
 .DS_Store
 .vscode

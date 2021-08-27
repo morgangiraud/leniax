@@ -41,12 +41,10 @@ It seems to occur mainly on the last element of the set.
 - mass_volume_mean on last 128 steps
 
 ## Now
-- Make a UI to interact with species
-    - Refactor the way we gather viz_data (use links)
-    - Click to select a specie and show more of it
-    - Classify it (add a field in hte config?)
-    - serve the index.html file using a nodejs script?
 - Classify every species in 3 parts (uniq, variation and junk)
+- Find an acceptable process to name and define properties
+- Define the set of properties
+- Name them and set properties
 
 # For the launch
 - We fix ourselves to D=2, C=1, nK=1 R=13, T=10, gf_id=0, k_id=0, q=4

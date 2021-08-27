@@ -5,7 +5,6 @@ import pickle
 import uuid
 import numpy as np
 import jax.numpy as jnp
-from shutil import copy2
 from typing import Dict, Tuple, List
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
@@ -408,12 +407,12 @@ def gather_viz_data(main_dir: str):
         with open(viz_data_filename, 'r') as f:
             current_viz_data = json.load(f)
 
-        last_frame_fullpath = os.path.join(subdir, current_viz_data['img_url'])
-        last_frame_new_name = str(len(all_viz_data)) + '-' + current_viz_data['img_url']
-        last_frame_newpath = os.path.join(viz_dir, last_frame_new_name)
-        copy2(last_frame_fullpath, last_frame_newpath)
+        folder_link = str(len(all_viz_data))
+        link_dst = os.path.join(viz_dir, folder_link)
 
-        current_viz_data['img_url'] = last_frame_new_name
+        os.symlink(subdir, link_dst)
+
+        current_viz_data['relative_url'] = folder_link
         all_viz_data.append(current_viz_data)
 
     with open(os.path.join(viz_dir, 'all_viz_data.json'), 'w') as f:

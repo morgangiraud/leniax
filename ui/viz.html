@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en" charset="utf-8">
+
+<head>
+    <meta charset="utf-8" />
+    <script src="https://d3js.org/d3.v6.js"></script>
+    <script src="https://underscorejs.org/underscore-umd-min.js"></script>
+    <link href="./css/bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body id="the-body">
+
+    <div id="ui" style="float:left; width: 20%; height: 100vh">data</div>
+    <script>
+    // set the dimensions and margins of the graph
+    const margin = {top: 10, right: 30, bottom: 30, left: 60}
+    const width = 400;
+    const height = 400;
+    const k = height / width
+
+    const red = "#ff4136"
+    const blue = "#0074d9"
+    const green = "#2ecc40"
+    const orange = "#ff851b"
+    const purple = "#b10dc9"
+
+    let xhttp = new XMLHttpRequest();
+
+    d3.json("http://127.0.0.1:5000/get_creatures").then( function(creatures) {
+        let junks = creatures['junks']
+        let variations = creatures['variations']
+        let originals = creatures['originals']
+        let potentials = creatures['potentials']
+
+        let currentSelected = null
+        let dots;
+        const rgb2hex = (rgb) => `#${rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/).slice(1).map(n => parseInt(n, 10).toString(16).padStart(2, '0')).join('')}`
+        document.addEventListener('keydown', (e) => {
+            // Junk
+            if (e.code === 'KeyJ' && currentSelected !== null) {
+                if (rgb2hex(currentSelected.style.fill) === red){
+                    currentSelected.style.fill = blue
+                    xhttp.open("GET", "remove/junks/" + currentSelected.__data__.relative_url, true);
+                    xhttp.send(); 
+                } else {
+                    currentSelected.style.fill = red
+                    xhttp.open("GET", "add/junks/" + currentSelected.__data__.relative_url, true);
+                    xhttp.send(); 
+                }
+            }
+            // Variation
+            if (e.code === 'KeyV' && currentSelected !== null) {
+                if (rgb2hex(currentSelected.style.fill) === orange){
+                    currentSelected.style.fill = blue
+                    xhttp.open("GET", "remove/variations/" + currentSelected.__data__.relative_url, true);
+                    xhttp.send(); 
+                } else {
+                    currentSelected.style.fill = orange
+                    xhttp.open("GET", "add/variations/" + currentSelected.__data__.relative_url, true);
+                    xhttp.send(); 
+                }
+            }
+            // Original
+            if (e.code === 'KeyO' && currentSelected !== null) {
+                if (rgb2hex(currentSelected.style.fill) === green){
+                    currentSelected.style.fill = blue
+                    xhttp.open("GET", "remove/originals/" + currentSelected.__data__.relative_url, true);
+                    xhttp.send(); 
+                } else {
+                    currentSelected.style.fill = green
+                    xhttp.open("GET", "add/originals/" + currentSelected.__data__.relative_url, true);
+                    xhttp.send(); 
+                }
+            }
+            // Original
+            if (e.code === 'KeyP' && currentSelected !== null) {
+                if (rgb2hex(currentSelected.style.fill) === purple){
+                    currentSelected.style.fill = blue
+                    xhttp.open("GET", "remove/potentials/" + currentSelected.__data__.relative_url, true);
+                    xhttp.send(); 
+                } else {
+                    currentSelected.style.fill = purple
+                    xhttp.open("GET", "add/potentials/" + currentSelected.__data__.relative_url, true);
+                    xhttp.send(); 
+                }
+            }
+
+            if (e.code === 'Space') {
+                junks = []
+                variations = []
+                originals = []
+                potentials = []
+                d3.map(dots, (d) => {
+                    if (rgb2hex(d.style.fill) === red){
+                        junks.push(d.__data__.relative_url)
+                    } else if (rgb2hex(d.style.fill) === orange){
+                        variations.push(d.__data__.relative_url)
+                    } else if (rgb2hex(d.style.fill) === green){
+                        originals.push(d.__data__.relative_url)
+                    } else if (rgb2hex(d.style.fill) === purple){
+                        potentials.push(d.__data__.relative_url)
+                    }
+                })
+                console.log("nb junks:", junks.length);
+                console.log("nb variations:", variations.length);
+                console.log("nb originals:", originals.length);
+                console.log("nb potentials:", potentials.length);
+                console.log("total:", junks.length + variations.length + originals.length + potentials.length);
+            }
+        });
+        //Read the data
+        d3.json("./viz_data/all_viz_data.json").then( function(data) {
+            all_keys = Object.keys(data[0].stats)
+            // for (let i = 0; i < all_keys.length; i++) {
+            //     for (let j = i + 1; j < all_keys.length; j++) {
+            //         key1 = all_keys[i]
+            //         key2 = all_keys[j]
+                    key1 = "mass_density_mean"
+                    max_key1 = 1.
+                    key2 = "mass_volume_mean"
+                    max_key2 = _.max(data, (a) => a.stats[key2]).stats[key2]
+
+                    // append the svg object to the body of the page
+                    let div = document.createElement("div");
+                    div.id = `my_dataviz-${key1}-${key2}`
+                    div.style.height = "100vh"
+                    div.style.width = "80%"
+                    div.style.float = "left"
+                    document.getElementById("the-body").appendChild(div);
+
+                    const svg = d3.select(`#my_dataviz-${key1}-${key2}`)
+                        .append("svg")
+                            .attr("viewBox", [
+                                0, 0, width, height
+                            ])
+                            .style("width", "100%")
+                            .style("height", "100%")
+                            .style("display", "block")
+                            .style("margin", "auto")
+
+                    const tooltip = d3.select(`#my_dataviz-${key1}-${key2}`)
+                        .append("div")
+                        .style("opacity", 0)
+                        .attr("class", "tooltip")
+                        .style("background-color", "white")
+                        .style("border", "solid")
+                        .style("border-width", "1px")
+                        .style("border-radius", "5px")
+                        .style("padding", "10px")
+
+                    // Add X axis
+                    const x = d3.scaleLinear()
+                        .domain([0, max_key1])
+                        .range([ 0, width ]);
+
+                    // Add Y axis
+                    const y = d3.scaleLinear()
+                        .domain([0, max_key2])
+                        .range([ height, 0]);
+
+                    // const z = d3.scaleOrdinal()
+                    //     .domain(data.map(d => d[2]))
+                    //     .range(d3.schemeSpectral[4])
+
+                    const mouseover = function(event, d) {
+                        tooltip
+                        .html(`
+                            <img src="./viz_data/${d.relative_url}/last_frame.png" height="200px">
+                            <video id="creature_vid" width="256" height="256" autoplay>
+                                <source src="./viz_data/${d.relative_url}/beast.mp4" type="video/mp4">
+                            Your browser does not support the video tag.
+                            </video>
+                            <div>WARNING: Playback rate=3.0!</div>
+                        `)
+                        .style("z-index", 1080)
+                        .style("opacity", 1)
+
+                        document.getElementById("creature_vid").playbackRate = 3.0;
+                    }
+
+                    const mousemove = function(event, d) {
+                        tooltip
+                        .style("left", (event.x + 20) + "px") // It is important to put the +90: other wise the tooltip is exactly where the point is an it creates a weird effect
+                        .style("top", (event.y)/2 + "px")
+                    }
+
+                    // A function that change this tooltip when the leaves a point: just need to set opacity to 0 again
+                    const mouseleave = function(event,d) {
+                        tooltip
+                        .style("opacity", 0)
+                        .style("z-index", -1)
+                    }
+
+                    const onclick = function(event, d) {
+                        if (currentSelected !== null) {
+                            currentSelected.style.stroke = "none"
+                        }
+                        this.style.stroke = "#000000"
+                        currentSelected = this
+                    }
+
+                    const dotsGroup = svg.append("g")
+                        .append("g");
+
+                    const gx = svg.append("g")
+                    svg.append("text")
+                        .attr("transform",
+                                "translate(" + (width/2) + " ," +
+                                            (height - margin.top - 20) + ")")
+                        .style("text-anchor", "middle")
+                        .text(key1);
+                    const gy = svg.append("g")
+                    // text label for the y axis
+                    svg.append("text")
+                        .attr("transform", "rotate(-90)")
+                        .attr("y", margin.left/2)
+                        .attr("x", -height / 2)
+                        .attr("dy", "1em")
+                        .style("text-anchor", "middle")
+                        .text(key2);
+
+
+                    // Add dots
+                    dots = dotsGroup.selectAll("dot")
+                        .data(data)
+                        .enter()
+                        .append("circle")
+                        .attr("cx", function (d) { return x(d.stats[key1]); } )
+                        .attr("cy", function (d) { return y(d.stats[key2]); } )
+                        .attr("r", 1)
+                        .style("fill", blue)
+                        // .style("fill", d => z(d.k[0].b))
+                        .style("opacity", 0.3)
+                        .style("stroke", "none")
+                        .style("stroke-width", "0.4px")
+                        .on("mouseover", mouseover )
+                        .on("mousemove", mousemove )
+                        .on("mouseleave", mouseleave )
+                        .on("click", onclick )
+
+                    const xAxis = (g, x) => g
+                        .attr("transform", `translate(0,${height})`)
+                        .call(d3.axisTop(x).ticks(12))
+                        .call(g => g.select(".domain").attr("display", "none"))
+                    const yAxis = (g, y) => g
+                        .call(d3.axisRight(y).ticks(12 * k))
+                        .call(g => g.select(".domain").attr("display", "none"))
+
+                    const zoomed = function({transform}) {
+                        const zx = transform.rescaleX(x).interpolate(d3.interpolateRound);
+                        const zy = transform.rescaleY(y).interpolate(d3.interpolateRound);
+                        dotsGroup.attr("transform", transform);
+                        gx.call(xAxis, zx);
+                        gy.call(yAxis, zy);
+                    }
+                    const zoom = d3.zoom()
+                        .scaleExtent([1., 100])
+                        .on("zoom", zoomed);
+                    svg.call(zoom).call(zoom.transform, d3.zoomIdentity);
+
+                    d3.map(dots, (d) => {
+                        if (junks.includes(d.__data__.relative_url) ){
+                            d.style.fill = red
+                        } else if (variations.includes(d.__data__.relative_url) ){
+                            d.style.fill = orange
+                        } else if (originals.includes(d.__data__.relative_url) ){
+                            d.style.fill = green
+                        } else if (potentials.includes(d.__data__.relative_url) ){
+                            d.style.fill = purple
+                        }
+                    })
+            //     }
+            // }
+
+        })
+    })
+    </script>
+
+</body>
+</html>

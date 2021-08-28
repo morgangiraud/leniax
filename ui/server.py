@@ -21,8 +21,8 @@ originals_fullpath = os.path.join(cdir, 'originals.json')
 
 all_creatures = {
     'junks': load_creature_list(junks_fullpath),
-    'variations': load_creature_list(potentials_fullpath),
-    'potentials': load_creature_list(variations_fullpath),
+    'potentials': load_creature_list(potentials_fullpath),
+    'variations': load_creature_list(variations_fullpath),
     'originals': load_creature_list(originals_fullpath),
 }
 VIZ_DATA_DIR = ''

@@ -345,9 +345,10 @@ def normalize(v: jnp.ndarray, vmin: float, vmax: float, is_square: bool = False,
 
 def plot_stats(save_dir: str, stats_dict: Dict):
     nb_steps = int(stats_dict['N'])
-    del stats_dict['N']
 
     all_keys = list(stats_dict.keys())
+    del all_keys[all_keys.index('N')]
+
     ticks = max(nb_steps // 20, 1)
     fig, axs = plt.subplots(len(all_keys), sharex=True)
     fig.set_size_inches(10, 10)

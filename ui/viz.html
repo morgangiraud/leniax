@@ -10,7 +10,7 @@
 
 <body id="the-body">
 
-    <div id="ui" style="float:left; width: 20%; height: 100vh">data</div>
+    <!-- <div id="ui" style="float:left; width: 20%; height: 100vh">data</div> -->
     <script>
     // set the dimensions and margins of the graph
     const margin = {top: 10, right: 30, bottom: 30, left: 60}
@@ -110,6 +110,11 @@
         });
         //Read the data
         d3.json("./viz_data/all_viz_data.json").then( function(data) {
+            // data = data.filter( (datum) => !junks.includes(datum.relative_url))
+            // data = data.filter( (datum) => !variations.includes(datum.relative_url))
+            // data = data.filter( (datum) => !potentials.includes(datum.relative_url))
+            // data = data.filter( (datum) => !originals.includes(datum.relative_url))
+            
             all_keys = Object.keys(data[0].stats)
             // for (let i = 0; i < all_keys.length; i++) {
             //     for (let j = i + 1; j < all_keys.length; j++) {
@@ -165,7 +170,7 @@
                     const mouseover = function(event, d) {
                         tooltip
                         .html(`
-                            <img src="./viz_data/${d.relative_url}/last_frame.png" height="200px">
+                            <img src="./viz_data/${d.relative_url}/last_frame.png">
                             <video id="creature_vid" width="256" height="256" autoplay>
                                 <source src="./viz_data/${d.relative_url}/beast.mp4" type="video/mp4">
                             Your browser does not support the video tag.

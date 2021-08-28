@@ -21,6 +21,8 @@ from . import kernels as leniax_kernels
 from . import growth_functions as leniax_gf
 from . import video as leniax_video
 
+cdir = os.path.dirname(os.path.realpath(__file__))
+
 
 def get_container(omegaConf: DictConfig) -> Dict:
     main_path = ''
@@ -289,6 +291,30 @@ def process_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
     dump_assets(save_dir, config, all_cells, stats_dict)
 
 
+###
+# Viz
+###
+def dump_assets(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict: Dict):
+    colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
+
+    leniax_utils.plot_stats(save_dir, stats_dict)
+
+    plot_kernels(save_dir, config)
+
+    with open(os.path.join(save_dir, 'stats_dict.p'), 'wb') as f:
+        pickle.dump(stats_dict, f)
+
+    with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
+        np.save(f, np.array(all_cells))
+
+    dump_last_frame(save_dir, all_cells)
+
+    dump_viz_data(save_dir, stats_dict, config)
+
+    render_params = config['render_params']
+    leniax_video.dump_video(save_dir, all_cells, render_params, colormap)
+
+
 def dump_last_frame(save_dir: str, all_cells: jnp.ndarray, raw: bool = False):
     """
         Args:
@@ -329,39 +355,20 @@ def dump_last_frame(save_dir: str, all_cells: jnp.ndarray, raw: bool = False):
         img.save(f, format='png')
 
 
-###
-# Viz
-###
-def dump_assets(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict: Dict):
-    colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
-
-    leniax_utils.plot_stats(save_dir, stats_dict)
-
-    plot_kernels(save_dir, config)
-
-    with open(os.path.join(save_dir, 'stats_dict.p'), 'wb') as f:
-        pickle.dump(stats_dict, f)
-
-    # with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
-    #     np.save(f, np.array(all_cells))
-
-    dump_last_frame(save_dir, all_cells)
-
+def dump_viz_data(save_dir: str, stats_dict: Dict, config: Dict):
     viz_data: Dict = {'stats': {}}
     for k, v in stats_dict.items():
         if k == 'N':
             continue
-        viz_data['stats'][k + '_mean'] = round(float(v[-128:].mean()), 5)
-        viz_data['stats'][k + '_std'] = round(float(v[-128:].std()), 5)
+        truncated_stat = v[:int(stats_dict['N'])]
+        viz_data['stats'][k + '_mean'] = round(float(truncated_stat[-128:].mean()), 5)
+        viz_data['stats'][k + '_std'] = round(float(truncated_stat[-128:].std()), 5)
     viz_data['img_url'] = 'last_frame.png'
     viz_data['k'] = config['kernels_params']['k']
     viz_data['R'] = config['world_params']['R']
     viz_data['T'] = config['world_params']['T']
     with open(os.path.join(save_dir, 'viz_data.json'), 'w') as fviz:
         json.dump(viz_data, fviz)
-
-    render_params = config['render_params']
-    leniax_video.dump_video(save_dir, all_cells, render_params, colormap)
 
 
 def plot_kernels(save_dir, config):
@@ -395,7 +402,7 @@ def plot_kernels(save_dir, config):
 
 
 def gather_viz_data(main_dir: str):
-    viz_dir = os.path.join(main_dir, 'viz_data')
+    viz_dir = os.path.join(cdir, '..', 'ui', 'viz_data')
     leniax_utils.check_dir(viz_dir)
 
     all_viz_data: List[Dict] = []

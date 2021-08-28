@@ -115,18 +115,6 @@ def run(
         cond, counters['nb_monotone_step'] = leniax_stat.monotonic_heuristic(sign, previous_sign, monotone_counter)
         should_continue_cond *= cond
 
-        # growth = stat_t['growth']
-        # cond = max_growth_heuristic(growth, R)
-        # should_continue_cond *= cond
-
-        # # Looking for non-static species
-        # mass_speed = stat_t['mass_speed']
-        # mass_speed_counter = counters['nb_slow_mass_step']
-        # cond, counters['nb_slow_mass_step'] = leniax_stat.min_mass_speed_heuristic(
-        #     mass_speed, mass_speed_counter, R, 1. / T
-        # )
-        # should_continue_cond *= cond
-
         mass_volume = stat_t['mass_volume']
         mass_volume_counter = counters['nb_max_volume_step']
         cond, counters['nb_max_volume_step'] = leniax_stat.mass_volume_heuristic(mass_volume, mass_volume_counter, R)

@@ -123,15 +123,6 @@ def check_heuristics(stats: Dict[str, jnp.ndarray], R: float, dt: jnp.ndarray):
         cond, counters['nb_monotone_step'] = monotonic_heuristic(sign, previous_sign, monotone_counter)
         should_continue_cond *= cond
 
-        # growth = stat_t['growth']
-        # cond = max_growth_heuristic(growth, R)
-        # should_continue_cond *= cond
-
-        # mass_speed = stat_t['mass_speed']
-        # mass_speed_counter = counters['nb_slow_mass_step']
-        # cond, counters['nb_slow_mass_step'] = min_mass_speed_heuristic(mass_speed, mass_speed_counter, R, dt)
-        # should_continue_cond *= cond
-
         mass_volume = stat_t['mass_volume']
         mass_volume_counter = counters['nb_max_volume_step']
         cond, counters['nb_max_volume_step'] = mass_volume_heuristic(mass_volume, mass_volume_counter, R)
@@ -193,36 +184,16 @@ def monotonic_heuristic(sign: jnp.ndarray, previous_sign: jnp.ndarray, monotone_
     return should_continue_cond, monotone_counter
 
 
-MASS_SPEED_THRESHOLD = 0.01
-MASS_SPEED_STOP_STEP = 16
-
-
-def min_mass_speed_heuristic(mass_speed: jnp.ndarray, mass_speed_counter: jnp.ndarray, R: float, dt: float):
-    mass_speed_cond = jnp.array(mass_speed < MASS_SPEED_THRESHOLD / R / dt)
-    mass_speed_counter = mass_speed_counter * mass_speed_cond + 1
-    should_continue_cond = mass_speed_counter <= MASS_SPEED_STOP_STEP
-
-    return should_continue_cond, mass_speed_counter
-
-
-GROWTH_THRESHOLD = 500
-
-
-def max_growth_heuristic(growth: jnp.ndarray, R: float):
-    should_continue_cond = growth <= GROWTH_THRESHOLD / R**2
-
-    return should_continue_cond
-
-
 # Those are 3200 pixels activated
 # This number comes from the early days when I set the threshold
-# at 10% of a 128*128 ~= 1600 pixels
-MASS_VOLUME_THRESHOLD = 1600
+# at 10% of a 128*128 ~= 1600 pixels with a kernel radius of 13
+# Which gives a volume threshold of 1600 / 13^2 ~= 9.5
+MASS_VOLUME_THRESHOLD = 10
 MASS_VOLUME_STOP_STEP = 128
 
 
 def mass_volume_heuristic(mass_volume: jnp.ndarray, mass_volume_counter: jnp.ndarray, R: float):
-    volume_cond = jnp.array(mass_volume > MASS_VOLUME_THRESHOLD / R**2)
+    volume_cond = jnp.array(mass_volume > MASS_VOLUME_THRESHOLD)
     mass_volume_counter = mass_volume_counter * volume_cond + 1
     should_continue_cond = mass_volume_counter <= MASS_VOLUME_STOP_STEP
 

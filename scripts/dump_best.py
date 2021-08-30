@@ -14,7 +14,9 @@ config_path = os.path.join(cdir, '..', 'conf')
 # final_dir = os.path.join(cdir, '..', 'experiments', '003_v1_1c1k_b0.5,1_m_s')
 # final_dir = os.path.join(cdir, '..', 'experiments', '005_behaviours')
 # final_dir = os.path.join(cdir, '..', 'experiments', '006_v1_3c6k')
-final_dir = os.path.join(cdir, '..', 'experiments', '007_beta_cube_4')
+# final_dir = os.path.join(cdir, '..', 'experiments', '007_beta_cube_4')
+# final_dir = os.path.join(cdir, '..', 'experiments', '009_b[1]_T2')
+final_dir = os.path.join(cdir, '..', 'experiments', '010_b[1]_R26')
 
 
 def run() -> None:
@@ -46,8 +48,6 @@ def run() -> None:
         print(subdir)
         os.chdir(subdir)
         leniax_qd.dump_best(grid, max_val)
-
-    leniax_helpers.gather_viz_data(final_dir)
 
 
 if __name__ == '__main__':

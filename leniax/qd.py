@@ -367,7 +367,9 @@ def save_all(current_iter: int, optimizer, fitness_domain, sols: List, fits: Lis
 
     if current_iter - 1 > 0:
         previous_prefix_fullpath = os.path.join(save_dir, f"{str(current_iter-1).zfill(4)}-")
-        os.remove(f"{previous_prefix_fullpath}final.p")
+        previous_fullpath = f"{previous_prefix_fullpath}final.p"
+        if os.path.isfile(previous_fullpath):
+            os.remove(previous_fullpath)
 
 
 def dump_best(grid: ArchiveBase, fitness_threshold: float):

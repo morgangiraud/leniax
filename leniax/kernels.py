@@ -158,7 +158,9 @@ def kernel_shell(distances: jnp.ndarray, kernel_params: Dict) -> jnp.ndarray:
     B_dist = nb_b * distances  # scale distances by the number of modes
     bs_mat = bs[jnp.minimum(jnp.floor(B_dist).astype(int), nb_b - 1)]  # Define postions for each mode
 
-    # All kernel functions are defined in [0, 1] so we keep only value with distance under 1
+    # All kernel functions are defined in [0, 1] so we compute B_dist modulo 1 to make sure value lies in the good range
+    # Notice that those kernel functions should be positive and fk(0) = 0, fk(1) = 0
+    # We then crop to distances < 1 which defines the "size" of the kernel
     kernel_func = kernel_core[kernel_params['k_id']]
     kernel_q = kernel_params['q']
     kernel = (distances < 1) * kernel_func(B_dist % 1, kernel_q) * bs_mat  # type: ignore

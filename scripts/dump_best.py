@@ -16,7 +16,8 @@ config_path = os.path.join(cdir, '..', 'conf')
 # final_dir = os.path.join(cdir, '..', 'experiments', '006_v1_3c6k')
 # final_dir = os.path.join(cdir, '..', 'experiments', '007_beta_cube_4')
 # final_dir = os.path.join(cdir, '..', 'experiments', '009_b[1]_T2')
-final_dir = os.path.join(cdir, '..', 'experiments', '010_b[1]_R26')
+# final_dir = os.path.join(cdir, '..', 'experiments', '010_b[1]_R26')
+final_dir = os.path.join(cdir, '..', 'experiments', '011_b[1]_half_kernel')
 
 
 def run() -> None:

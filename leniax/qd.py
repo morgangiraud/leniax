@@ -239,8 +239,13 @@ def run_qd_search(
 
             save_all(itr, optimizer, fitness_domain, sols, fits, bcs)
 
+            nb_best = 0
+            for idx in optimizer.archive._occupied_indices:
+                if optimizer.archive._objective_values[idx] >= fitness_domain[1]:
+                    nb_best += 1
+            nb_best_str = f"({nb_best}) - "
             print(
-                f"{itr:>4}/{nb_iter:<4}{len(df):>22}/{nb_total_bins:<6}{mean_score:>20.4f}"
+                f"{itr:>4}/{nb_iter:<4} {nb_best_str + str(len(df)):>22}/{nb_total_bins:<6}{mean_score:>20.4f}"
                 f"{std_score:>20.4f}{min_score:>16.4f}{max_score:>16.4f}{qd_score:>16.4f}"
                 f"{time.time() - t0:>20.4f}"
             )

@@ -2,38 +2,80 @@ import os
 import time
 import ffmpeg
 import numpy as np
+import jax.numpy as jnp
+from typing import Dict, List, Union, Any
 
 from . import utils as leniax_utils
 
 
-def dump_video(save_dir, all_cells, render_params, colormap):
+def dump_video(save_dir: str, all_cells: jnp.ndarray, render_params: Dict, colormaps: Union[List, Any]):
     assert len(all_cells.shape) == 4  # [nb_iter, C, H, W]
+    if type(colormaps) != list:
+        colormaps = list(colormaps)
 
     nb_iter_done = len(all_cells)
     width = all_cells[0].shape[-1] * render_params['pixel_size']
     height = all_cells[0].shape[-2] * render_params['pixel_size']
-    output_fullpath = os.path.join(save_dir, 'beast.mp4')
-    process = (
-        ffmpeg.input('pipe:', format='rawvideo', pix_fmt='rgb24', s=f"{width}x{height}", framerate=32
-                     ).output(output_fullpath, crf=20, preset='slower', movflags='faststart',
-                              pix_fmt='yuv420p').overwrite_output().run_async(pipe_stdin=True, quiet=True)
-    )
-    all_times = []
 
-    for i in range(nb_iter_done):
-        start_time = time.time()
-        img = leniax_utils.get_image(
-            all_cells[i], render_params['pixel_size'], render_params['pixel_border_size'], colormap
+    all_outputs_fullpath = []
+    for colormap in colormaps:
+        output_fullpath = os.path.join(save_dir, f"beast_{colormap.name}.mp4")
+        process = (
+            ffmpeg.input(
+                'pipe:',
+                format='rawvideo',
+                pix_fmt='rgb24',
+                s=f"{width}x{height}",
+                framerate=32,
+            ).output(
+                output_fullpath,
+                crf=23,
+                preset='slower',
+                movflags='faststart',
+                pix_fmt='yuv420p',
+            ).overwrite_output().run_async(pipe_stdin=True, quiet=True)
         )
-        process.stdin.write(img.tobytes())
+        all_times = []
+        for i in range(nb_iter_done):
+            start_time = time.time()
+            img = leniax_utils.get_image(
+                all_cells[i], render_params['pixel_size'], render_params['pixel_border_size'], colormap
+            )
+            process.stdin.write(img.tobytes())
 
-        all_times.append(time.time() - start_time)
-    process.stdin.close()
-    process.wait()
+            all_times.append(time.time() - start_time)
+        process.stdin.close()
+        process.wait()
 
-    total_time = np.sum(all_times)
-    mean_time = np.mean(all_times)
-    print(f"{len(all_times)} images dumped in {total_time} seconds: {mean_time} fps")
+        total_time = np.sum(all_times)
+        mean_time = np.mean(all_times)
+        print(f"{len(all_times)} images dumped in {total_time} seconds: {mean_time} fps")
+
+        all_outputs_fullpath.append(output_fullpath)
+
+    return all_outputs_fullpath
+
+
+def dump_gif(video_fullpath):
+    """
+        ffmpeg -i video_fullpath
+            -vf "fps=10,scale=width:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse"
+            -loop 0
+            output.gif
+    """
+    output_fullpath = os.path.splitext(video_fullpath)[0] + '.gif'
+
+    probe = ffmpeg.probe(video_fullpath)
+    video_stream = next((stream for stream in probe['streams'] if stream['codec_type'] == 'video'), None)
+    width = int(video_stream['width'])
+
+    split = ffmpeg.input(video_fullpath).filter('scale', width, -1, flags='lanczos').filter('fps', fps=24).split()
+
+    palette = split[0].filter('palettegen')
+
+    ffmpeg_cmd = ffmpeg.filter([split[1], palette], 'paletteuse').output(output_fullpath).overwrite_output()
+
+    ffmpeg_cmd.run(quiet=True)
 
 
 def dump_qd_ribs_result(output_fullpath):
@@ -67,6 +109,9 @@ def dump_qd_ribs_result(output_fullpath):
     h2 = ffmpeg.filter(ffmpeg_inputs[2:4], 'hstack')
     h3 = ffmpeg.filter(ffmpeg_inputs[4:6], 'hstack')
     v1 = ffmpeg.filter([h1, h2], 'vstack')
-    ffmpeg.filter([v1, h3], 'vstack').output(
+    v2 = ffmpeg.filter([v1, h3], 'vstack')
+    ffmpeg_cmd = v2.output(
         output_fullpath, crf=20, preset='slower', movflags='faststart', pix_fmt='yuv420p'
-    ).overwrite_output().run()
+    ).overwrite_output()
+
+    ffmpeg_cmd.run(quiet=True)

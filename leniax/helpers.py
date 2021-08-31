@@ -26,7 +26,7 @@ cdir = os.path.dirname(os.path.realpath(__file__))
 
 def get_container(omegaConf: DictConfig) -> Dict:
     main_path = ''
-    # We try to get the Hydra main config if we can
+    # We try to get the Hydra main config fullpath
     try:
         for source in HydraConfig.get().runtime.config_sources:
             if source.provider == 'main':
@@ -39,16 +39,21 @@ def get_container(omegaConf: DictConfig) -> Dict:
 
     world_params = omegaConf.world_params
     render_params = omegaConf.render_params
-    pixel_size = 2**render_params.pixel_size_power2
-    world_size = [2**render_params['size_power2']] * world_params['nb_dims']
-    omegaConf.render_params.world_size = world_size
-    omegaConf.render_params.pixel_size = pixel_size
+    if omegaConf.render_params.pixel_size == 'MISSING':
+        pixel_size = 2**render_params.pixel_size_power2
+        omegaConf.render_params.pixel_size = pixel_size
+    if omegaConf.render_params.world_size == 'MISSING':
+        world_size = [2**render_params['size_power2']] * world_params['nb_dims']
+        omegaConf.render_params.world_size = world_size
 
     # When we are here, the omegaConf has already been checked by OmegaConf
     # so we can extract primitives to use with other libs
     config = OmegaConf.to_container(omegaConf)
     assert isinstance(config, dict)
     config['main_path'] = main_path
+
+    if 'scale' not in config['world_params']:
+        config['world_params']['scale'] = 1.
 
     return config
 
@@ -123,8 +128,8 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
     return rng_key, best_run, i
 
 
-def init_and_run(config: Dict, scale: float = 1., with_jit: bool = False, fft: bool = True) -> Tuple:
-    cells, K, mapping = leniax_core.init(config, scale=scale, fft=fft)
+def init_and_run(config: Dict, with_jit: bool = False, fft: bool = True) -> Tuple:
+    cells, K, mapping = leniax_core.init(config, fft=fft)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 
@@ -294,9 +299,7 @@ def process_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
 ###
 # Viz
 ###
-def dump_assets(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict: Dict):
-    colormap = plt.get_cmap('plasma')  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
-
+def dump_assets(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict: Dict, colormaps=None):
     leniax_utils.plot_stats(save_dir, stats_dict)
 
     plot_kernels(save_dir, config)
@@ -304,15 +307,20 @@ def dump_assets(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict:
     with open(os.path.join(save_dir, 'stats_dict.p'), 'wb') as f:
         pickle.dump(stats_dict, f)
 
-    with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
-        np.save(f, np.array(all_cells))
+    # with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
+    #     np.save(f, np.array(all_cells))
 
     dump_last_frame(save_dir, all_cells)
 
     dump_viz_data(save_dir, stats_dict, config)
 
     render_params = config['render_params']
-    leniax_video.dump_video(save_dir, all_cells, render_params, colormap)
+    if colormaps is None:
+        colormaps = [plt.get_cmap('plasma')]  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
+    all_outputs_fullpath = leniax_video.dump_video(save_dir, all_cells, render_params, colormaps)
+
+    for output_fullpath in all_outputs_fullpath:
+        leniax_video.dump_gif(output_fullpath)
 
 
 def dump_last_frame(save_dir: str, all_cells: jnp.ndarray, raw: bool = False):

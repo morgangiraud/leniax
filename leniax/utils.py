@@ -186,11 +186,10 @@ def merge_cells(cells: jnp.ndarray, other_cells: jnp.ndarray, offset: List[int] 
 
     pads = []
     for i in range(len(cells.shape)):
-        pad_start = (cells.shape[i] - other_cells.shape[i]) // 2 - offset[i]
-        pad_end = cells.shape[i] - other_cells.shape[i] - pad_start
+        pad_start = int(max((cells.shape[i] - other_cells.shape[i]) // 2 - offset[i], 0))
+        pad_end = int(cells.shape[i] - other_cells.shape[i] - pad_start)
 
         pads.append((pad_start, pad_end))
-
     padded_other_cells = jnp.pad(other_cells, pads, mode='constant', constant_values=(0, 0))
 
     cells += padded_other_cells

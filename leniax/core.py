@@ -14,12 +14,11 @@ from .growth_functions import growth_fns
 from .constant import EPSILON, START_CHECK_STOP
 
 
-def init(config: Dict, scale: float = 1., fft: bool = True) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
+def init(config: Dict, fft: bool = True) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
     nb_dims = config['world_params']['nb_dims']
     nb_channels = config['world_params']['nb_channels']
     world_size = config['render_params']['world_size']
     kernels_params = config['kernels_params']['k']
-    R = config['world_params']['R']
     assert len(world_size) == nb_dims
     assert nb_channels > 0
 
@@ -33,27 +32,44 @@ def init(config: Dict, scale: float = 1., fft: bool = True) -> Tuple[jnp.ndarray
             cells = utils.decompress_array(cells, nb_dims + 1)  # we add the channel dim
     elif type(cells) is list:
         cells = jnp.array(cells)
+    scale = config['world_params']['scale']
     if scale != 1.:
         cells = jnp.array([scipy.ndimage.zoom(cells[i], scale, order=0) for i in range(nb_channels)])
-        R *= scale
+        config['world_params']['R'] *= scale
 
+    # on = int(15 * scale)
+    # cells = init_cells(world_size, nb_channels, [
+    #     jnp.rot90(cells, k=2, axes=(1, 2)),
+    #     jnp.rot90(cells, k=0, axes=(1, 2)),
+    #     jnp.rot90(cells, k=-1, axes=(1, 2)),
+    #     jnp.rot90(cells, k=1, axes=(1, 2))
+    # ], [[0, on, on], [0, -on, -on], [0, -on, on], [0, on, -on]])
     cells = init_cells(world_size, nb_channels, [cells])
-
+    R = config['world_params']['R']
     K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)
 
     return cells, K, mapping
 
 
-def init_cells(world_size: List[int], nb_channels: int, other_cells: List[jnp.ndarray] = None) -> jnp.ndarray:
+def init_cells(
+    world_size: List[int],
+    nb_channels: int,
+    other_cells: List[jnp.ndarray] = [],
+    offsets: List[List[int]] = [],
+) -> jnp.ndarray:
     """
         Outputs:
             - cells: jnp.ndarray[N=1, C, world_dims...]
     """
-    world_shape = [nb_channels] + world_size  # [C, H, W]
+    world_shape = [nb_channels] + world_size  # [C, world_dims...]
     cells = jnp.zeros(world_shape)
     if other_cells is not None:
-        for c in other_cells:
-            cells = utils.merge_cells(cells, c)
+        if len(offsets) == len(other_cells):
+            for c, offset in zip(other_cells, offsets):
+                cells = utils.merge_cells(cells, c, offset)
+        else:
+            for c in other_cells:
+                cells = utils.merge_cells(cells, c)
 
     cells = cells[jnp.newaxis, ...]
 
@@ -69,8 +85,7 @@ def run(
     max_run_iter: int,
     R: float,
     update_fn: Callable,
-    compute_stats_fn: Callable,
-    fft: bool = True,
+    compute_stats_fn: Callable
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
     assert max_run_iter > 0, f"max_run_iter must be positive, value given: {max_run_iter}"
     assert cells.shape[0] == 1

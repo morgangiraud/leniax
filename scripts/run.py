@@ -3,44 +3,51 @@ import os
 from absl import logging as absl_logging
 from omegaconf import DictConfig
 import hydra
+# from hydra.core.config_store import ConfigStore
 
 import leniax.utils as leniax_utils
 import leniax.helpers as leniax_helpers
+# from leniax.structured_config import LeniaxConfig
 
 absl_logging.set_verbosity(absl_logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
-config_path = os.path.join(cdir, '..', 'conf', 'species')
-config_path_1c1k = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
-config_path_1c1kv2 = os.path.join(cdir, '..', 'conf', 'species', '1c-1k-v2')
-config_path_1c2k = os.path.join(cdir, '..', 'conf', 'species', '1c-2k')
-config_path_1c3k = os.path.join(cdir, '..', 'conf', 'species', '1c-3k')
-config_path_3c15k = os.path.join(cdir, '..', 'conf', 'species', '3c-15k')
-config_path_outputs = os.path.join(cdir, '..', 'outputs', '2021-08-18', '10-50-52', 'c-0000')
-config_path_exp = os.path.join(cdir, '..', 'experiments', '007_beta_cube_4', 'run-b[1.0]', 'c-0033')
-config_path_fixtures = os.path.join(cdir, '..', 'tests', 'fixtures')
 
-scale = 1.
+config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
+config_name = "orbium"
+# config_name = "vibratium"
+
+# config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k-v2')
+# config_name = "wanderer"
+
+# config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-2k')
+# config_name = "squiggle"
+
+# config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-3k')
+# config_name = "fish"
+
+# config_path = os.path.join(cdir, '..', 'conf', 'species', '3c-15k')
+
+# config_path = os.path.join(cdir, '..', 'outputs', '2021-08-18', '10-50-52', 'c-0000')
+# config_path = os.path.join(cdir, '..', 'experiments', '007_beta_cube_4', 'run-b[1.0]', 'c-0033')
+# config_name = "config"
+
+# config_path = os.path.join(cdir, '..', 'tests', 'fixtures')
+# config_name = "aquarium-test.yaml"
+
 stat_trunc = True
 
 
-# @hydra.main(config_path=config_path_1c1k, config_name="orbium")
-# @hydra.main(config_path=config_path_1c1k, config_name="vibratium")
-# @hydra.main(config_path=config_path_1c2k, config_name="squiggle")
-# @hydra.main(config_path=config_path_1c3k, config_name="fish")
-# @hydra.main(config_path=config_path_3c15k, config_name="aquarium")
-# @hydra.main(config_path=config_path_1c1kv2, config_name="wanderer")
-# @hydra.main(config_path=config_path, config_name="orbium-scutium")
-# @hydra.main(config_path=config_path_outputs, config_name="config")
-@hydra.main(config_path=config_path_exp, config_name="config")
-# @hydra.main(config_path=config_path_fixtures, config_name="aquarium-test.yaml")
+# cs = ConfigStore.instance()
+# cs.store(name=config_name, node=LeniaxConfig)
+@hydra.main(config_path=config_path, config_name=config_name)
 def run(omegaConf: DictConfig) -> None:
     config = leniax_helpers.get_container(omegaConf)
 
-    print('Initialiazing and running')
+    print('Initialiazing and running', config)
     start_time = time.time()
     all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
-        config, scale, with_jit=True, fft=True
+        config, with_jit=True, fft=True
     )  # [nb_max_iter, N=1, C, world_dims...]
     if stat_trunc is True:
         all_cells = all_cells[:int(stats_dict['N']), 0]  # [nb_iter, C, world_dims...]

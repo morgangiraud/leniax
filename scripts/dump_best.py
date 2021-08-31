@@ -4,7 +4,6 @@ import pickle
 from ribs.archives import ArchiveBase
 
 from leniax import qd as leniax_qd
-from leniax import helpers as leniax_helpers
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
@@ -42,7 +41,7 @@ def run() -> None:
                 elif 'algorithms' in data:
                     grid = data['algorithms'][0].container
                 else:
-                    breakpoint()
+                    raise ValueError('Unknown data')
                 qd_config = grid[0].qd_config
         max_val = qd_config['run_params']['max_run_iter']
 

@@ -307,8 +307,8 @@ def dump_assets(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict:
     with open(os.path.join(save_dir, 'stats_dict.p'), 'wb') as f:
         pickle.dump(stats_dict, f)
 
-    # with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
-    #     np.save(f, np.array(all_cells))
+    with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
+        np.save(f, np.array(all_cells))
 
     dump_last_frame(save_dir, all_cells)
 
@@ -330,36 +330,57 @@ def dump_last_frame(save_dir: str, all_cells: jnp.ndarray, raw: bool = False):
             - all_cells: jnp.ndarray[nb_iter, C, world_dims...]
     """
     last_frame = all_cells[-1]
+    dump_frame(save_dir, 'last_frame', last_frame, raw)
 
+
+def dump_frame(save_dir: str, filename: str, cells: jnp.ndarray, raw: bool = False):
     if raw is False:
-        world_size = last_frame.shape[1:]
+        # breakpoint()
+        world_size = cells.shape[1:]
         axes = tuple(range(-len(world_size), 0, 1))
 
         midpoint = jnp.asarray([size // 2 for size in world_size])[:, jnp.newaxis, jnp.newaxis]
         coords = jnp.indices(world_size)
         centered_coords = coords - midpoint
 
-        m_00 = last_frame.sum()
-        MX = [(last_frame * coord).sum() for coord in centered_coords]
+        if len(cells.shape) == 3:
+            pre_shift_idx = [0, 0]
+            check_height_zero = ~jnp.all(cells == 0, axis=(0, 2))
+            if check_height_zero[0] and check_height_zero[-1] and not check_height_zero.prod():
+                pre_shift_idx[0] = int(midpoint[0])
+            check_width_zero = ~jnp.all(cells == 0, axis=(0, 1))
+            if check_width_zero[0] and check_width_zero[-1] and not check_width_zero.prod():
+                pre_shift_idx[1] = int(midpoint[1])
+
+            cells, _, _ = leniax_utils.center_world(
+                cells[jnp.newaxis],
+                cells[jnp.newaxis],
+                cells[jnp.newaxis],
+                jnp.array(pre_shift_idx)[jnp.newaxis],
+                axes,
+            )
+            cells = cells[0]
+
+        m_00 = cells.sum()
+        MX = [(cells * coord).sum() for coord in centered_coords]
         mass_centroid = jnp.array(MX) / (m_00 + EPSILON)
 
-        shift_idx = mass_centroid.astype(int).T
-        centered_last_frame, _, _ = leniax_utils.center_world(
-            last_frame[jnp.newaxis],
-            last_frame[jnp.newaxis],
-            last_frame[jnp.newaxis],
+        shift_idx = jnp.round(mass_centroid).astype(int).T
+        centered_cells, _, _ = leniax_utils.center_world(
+            cells[jnp.newaxis],
+            cells[jnp.newaxis],
+            cells[jnp.newaxis],
             shift_idx[jnp.newaxis],
             axes,
         )
+        cells = leniax_utils.crop_zero(centered_cells[0])
 
-        last_frame = leniax_utils.crop_zero(centered_last_frame[0])
-
-    with open(os.path.join(save_dir, 'last_frame.p'), 'wb') as f:
-        pickle.dump(np.array(last_frame), f)
+    with open(os.path.join(save_dir, f"{filename}.p"), 'wb') as f:
+        pickle.dump(np.array(cells), f)
 
     colormap = plt.get_cmap('plasma')
-    img = leniax_utils.get_image(last_frame, 1, 0, colormap)
-    with open(os.path.join(save_dir, "last_frame.png"), 'wb') as f:
+    img = leniax_utils.get_image(cells, 1, 0, colormap)
+    with open(os.path.join(save_dir, f"{filename}.png"), 'wb') as f:
         img.save(f, format='png')
 
 

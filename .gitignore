@@ -15,7 +15,8 @@ experiments/007_beta_cube_4/*
 ui/*
 !ui/*.py
 !ui/css
-!viz.html
+!classifier.html
+!property_editor.html
 
 # OSX
 .DS_Store

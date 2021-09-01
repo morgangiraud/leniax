@@ -428,28 +428,3 @@ def plot_kernels(save_dir, config):
     plt.tight_layout()
     fig.savefig(fullpath)
     plt.close(fig)
-
-
-def gather_viz_data(main_dir: str):
-    viz_dir = os.path.join(cdir, '..', 'ui', 'viz_data')
-    leniax_utils.check_dir(viz_dir)
-
-    all_viz_data: List[Dict] = []
-    for (subdir, _, _) in os.walk(main_dir):
-        viz_data_filename = os.path.join(subdir, 'viz_data.json')
-        if not os.path.isfile(viz_data_filename):
-            continue
-
-        with open(viz_data_filename, 'r') as f:
-            current_viz_data = json.load(f)
-
-        folder_link = str(len(all_viz_data))
-        link_dst = os.path.join(viz_dir, folder_link)
-
-        os.symlink(subdir, link_dst)
-
-        current_viz_data['relative_url'] = folder_link
-        all_viz_data.append(current_viz_data)
-
-    with open(os.path.join(viz_dir, 'all_viz_data.json'), 'w') as f:
-        json.dump(all_viz_data, f)

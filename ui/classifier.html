@@ -26,11 +26,11 @@
 
     let xhttp = new XMLHttpRequest();
 
-    d3.json("http://127.0.0.1:5000/get_creatures").then( function(creatures) {
-        let junks = creatures['junks']
-        let variations = creatures['variations']
-        let originals = creatures['originals']
-        let potentials = creatures['potentials']
+    d3.json("get_classified_creatures_ids").then( function(creatures) {
+        let junks_ids = creatures['junks']
+        let variations_ids = creatures['variations']
+        let originals_ids = creatures['originals']
+        let potentials_ids = creatures['potentials']
 
         let currentSelected = null
         let dots;
@@ -86,10 +86,10 @@
             }
 
             if (e.code === 'Space') {
-                junks = []
-                variations = []
-                originals = []
-                potentials = []
+                let junks = []
+                let variations = []
+                let originals = []
+                let potentials = []
                 d3.map(dots, (d) => {
                     if (rgb2hex(d.style.fill) === red){
                         junks.push(d.__data__.relative_url)
@@ -109,11 +109,11 @@
             }
         });
         //Read the data
-        d3.json("./viz_data/all_viz_data.json").then( function(data) {
-            // data = data.filter( (datum) => !junks.includes(datum.relative_url))
-            // data = data.filter( (datum) => !variations.includes(datum.relative_url))
-            // data = data.filter( (datum) => !potentials.includes(datum.relative_url))
-            // data = data.filter( (datum) => !originals.includes(datum.relative_url))
+        d3.json("get_all_creatures_viz_data").then( function(data) {
+            // data = data.filter( (datum) => !junks_ids.includes(datum.relative_url))
+            // data = data.filter( (datum) => !variations_ids.includes(datum.relative_url))
+            // data = data.filter( (datum) => !potentials_ids.includes(datum.relative_url))
+            // data = data.filter( (datum) => !originals_ids.includes(datum.relative_url))
             
             all_keys = Object.keys(data[0].stats)
             // for (let i = 0; i < all_keys.length; i++) {
@@ -264,13 +264,13 @@
                     svg.call(zoom).call(zoom.transform, d3.zoomIdentity);
 
                     d3.map(dots, (d) => {
-                        if (junks.includes(d.__data__.relative_url) ){
+                        if (junks_ids.includes(d.__data__.relative_url) ){
                             d.style.fill = red
-                        } else if (variations.includes(d.__data__.relative_url) ){
+                        } else if (variations_ids.includes(d.__data__.relative_url) ){
                             d.style.fill = orange
-                        } else if (originals.includes(d.__data__.relative_url) ){
+                        } else if (originals_ids.includes(d.__data__.relative_url) ){
                             d.style.fill = green
-                        } else if (potentials.includes(d.__data__.relative_url) ){
+                        } else if (potentials_ids.includes(d.__data__.relative_url) ){
                             d.style.fill = purple
                         }
                     })

@@ -11,7 +11,7 @@ from . import utils as leniax_utils
 def dump_video(save_dir: str, all_cells: jnp.ndarray, render_params: Dict, colormaps: Union[List, Any]):
     assert len(all_cells.shape) == 4  # [nb_iter, C, H, W]
     if type(colormaps) != list:
-        colormaps = list(colormaps)
+        colormaps = list([colormaps])
 
     nb_iter_done = len(all_cells)
     width = all_cells[0].shape[-1] * render_params['pixel_size']
@@ -19,7 +19,7 @@ def dump_video(save_dir: str, all_cells: jnp.ndarray, render_params: Dict, color
 
     all_outputs_fullpath = []
     for colormap in colormaps:
-        output_fullpath = os.path.join(save_dir, f"beast_{colormap.name}.mp4")
+        output_fullpath = os.path.join(save_dir, f"beast_{colormap.name}_{width}_{height}.mp4")
         process = (
             ffmpeg.input(
                 'pipe:',
@@ -49,7 +49,7 @@ def dump_video(save_dir: str, all_cells: jnp.ndarray, render_params: Dict, color
 
         total_time = np.sum(all_times)
         mean_time = np.mean(all_times)
-        print(f"{len(all_times)} images dumped in {total_time} seconds: {mean_time} fps")
+        print(f"{len(all_times)} images dumped in {total_time} seconds: {1. / mean_time} fps")
 
         all_outputs_fullpath.append(output_fullpath)
 

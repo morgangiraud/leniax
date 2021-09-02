@@ -70,6 +70,6 @@ def create_categories_folder():
 if __name__ == "__main__":
     exp_dir = os.path.join(cdir, '..', 'experiments', '007_beta_cube_4')
 
-    gather_viz_data(exp_dir)
+    # gather_viz_data(exp_dir)
     # In between those calls, you should use viz.html to fill categories json
-    # create_categories_folder()
+    create_categories_folder()

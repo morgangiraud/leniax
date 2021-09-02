@@ -413,8 +413,23 @@ def plot_kernels(save_dir, config):
     Ks = leniax_utils.crop_zero(jnp.vstack(all_ks))
     K_size = Ks.shape[-1]
     K_mid = K_size // 2
-
+    
     fullpath = f"{save_dir}/Ks.png"
+    nb_Ks = Ks.shape[0]
+    rows = int(nb_Ks**0.5)
+    cols = nb_Ks // rows
+    axes = []
+    fig = plt.figure(figsize=(6, 6))
+    for i in range(nb_Ks):
+        axes.append( fig.add_subplot(rows, cols, i+1) )
+        axes[-1].title.set_text(f"kernel K{i}")
+        plt.imshow(Ks[0], cmap='viridis', interpolation="nearest", vmin=0)
+
+    plt.tight_layout()
+    fig.savefig(fullpath)
+    plt.close(fig)
+    
+    fullpath = f"{save_dir}/Ks_graph.png"
     fig, ax = plt.subplots(1, 2, figsize=(10, 2))
 
     ax[0].plot(range(K_size), Ks[:, K_mid, :].T)

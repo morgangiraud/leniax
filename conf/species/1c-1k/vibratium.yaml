@@ -1,12 +1,10 @@
 algo:
   batch_size: 16
   budget: 4096
-  ignore_if_not_added_to_container: false
   mut_sigma0: 0.01
   sampling_domain:
   - 0.0
   - 1.0
-  separable_cma: false
   sigma0: 0.15
 genotype:
 - domain:

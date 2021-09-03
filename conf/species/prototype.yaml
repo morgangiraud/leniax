@@ -1,17 +1,12 @@
 algo:
   batch_size: 4
   budget: 1024
-  eta: 20.0
-  ignore_if_not_added_to_container: false
   sampling_domain:
   - 0.0
   - 1.0
-  initial_expected_rwds: 1.0
   mut_pb: 0.4
   sel_pb: 0.9
-  separable_cma: false
   sigma0: 0.5
-  zeta: 0.0005
 genotype:
 - domain:
   - 0.0

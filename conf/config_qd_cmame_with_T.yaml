@@ -60,8 +60,6 @@ algo:
   # cmaes
   mut_sigma0: 0.01
   sigma0: 0.15
-  separable_cma: false
-  ignore_if_not_added_to_container: false
 
 other:
   dump_bests: True

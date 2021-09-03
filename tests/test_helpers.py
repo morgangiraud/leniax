@@ -68,9 +68,11 @@ class TestHelpers(unittest.TestCase):
         inds[0][:] = [0.2, 0.02]
         inds[1][:] = [0.3, 0.03]
         stats = {'N': jnp.array([[1, 2, 3], [1, 3, 4]])}
-        cells0s = jnp.ones([2, 3] + qd_config["render_params"]["world_size"])
+        cells0s = jnp.ones([2, 3, qd_config["world_params"]['nb_channels']] + qd_config["render_params"]["world_size"])
+        all_final_cells = jnp.ones([2, 3, qd_config["world_params"]['nb_channels']]
+                                   + qd_config["render_params"]["world_size"])
 
-        new_inds = leniax_helpers.update_individuals(inds, stats, cells0s)
+        new_inds = leniax_helpers.update_individuals(inds, stats, cells0s, all_final_cells)
 
         assert len(new_inds) == 2
         assert new_inds[0].fitness == 3

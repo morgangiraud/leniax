@@ -103,6 +103,9 @@ def eval_lenia_config(ind: LeniaIndividual, neg_fitness: bool = False, fft: bool
             continue
         config['behaviours'][k] = stats[k][-128:].mean()
     init_cells = best['all_cells'][0][:, 0, 0, ...]
+    final_cells = best['all_cells'][-1][:, 0, 0, ...]
+
+    ind.set_cells(leniax_utils.compress_array(leniax_utils.crop_zero(final_cells)))
     ind.set_init_cells(leniax_utils.compress_array(init_cells))
 
     if neg_fitness is True:
@@ -137,13 +140,14 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness: bool 
         qd_config = lenia_sols[0].qd_config
         _, run_scan_mem_optimized_parameters = leniax_helpers.get_mem_optimized_inputs(qd_config, lenia_sols)
 
-        stats = leniax_core.run_scan_mem_optimized(
+        stats, all_final_cells = leniax_core.run_scan_mem_optimized(
             *run_scan_mem_optimized_parameters, max_run_iter, R, update_fn, compute_stats_fn
         )
         stats['N'].block_until_ready()
+        all_final_cells.block_until_ready()
 
         cells0s = run_scan_mem_optimized_parameters[0]
-        results = leniax_helpers.update_individuals(lenia_sols, stats, cells0s, neg_fitness)
+        results = leniax_helpers.update_individuals(lenia_sols, stats, cells0s, all_final_cells, neg_fitness)
 
         return results
 

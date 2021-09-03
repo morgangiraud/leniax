@@ -1,6 +1,5 @@
 import os
 import copy
-import yaml
 import json
 import matplotlib.pyplot as plt
 import jax.numpy as jnp
@@ -9,7 +8,7 @@ from hydra import compose, initialize
 
 from leniax import utils as leniax_utils
 from leniax import helpers as leniax_helpers
-from leniax import colormaps as leniax_colormaps
+# from leniax import colormaps as leniax_colormaps
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 
@@ -26,7 +25,8 @@ scales = [
     4,
 ]
 
-def run() -> None:    
+
+def run() -> None:
     for (subdir, _, _) in os.walk(collection_dir):
         config_fullpath = os.path.join(subdir, config_filename)
         if not os.path.isfile(config_fullpath):
@@ -52,7 +52,9 @@ def run() -> None:
                 all_cells = all_cells[:int(stats_dict['N']), 0]  # [nb_iter, C, world_dims...]
 
                 print("Dumping assets")
-                colormaps = [plt.get_cmap(name) for name in ['viridis']]#, 'plasma', 'magma', 'cividis', 'turbo', 'ocean']]
+                colormaps = [
+                    plt.get_cmap(name) for name in ['viridis']
+                ]  # , 'plasma', 'magma', 'cividis', 'turbo', 'ocean']]
                 # colormaps.append(leniax_colormaps.LeniaTemporalColormap('earth'))
                 leniax_helpers.dump_assets(subdir, config, all_cells, stats_dict, colormaps)
 
@@ -66,7 +68,7 @@ def run() -> None:
 
         with open(viz_data_fullpath, 'r') as f:
             viz_data = json.load(f)
-    
+
         for k, v in viz_data['stats'].items():
             if k == 'N':
                 continue
@@ -79,35 +81,26 @@ def run() -> None:
 
         metadata_fullpath = os.path.join(subdir, 'metadata.json')
         metadata = {
-            'name': '',
-            'description': '',
-            'external_link': '',
-            'attributes': [
-                {
-                    "value": "plasma",
-                    "trait_type": "Colormap"
-                },
-                {
-                    "value": "Static",
-                    "trait_type": "Colormap type"
-                },
-                {
-                    "value": "Small",
-                    "trait_type": "Volume"
-                },
-                {
-                    "value": "average",
-                    "trait_type": "Speed"
-                },
-                {
-                    "value": "Average",
-                    "trait_type": "density"
-                }
-            ]
+            'name':
+            '',
+            'description':
+            '',
+            'external_link':
+            '',
+            'attributes': [{
+                "value": "plasma", "trait_type": "Colormap"
+            }, {
+                "value": "Static", "trait_type": "Colormap type"
+            }, {
+                "value": "Small", "trait_type": "Volume"
+            }, {
+                "value": "average", "trait_type": "Speed"
+            }, {
+                "value": "Average", "trait_type": "density"
+            }]
         }
         with open(metadata_fullpath, 'w') as f:
             json.dump(metadata, f)
-
 
     all_keys = list(all_mean_stats.keys())
     fig, axs = plt.subplots(len(all_keys))
@@ -120,7 +113,6 @@ def run() -> None:
     plt.tight_layout()
     fig.savefig(os.path.join(collection_dir, 'collection_stats.png'))
     plt.close(fig)
-
 
 
 if __name__ == '__main__':

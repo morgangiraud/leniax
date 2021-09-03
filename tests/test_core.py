@@ -64,7 +64,7 @@ class TestCore(unittest.TestCase):
         # jax.profiler.start_trace("/tmp/tensorboard")
 
         t0 = time.time()
-        stats1 = leniax_core.run_scan_mem_optimized(
+        stats1, _ = leniax_core.run_scan_mem_optimized(
             *run_scan_mem_optimized_parameters1,
             max_run_iter,
             R,
@@ -75,7 +75,7 @@ class TestCore(unittest.TestCase):
         delta_t = time.time() - t0
 
         t0 = time.time()
-        stats2 = leniax_core.run_scan_mem_optimized(
+        stats2, _ = leniax_core.run_scan_mem_optimized(
             *run_scan_mem_optimized_parameters2,
             max_run_iter,
             R,

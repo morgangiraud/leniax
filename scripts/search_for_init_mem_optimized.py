@@ -49,8 +49,10 @@ def launch(omegaConf: DictConfig) -> None:
         save_dir = os.path.join(os.getcwd(), f"{str(id_best).zfill(4)}")  # changed by hydra
         leniax_utils.check_dir(save_dir)
 
-        first_cells = all_cells[0]
-        config['run_params']['cells'] = leniax_utils.compress_array(first_cells)
+        config['run_params']['init_cells'] = leniax_utils.compress_array(
+            leniax_utils.center_and_crop_cells(all_cells[0])
+        )
+        config['run_params']['cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
         leniax_utils.save_config(save_dir, config)
 
         print("Dumping assets")

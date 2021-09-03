@@ -1,5 +1,6 @@
 # import time
 import binascii
+import copy
 import itertools
 import random
 import os
@@ -13,7 +14,7 @@ import numpy as np
 from PIL import Image
 from typing import Tuple, List, Dict, Any
 
-from .constant import NB_STATS_STEPS
+from .constant import NB_STATS_STEPS, EPSILON
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 save_dir = os.path.join(cdir, 'save')
@@ -224,16 +225,61 @@ def center_world(cells: jnp.ndarray, field: jnp.ndarray, potential: jnp.ndarray,
 
 def crop_zero(kernels: jnp.ndarray) -> jnp.ndarray:
     if len(kernels.shape) == 3:
-        kernels = kernels[:, ~jnp.all(kernels == 0, axis=(0, 2))]  # remove 0 columns
-        kernels = kernels[:, :, ~jnp.all(kernels == 0, axis=(0, 1))]  # remove 0 lines
+        where_zero = kernels == 0
+        kernels = kernels[:, ~jnp.all(where_zero, axis=(0, 2))]  # remove 0 columns
+        cropped_kernels = kernels[:, :, ~jnp.all(where_zero, axis=(0, 1))]  # remove 0 lines
     elif len(kernels.shape) == 4:
-        kernels = kernels[:, ~jnp.all(kernels == 0, axis=(0, 2, 3))]  # remove 0 columns
-        kernels = kernels[:, :, ~jnp.all(kernels == 0, axis=(0, 1, 3))]  # remove 0 lines
-        kernels = kernels[:, :, :, ~jnp.all(kernels == 0, axis=(0, 1, 2))]  # remove 0 lines
+        where_zero = kernels == 0
+        kernels = kernels[:, ~jnp.all(where_zero, axis=(0, 2, 3))]  # remove 0 columns
+        kernels = kernels[:, :, ~jnp.all(where_zero, axis=(0, 1, 3))]  # remove 0 lines
+        cropped_kernels = kernels[:, :, :, ~jnp.all(where_zero, axis=(0, 1, 2))]  # remove 0 lines
     else:
         raise ValueError("Can't handle more than 3 dimensions")
 
-    return kernels
+    return cropped_kernels
+
+
+def center_and_crop_cells(cells):
+    world_size = cells.shape[1:]
+    axes = tuple(range(-len(world_size), 0, 1))
+
+    midpoint = jnp.asarray([size // 2 for size in world_size])[:, jnp.newaxis, jnp.newaxis]
+    coords = jnp.indices(world_size)
+    centered_coords = coords - midpoint
+
+    if len(cells.shape) == 3:
+        pre_shift_idx = [0, 0]
+        check_height_zero = ~jnp.all(cells == 0, axis=(0, 2))
+        if check_height_zero[0] and check_height_zero[-1] and not check_height_zero.prod():
+            pre_shift_idx[0] = int(midpoint[0])
+        check_width_zero = ~jnp.all(cells == 0, axis=(0, 1))
+        if check_width_zero[0] and check_width_zero[-1] and not check_width_zero.prod():
+            pre_shift_idx[1] = int(midpoint[1])
+
+        cells, _, _ = center_world(
+            cells[jnp.newaxis],
+            cells[jnp.newaxis],
+            cells[jnp.newaxis],
+            jnp.array(pre_shift_idx)[jnp.newaxis],
+            axes,
+        )
+        cells = cells[0]
+
+    m_00 = cells.sum()
+    MX = [(cells * coord).sum() for coord in centered_coords]
+    mass_centroid = jnp.array(MX) / (m_00 + EPSILON)
+
+    shift_idx = jnp.round(mass_centroid).astype(int).T
+    centered_cells, _, _ = center_world(
+        cells[jnp.newaxis],
+        cells[jnp.newaxis],
+        cells[jnp.newaxis],
+        shift_idx[jnp.newaxis],
+        axes,
+    )
+    cells = crop_zero(centered_cells[0])
+
+    return cells
 
 
 ###
@@ -385,29 +431,31 @@ def plot_stats(save_dir: str, stats_dict: Dict):
     plt.close(fig)
 
 
-def generate_beta_faces(denominator: int):
-    face1 = []
-    for i in range(denominator + 1):
-        for j in range(denominator + 1):
-            if j == 0:
-                if i == 0:
-                    face1.append([1.])
-                else:
-                    face1.append([1., i / denominator])
-            else:
-                face1.append([1., i / denominator, j / denominator])
+def generate_beta_faces(nb_betas: int, denominator: int) -> List[List[List[float]]]:
+    """
+        Generate a grid of all the valid beta values given a maximum number
+        of beta values.
+        This function makes sense only if we normalize our kernels.
+    """
+    all_values: List[List[float]] = []
+    nb_val_per_column = denominator + 1
+    for i in range(nb_val_per_column**nb_betas):
+        all_values.append([((i // nb_val_per_column**j) % nb_val_per_column) / denominator
+                           for j in range(nb_betas - 1, -1, -1)])
 
-    face2 = []
-    for i in range(denominator):
-        for j in range(denominator + 1):
-            if j == 0:
-                face2.append([i / denominator, 1.])
-            else:
-                face2.append([i / denominator, 1., j / denominator])
+    face_list: List[List[List[float]]] = [[] for _ in range(nb_betas)]
+    # We make sure all values contain at least one 1.
+    for value in all_values:
+        for i in range(nb_betas):
+            if value[i] == 1.:
+                # We remove trailing zeros
+                while value[-1] == 0:
+                    value.pop()
+                face_list[i].append(value)
+                # We break to avoid adding value with multiple ones to different faces
+                break
 
-    face3 = [[i / denominator, j / denominator, 1.] for j in range(denominator) for i in range(denominator)]
-
-    return face1, face2, face3
+    return face_list
 
 
 ###
@@ -425,6 +473,17 @@ def save_config(save_dir: str, config: Dict):
 
     with open(os.path.join(save_dir, 'config.yaml'), 'w') as outfile:
         yaml.dump(config, outfile)
+
+
+def print_config(config: Dict):
+    printable_config = copy.deepcopy(config)
+
+    if 'cells' in printable_config['run_params'].keys():
+        del printable_config['run_params']['cells']
+    if 'init_cells' in printable_config['run_params'].keys():
+        del printable_config['run_params']['init_cells']
+
+    print(printable_config)
 
 
 ###

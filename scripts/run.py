@@ -13,8 +13,8 @@ absl_logging.set_verbosity(absl_logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 
-config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
-config_name = "orbium"
+# config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
+# config_name = "orbium"
 # config_name = "vibratium"
 
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k-v2')
@@ -30,7 +30,9 @@ config_name = "orbium"
 
 # config_path = os.path.join(cdir, '..', 'outputs', '2021-08-18', '10-50-52', 'c-0000')
 # config_path = os.path.join(cdir, '..', 'experiments', '007_beta_cube_4', 'run-b[1.0]', 'c-0033')
-# config_name = "config"
+# config_path = os.path.join(cdir, '..', 'experiments', '012_orbium_k2_beta_cube_4', 'run-b[1.0, 0.0, 1.0]', 'c-0050')
+config_path = os.path.join(cdir, '..', 'outputs', 'test1')
+config_name = "config"
 
 # config_path = os.path.join(cdir, '..', 'tests', 'fixtures')
 # config_name = "aquarium-test.yaml"
@@ -43,11 +45,11 @@ stat_trunc = True
 @hydra.main(config_path=config_path, config_name=config_name)
 def run(omegaConf: DictConfig) -> None:
     config = leniax_helpers.get_container(omegaConf)
+    leniax_utils.print_config(config)
 
-    print('Initialiazing and running', config)
     start_time = time.time()
     all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
-        config, with_jit=True, fft=True
+        config, with_jit=True, fft=True, use_init_cells=False
     )  # [nb_max_iter, N=1, C, world_dims...]
     if stat_trunc is True:
         all_cells = all_cells[:int(stats_dict['N']), 0]  # [nb_iter, C, world_dims...]
@@ -61,8 +63,8 @@ def run(omegaConf: DictConfig) -> None:
     save_dir = os.getcwd()  # changed by hydra
     leniax_utils.check_dir(save_dir)
 
-    first_cells = all_cells[0]
-    config['run_params']['cells'] = leniax_utils.compress_array(first_cells)
+    config['run_params']['init_cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[0]))
+    config['run_params']['cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
     leniax_utils.save_config(save_dir, config)
 
     print("Dumping assets")

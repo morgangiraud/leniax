@@ -28,8 +28,11 @@ class LeniaIndividual(list):
 
         self.rng_key = rng_key
 
+    def set_cells(self, cells: str):
+        self.qd_config['run_params']['cells'] = cells
+
     def set_init_cells(self, init_cells: str):
-        self.qd_config['run_params']['cells'] = init_cells
+        self.qd_config['run_params']['init_cells'] = init_cells
 
     def get_config(self) -> Dict:
         if 'genotype' in self.qd_config:

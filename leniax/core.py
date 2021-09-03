@@ -14,7 +14,9 @@ from .growth_functions import growth_fns
 from .constant import EPSILON, START_CHECK_STOP
 
 
-def init(config: Dict, fft: bool = True) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
+def init(config: Dict,
+         fft: bool = True,
+         use_init_cells: bool = False) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
     nb_dims = config['world_params']['nb_dims']
     nb_channels = config['world_params']['nb_channels']
     world_size = config['render_params']['world_size']
@@ -22,7 +24,10 @@ def init(config: Dict, fft: bool = True) -> Tuple[jnp.ndarray, jnp.ndarray, Kern
     assert len(world_size) == nb_dims
     assert nb_channels > 0
 
-    cells = config['run_params']['cells']
+    if use_init_cells is True:
+        cells = config['run_params']['init_cells']
+    else:
+        cells = config['run_params']['cells']
     if type(cells) is str:
         if cells == 'last_frame.p':
             with open(os.path.join(config['main_path'], 'last_frame.p'), 'rb') as f:
@@ -32,6 +37,7 @@ def init(config: Dict, fft: bool = True) -> Tuple[jnp.ndarray, jnp.ndarray, Kern
             cells = utils.decompress_array(cells, nb_dims + 1)  # we add the channel dim
     elif type(cells) is list:
         cells = jnp.array(cells)
+
     scale = config['world_params']['scale']
     if scale != 1.:
         cells = jnp.array([scipy.ndimage.zoom(cells[i], scale, order=0) for i in range(nb_channels)])
@@ -227,7 +233,7 @@ def run_scan_mem_optimized(
     R: float,
     update_fn: Callable,
     compute_stats_fn: Callable
-) -> Dict[str, jnp.ndarray]:
+) -> Tuple[Dict[str, jnp.ndarray], jnp.ndarray]:
     """
         Args:
             - cells0: jnp.ndarray[N, nb_channels, world_dims...]
@@ -275,12 +281,14 @@ def run_scan_mem_optimized(
         }
     }
 
-    _, stats = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
+    final_carry, stats = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
+
+    final_cells = final_carry['fn_params'][0]
 
     continue_stat = leniax_stat.check_heuristics(stats, R, 1. / T)
     stats['N'] = continue_stat.sum(axis=0)
 
-    return stats
+    return stats, final_cells
 
 
 def build_update_fn(

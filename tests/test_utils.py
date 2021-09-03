@@ -70,10 +70,21 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_array_equal(kernels_out, true_kernels)
 
     def test_generate_beta_faces(self):
+        nb_faces = 3
         denominator = 3
 
-        face1, face2, face3 = leniax_utils.generate_beta_faces(denominator)
+        faces_list = leniax_utils.generate_beta_faces(nb_faces, denominator)
 
-        assert len(face1) == (denominator + 1)**2
-        assert len(face2) == (denominator + 1) * denominator
-        assert len(face3) == denominator**2
+        assert len(faces_list) == nb_faces
+        assert len(faces_list[0]) == (denominator + 1)**(nb_faces - 1)
+        assert len(faces_list[1]) == (denominator + 1) * denominator
+        assert len(faces_list[2]) == denominator**(nb_faces - 1)
+
+        nb_faces = 4
+        faces_list = leniax_utils.generate_beta_faces(nb_faces, denominator)
+
+        assert len(faces_list) == nb_faces
+        assert len(faces_list[0]) == (denominator + 1)**(nb_faces - 1)
+        assert len(faces_list[1]) == (denominator + 1)**(nb_faces - 2) * denominator
+        assert len(faces_list[2]) == (denominator + 1) * denominator**(nb_faces - 2)
+        assert len(faces_list[3]) == denominator**(nb_faces - 1)

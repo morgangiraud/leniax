@@ -11,7 +11,6 @@ from omegaconf import DictConfig, OmegaConf
 import matplotlib.pyplot as plt
 from absl import logging as absl_logging
 
-from .constant import EPSILON
 from .lenia import LeniaIndividual
 from . import initializations as initializations
 from . import statistics as leniax_stat
@@ -128,8 +127,8 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
     return rng_key, best_run, i
 
 
-def init_and_run(config: Dict, with_jit: bool = False, fft: bool = True) -> Tuple:
-    cells, K, mapping = leniax_core.init(config, fft=fft)
+def init_and_run(config: Dict, with_jit: bool = False, fft: bool = True, use_init_cells: bool = False) -> Tuple:
+    cells, K, mapping = leniax_core.init(config, fft, use_init_cells)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 
@@ -222,34 +221,38 @@ def get_mem_optimized_inputs(qd_config: Dict, lenia_sols: List[LeniaIndividual],
 def update_individuals(
     inds: List[LeniaIndividual],
     stats: Dict[str, jnp.ndarray],
-    cells0s: jnp.ndarray,
+    all_cells0: jnp.ndarray,
+    all_final_cells: jnp.ndarray,
     neg_fitness=False
 ) -> List[LeniaIndividual]:
     """
         Args:
             - inds:         List,                       Evaluated Lenia individuals
-            - Ns:           jnp.ndarray, [len(inds)]    Fitness of each lenias
-            - cells0s:      jnp.ndarray, [len(inds), world_size...]
+            - cells0s:      jnp.ndarray, [len(inds), nb_init, world_size...]
     """
     for i, ind in enumerate(inds):
         config = ind.get_config()
 
-        current_Ns = stats['N'][i]
-        current_cells0s = cells0s[i]
+        ind_Ns = stats['N'][i]
+        ind_cells0s = all_cells0[i]
+        ind_final_cells = all_final_cells[i]
 
-        max_idx = jnp.argmax(current_Ns, axis=0)
+        best_init_idx = jnp.argmax(ind_Ns, axis=0)
 
-        nb_steps = current_Ns[max_idx]
-        cells0 = current_cells0s[max_idx]
-        # print(i, current_Ns, max_idx)
+        nb_steps = ind_Ns[best_init_idx]
+        cells0 = ind_cells0s[best_init_idx]
+        final_cells = ind_final_cells[best_init_idx]
+        # print(i, ind_Ns, max_idx)
 
         config['behaviours'] = {}
         for k in stats.keys():
             if k == 'N':
                 continue
-            truncated_stat = stats[k][i, :int(nb_steps), max_idx]
+            truncated_stat = stats[k][i, :int(nb_steps), best_init_idx]
             config['behaviours'][k] = truncated_stat[-128:].mean()
-        ind.set_init_cells(leniax_utils.compress_array(cells0))
+
+        ind.set_cells(leniax_utils.compress_array(leniax_utils.center_and_crop_cells(final_cells)))
+        ind.set_init_cells(leniax_utils.compress_array(leniax_utils.center_and_crop_cells(cells0)))
 
         if neg_fitness is True:
             fitness = -nb_steps
@@ -276,20 +279,21 @@ def process_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
 
     save_dir = os.path.join(os.getcwd(), f"c-{padded_id}")  # changed by hydra
     if os.path.isdir(save_dir):
+        print(f"Folder for id: {padded_id}, alreaady exist. Passing")
         # If the lenia folder already exists at that path, we consider the work alreayd done
         return
     leniax_utils.check_dir(save_dir)
 
     start_time = time.time()
-    all_cells, _, _, stats_dict = init_and_run(config, with_jit=True)
+    all_cells, _, _, stats_dict = init_and_run(config, with_jit=True, fft=True, use_init_cells=True)
     all_cells = all_cells[:int(stats_dict['N']), 0]
     total_time = time.time() - start_time
 
     nb_iter_done = len(all_cells)
     print(f"[{padded_id}] - {nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
 
-    first_cells = all_cells[0]
-    config['run_params']['cells'] = leniax_utils.compress_array(first_cells)
+    config['run_params']['init_cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[0]))
+    config['run_params']['cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
     leniax_utils.save_config(save_dir, config)
 
     print(f"[{padded_id}] - Dumping assets")
@@ -335,45 +339,7 @@ def dump_last_frame(save_dir: str, all_cells: jnp.ndarray, raw: bool = False):
 
 def dump_frame(save_dir: str, filename: str, cells: jnp.ndarray, raw: bool = False):
     if raw is False:
-        # breakpoint()
-        world_size = cells.shape[1:]
-        axes = tuple(range(-len(world_size), 0, 1))
-
-        midpoint = jnp.asarray([size // 2 for size in world_size])[:, jnp.newaxis, jnp.newaxis]
-        coords = jnp.indices(world_size)
-        centered_coords = coords - midpoint
-
-        if len(cells.shape) == 3:
-            pre_shift_idx = [0, 0]
-            check_height_zero = ~jnp.all(cells == 0, axis=(0, 2))
-            if check_height_zero[0] and check_height_zero[-1] and not check_height_zero.prod():
-                pre_shift_idx[0] = int(midpoint[0])
-            check_width_zero = ~jnp.all(cells == 0, axis=(0, 1))
-            if check_width_zero[0] and check_width_zero[-1] and not check_width_zero.prod():
-                pre_shift_idx[1] = int(midpoint[1])
-
-            cells, _, _ = leniax_utils.center_world(
-                cells[jnp.newaxis],
-                cells[jnp.newaxis],
-                cells[jnp.newaxis],
-                jnp.array(pre_shift_idx)[jnp.newaxis],
-                axes,
-            )
-            cells = cells[0]
-
-        m_00 = cells.sum()
-        MX = [(cells * coord).sum() for coord in centered_coords]
-        mass_centroid = jnp.array(MX) / (m_00 + EPSILON)
-
-        shift_idx = jnp.round(mass_centroid).astype(int).T
-        centered_cells, _, _ = leniax_utils.center_world(
-            cells[jnp.newaxis],
-            cells[jnp.newaxis],
-            cells[jnp.newaxis],
-            shift_idx[jnp.newaxis],
-            axes,
-        )
-        cells = leniax_utils.crop_zero(centered_cells[0])
+        cells = leniax_utils.center_and_crop_cells(cells)
 
     with open(os.path.join(save_dir, f"{filename}.p"), 'wb') as f:
         pickle.dump(np.array(cells), f)
@@ -413,22 +379,23 @@ def plot_kernels(save_dir, config):
     Ks = leniax_utils.crop_zero(jnp.vstack(all_ks))
     K_size = Ks.shape[-1]
     K_mid = K_size // 2
-    
+
     fullpath = f"{save_dir}/Ks.png"
     nb_Ks = Ks.shape[0]
+    vmax = Ks.max()
     rows = int(nb_Ks**0.5)
     cols = nb_Ks // rows
     axes = []
     fig = plt.figure(figsize=(6, 6))
     for i in range(nb_Ks):
-        axes.append( fig.add_subplot(rows, cols, i+1) )
+        axes.append(fig.add_subplot(rows, cols, i + 1))
         axes[-1].title.set_text(f"kernel K{i}")
-        plt.imshow(Ks[0], cmap='viridis', interpolation="nearest", vmin=0)
+        plt.imshow(Ks[i], cmap='viridis', interpolation="nearest", vmin=0, vmax=vmax)
 
     plt.tight_layout()
     fig.savefig(fullpath)
     plt.close(fig)
-    
+
     fullpath = f"{save_dir}/Ks_graph.png"
     fig, ax = plt.subplots(1, 2, figsize=(10, 2))
 

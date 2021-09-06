@@ -127,7 +127,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
     return rng_key, best_run, i
 
 
-def init_and_run(config: Dict, with_jit: bool = False, fft: bool = True, use_init_cells: bool = False) -> Tuple:
+def init_and_run(config: Dict, with_jit: bool = False, fft: bool = True, use_init_cells: bool = True) -> Tuple:
     cells, K, mapping = leniax_core.init(config, fft, use_init_cells)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()

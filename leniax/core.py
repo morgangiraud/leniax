@@ -16,7 +16,7 @@ from .constant import EPSILON, START_CHECK_STOP
 
 def init(config: Dict,
          fft: bool = True,
-         use_init_cells: bool = False) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
+         use_init_cells: bool = True) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
     nb_dims = config['world_params']['nb_dims']
     nb_channels = config['world_params']['nb_channels']
     world_size = config['render_params']['world_size']
@@ -25,7 +25,11 @@ def init(config: Dict,
     assert nb_channels > 0
 
     if use_init_cells is True:
-        cells = config['run_params']['init_cells']
+        if 'init_cells' not in config['run_params']:
+            # Backward compatibility
+            cells = config['run_params']['cells']
+        else:
+            cells = config['run_params']['init_cells']
     else:
         cells = config['run_params']['cells']
     if type(cells) is str:
@@ -43,13 +47,18 @@ def init(config: Dict,
         cells = jnp.array([scipy.ndimage.zoom(cells[i], scale, order=0) for i in range(nb_channels)])
         config['world_params']['R'] *= scale
 
-    # on = int(15 * scale)
+    # on = int(config['world_params']['R'] * 2.)
     # cells = init_cells(world_size, nb_channels, [
-    #     jnp.rot90(cells, k=2, axes=(1, 2)),
-    #     jnp.rot90(cells, k=0, axes=(1, 2)),
+    #     # jnp.rot90(cells, k=2, axes=(1, 2)),
+    #     # jnp.rot90(cells, k=0, axes=(1, 2)),
     #     jnp.rot90(cells, k=-1, axes=(1, 2)),
     #     jnp.rot90(cells, k=1, axes=(1, 2))
-    # ], [[0, on, on], [0, -on, -on], [0, -on, on], [0, on, -on]])
+    # ], [
+    #     # [0, on, on], 
+    #     # [0, -on, -on], 
+    #     [0, -on, 0], 
+    #     [0, on, 0],
+    # ])
     cells = init_cells(world_size, nb_channels, [cells])
     R = config['world_params']['R']
     K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)

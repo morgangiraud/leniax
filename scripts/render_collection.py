@@ -88,15 +88,15 @@ def run() -> None:
             'external_link':
             '',
             'attributes': [{
-                "value": "plasma", "trait_type": "Colormap"
+                "value": "", "trait_type": "Colormap"
             }, {
-                "value": "Static", "trait_type": "Colormap type"
+                "value": "", "trait_type": "Colormap type"
             }, {
-                "value": "Small", "trait_type": "Volume"
+                "value": "", "trait_type": "Volume"
             }, {
-                "value": "average", "trait_type": "Speed"
+                "value": "", "trait_type": "Speed"
             }, {
-                "value": "Average", "trait_type": "density"
+                "value": "", "trait_type": "density"
             }]
         }
         with open(metadata_fullpath, 'w') as f:

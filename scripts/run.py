@@ -39,6 +39,7 @@ config_name = "config"
 
 stat_trunc = False
 
+
 # cs = ConfigStore.instance()
 # cs.store(name=config_name, node=LeniaxConfig)
 @hydra.main(config_path=config_path, config_name=config_name)

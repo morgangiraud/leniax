@@ -14,9 +14,7 @@ from .growth_functions import growth_fns
 from .constant import EPSILON, START_CHECK_STOP
 
 
-def init(config: Dict,
-         fft: bool = True,
-         use_init_cells: bool = True) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
+def init(config: Dict, fft: bool = True, use_init_cells: bool = True) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
     nb_dims = config['world_params']['nb_dims']
     nb_channels = config['world_params']['nb_channels']
     world_size = config['render_params']['world_size']
@@ -54,9 +52,9 @@ def init(config: Dict,
     #     jnp.rot90(cells, k=-1, axes=(1, 2)),
     #     jnp.rot90(cells, k=1, axes=(1, 2))
     # ], [
-    #     # [0, on, on], 
-    #     # [0, -on, -on], 
-    #     [0, -on, 0], 
+    #     # [0, on, on],
+    #     # [0, -on, -on],
+    #     [0, -on, 0],
     #     [0, on, 0],
     # ])
     cells = init_cells(world_size, nb_channels, [cells])

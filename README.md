@@ -1,42 +1,26 @@
 # Leniax
-Lenia JAX library
-
+A Lenia library powered by JAX
 
 ## Install
 Install Leniax library with conda (make sure you have it before typing the following command): `make install`
+**Currently, only an OSX environment is provided**
+
 Then activate the environment: `conda activate leniax`
 Now, install the lib itself in the conda env: `pip install -e .`
 
-Finally make sure, everything is fine by running the following command: `make ci`
+Finally, make sure, everything is fine by running the following command: `make ci`
 
 ## About
-In lenia we have multiple things interacting with each other:
+In Lenia we have multiple things interacting with each other:
 - the world
 - kernels
 - Growth functions
 
-The world is composed of a certain number of dimensions (1D, 2D, 3D) and somes channels. The original Lenia is a 2d world with only one channel. 
+A world contains one or more channels (C), one or more dimensions (1D, 2D, 3D -> D), and one or more kernel functions (K). The original Lenia is a 2d world with only one channel and any number of functions (C=1, D=2, K>=1)  but it has been rapidly extended to the generic version (C>=1, D>=2, K>=1).
 
-The more general case allows for a N-dimensional world with C channels on which K kernels are used for the update.
+This library aims to be fully generic. For now, it can handle any number of channels and functions but is limited to 2d worlds. It also supports the *asymptotic update* variation.
 
-Bert Chan expose different properties emerging from those characteristics:
-- Multi-channel: division of labor + polymorphism
-- Multi-kernel: Individuality (self-containment, self-defense) + self-replication
-- Multi-dimensionnal: 3D pyshiology, etc 
 
-### More on each element
-For the world:
-- We have the number of dimension
-- We have the total size of the world (power of 2 for simplicity)
-We fake an infinite world by wrapping borders on each other (important 
-for convolution padding)
-- We have the number of channels
+### I want to know more
+Look into the TODO file to follow the research and check issues associated with this repository.
 
-For the kernels
-- We have the number of modes
-- We have the kernel function
-- We have the number of kernels
-- We have the growth function
-
-For fields:
-- Fields outputs should be between 1 and -1, it decreases/increases value in the cells.

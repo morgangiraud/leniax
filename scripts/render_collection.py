@@ -32,6 +32,9 @@ def run() -> None:
         if not os.path.isfile(config_fullpath):
             continue
 
+        all_mean_stats: Dict[str, List] = {}
+        all_std_stats: Dict[str, List] = {}
+
         config_path = os.path.join(collection_dir_relative, subdir.split('/')[-1])
         with initialize(config_path=config_path):
             omegaConf = compose(config_name=config_filename.split('.')[0])
@@ -51,57 +54,52 @@ def run() -> None:
                 )  # [nb_max_iter, N=1, C, world_dims...]
                 all_cells = all_cells[:int(stats_dict['N']), 0]  # [nb_iter, C, world_dims...]
 
-                print("Dumping assets")
+                # print("Dumping assets")
                 colormaps = [
                     plt.get_cmap(name) for name in ['viridis']
                 ]  # , 'plasma', 'magma', 'cividis', 'turbo', 'ocean']]
                 # colormaps.append(leniax_colormaps.LeniaTemporalColormap('earth'))
-                leniax_helpers.dump_assets(subdir, config, all_cells, stats_dict, colormaps)
+                # leniax_helpers.dump_assets(subdir, config, all_cells, stats_dict, colormaps)
 
-    all_mean_stats: Dict[str, List] = {}
-    all_std_stats: Dict[str, List] = {}
+                for k, v in stats_dict.items():
+                    if k == 'N':
+                        continue
+                    if k not in all_mean_stats:
+                        all_mean_stats[k] = []
+                        all_std_stats[k] = []
 
-    for (subdir, _, _) in os.walk(collection_dir):
-        viz_data_fullpath = os.path.join(subdir, 'viz_data.json')
-        if not os.path.isfile(viz_data_fullpath):
-            continue
+                    truncated_stat = v[:int(stats_dict['N'])]
+                    all_mean_stats[k].append(round(float(truncated_stat[-128:].mean()), 5))
+                    all_std_stats[k].append(round(float(truncated_stat[-128:].std()), 5))
 
-        with open(viz_data_fullpath, 'r') as f:
-            viz_data = json.load(f)
+                metadata_fullpath = os.path.join(subdir, 'metadata.json')
+                metadata = {
+                    'name':
+                    f"Lenia #{subdir.split('/')[-1]}",
+                    'description':
+                    'A beautiful Lenia, that\'s for sure!',
+                    'external_link':
+                    'https://lenia.stockmouton.com',
+                    'attributes': [{
+                        "value": colormaps[0].name, "trait_type": "Colormap"
+                    }, {
+                        "value": "Static", "trait_type": "Colormap type"
+                    }],
+                    'config': {
+                        'kernels_params': config['kernels_params']['k'],
+                        'world_params': config['world_params'],
+                        'init_cells': leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
+                    }
+                }
+                with open(metadata_fullpath, 'w') as f:
+                    json.dump(metadata, f)
 
-        for k, v in viz_data['stats'].items():
-            if k == 'N':
-                continue
-            if k not in all_mean_stats:
-                all_mean_stats[k] = []
-                all_std_stats[k] = []
-
-            all_mean_stats[k].append(viz_data['stats'][k])
-            all_std_stats[k].append(viz_data['stats'][k])
-
-        metadata_fullpath = os.path.join(subdir, 'metadata.json')
-        metadata = {
-            'name':
-            '',
-            'description':
-            '',
-            'external_link':
-            '',
-            'attributes': [{
-                "value": "", "trait_type": "Colormap"
-            }, {
-                "value": "", "trait_type": "Colormap type"
-            }, {
-                "value": "", "trait_type": "Volume"
-            }, {
-                "value": "", "trait_type": "Speed"
-            }, {
-                "value": "", "trait_type": "density"
-            }]
-        }
-        with open(metadata_fullpath, 'w') as f:
-            json.dump(metadata, f)
-
+    # Compute Mean and Std, use that to define the five categories
+    # m + 2std < val            : above above average
+    # m + 1std < val < m + 2std : above average
+    # m - 1std < val < m + 1std : average
+    # m - 2std < val < m - 1std : below average
+    # val < m - 2std            : below below average
     all_keys = list(all_mean_stats.keys())
     fig, axs = plt.subplots(len(all_keys))
     fig.set_size_inches(10, 10)

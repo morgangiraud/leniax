@@ -1,5 +1,6 @@
 import time
 import os
+import copy
 import json
 import pickle
 import uuid
@@ -128,6 +129,8 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
 
 
 def init_and_run(config: Dict, with_jit: bool = False, fft: bool = True, use_init_cells: bool = True) -> Tuple:
+    config = copy.deepcopy(config)
+
     cells, K, mapping = leniax_core.init(config, fft, use_init_cells)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()

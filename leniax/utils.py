@@ -406,7 +406,7 @@ def plot_stats(save_dir: str, stats_dict: Dict):
     plt.close(fig)
 
     # Running means
-    conv_len = 32
+    conv_len = min(32, nb_steps - 1)
     fig, axs = plt.subplots(len(all_keys), sharex=True)
     fig.set_size_inches(10, 10)
     for i, k in enumerate(all_keys):

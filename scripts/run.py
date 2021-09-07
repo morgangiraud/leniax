@@ -13,8 +13,8 @@ absl_logging.set_verbosity(absl_logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 
-# config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
-# config_name = "orbium"
+config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
+config_name = "orbium"
 # config_name = "vibratium"
 
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k-v2')
@@ -31,13 +31,13 @@ cdir = os.path.dirname(os.path.realpath(__file__))
 # config_path = os.path.join(cdir, '..', 'outputs', '2021-08-18', '10-50-52', 'c-0000')
 # config_path = os.path.join(cdir, '..', 'experiments', '007_beta_cube_4', 'run-b[1.0]', 'c-0033')
 # config_path = os.path.join(cdir, '..', 'experiments', '012_orbium_k2_beta_cube_4', 'run-b[1.0, 0.0, 1.0]', 'c-0050')
-config_path = os.path.join(cdir, '..', 'outputs', 'test1')
-config_name = "config"
+# config_path = os.path.join(cdir, '..', 'outputs', 'test1')
+# config_name = "config"
 
 # config_path = os.path.join(cdir, '..', 'tests', 'fixtures')
 # config_name = "aquarium-test.yaml"
 
-stat_trunc = False
+stat_trunc = True
 
 
 # cs = ConfigStore.instance()

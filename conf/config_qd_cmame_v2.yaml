@@ -1,0 +1,84 @@
+defaults:
+  - world_params: default
+  - render_params: default
+  - run_params: default
+
+world_params:
+  update_fn_version: 'v2'
+kernels_params:
+  k:
+    - k_id: 4
+      q: 0.5
+      r: 1
+      b: '1'
+      gf_id: 2
+      m: 0.1
+      s: 0.005
+      h: 1
+      c_in: 0
+      c_out: 0
+run_params:
+  nb_init_search: 128
+  max_run_iter: 1024
+
+genotype:
+  # - key: kernels_params.k.0.r
+  #   domain: 
+  #     - 0.5
+  #     - 1.5
+  #   type: float
+  # - key: kernels_params.k.0.b
+  #   domain: 
+  #     - "1"
+  #     - "1,1"
+  #     - "1,1,1"
+  #   type: choice
+  - key: kernels_params.k.0.m
+    domain: 
+      - .1
+      - .5
+    type: float
+  - key: kernels_params.k.0.s
+    domain: 
+      - 0.
+      - .1
+    type: float
+  # - key: kernels_params.k.0.k_id
+  #   domain: 
+  #     - 0
+  #     - 4
+  #   type: int
+  # - key: kernels_params.k.0.gf_id
+  #   domain: 
+  #     - 0
+  #     - 2
+  #   type: int
+
+phenotype:
+  - kernels_params.k.0.m
+  - kernels_params.k.0.s
+  # - behaviours.mass_speed
+
+grid:
+  features_domain:
+    - - .1
+      - .5
+    - - 0.
+      - .1
+    # - - 0.
+    #   - 0.5
+  shape: [25, 25]
+  
+algo:
+  # Generic
+  budget: 4096
+  batch_size: 16
+  sampling_domain:
+    - 0.
+    - 1.
+  # cmaes
+  mut_sigma0: 0.01
+  sigma0: 0.15
+
+other:
+  dump_bests: True

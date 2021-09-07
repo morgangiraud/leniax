@@ -1,3 +1,27 @@
+# Project
+Lenia-ori
+scripts/save*
+outputs
+multirun
+tmp
+
+## Experiments
+experiments/*
+!experiments/007_beta_cube_4/
+experiments/007_beta_cube_4/*
+!experiments/007_beta_cube_4/config.yaml
+
+## UI
+ui/*
+!ui/*.py
+!ui/css
+!classifier.html
+!property_editor.html
+
+# OSX
+.DS_Store
+.vscode
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

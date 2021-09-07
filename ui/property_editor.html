@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en" charset="utf-8">
+
+<head>
+    <meta charset="utf-8" />
+    <script src="https://d3js.org/d3.v6.js"></script>
+    <script src="https://underscorejs.org/underscore-umd-min.js"></script>
+    <link href="./css/bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body id="the-body">
+    <div id="cat_buttons"></div>
+    <script>
+    
+
+    d3.json("get_classified_creatures_ids").then( function(creatures) {
+        console.log("biboup");
+        const categories = Object.keys(creatures)
+        const catButtonsDiv = document.getElementById("cat_buttons")
+        for (let index = 0; index < categories.length; index++) {
+            const category = categories[index];
+            catButton = document.createElement('button')
+            catButton.id = "cat_" + category
+            catButton.textContent = category
+            catButtonsDiv.append(catButton)
+            if (category == "originals") {
+                catButton.classList = ["selected"]
+            }
+        }
+        let originals = creatures['originals']
+        let families = []
+        //Read the data
+        d3.json("./originals.json").then( function(originals_ids) {
+            for (let index = 0; index < originals_ids.length; index++) {
+                const original_id = originals_ids[index];
+                
+                let req = new XMLHttpRequest();
+                req.open("GET", "metadata/" + original_id, false);
+                req.send(); 
+                if (req.status === 200) {
+                    metadata = JSON.parse(req.responseText)
+                    metadataKeys = Object.keys(metadata)
+                    if (metadataKeys.includes("family") != -1) {
+                        families.push(metadata['family'])
+                    }
+                }
+            }
+        })
+    })
+    </script>
+
+</body>
+</html>

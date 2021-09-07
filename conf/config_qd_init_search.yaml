@@ -1,0 +1,32 @@
+defaults:
+  - world_params: default
+  - render_params: default
+  - kernels_params: default
+  - run_params: init_search
+
+genotype:
+  
+
+phenotype:
+  
+
+grid:
+  features_domain:
+    - - 0.
+      - 1.
+    - - 0.
+      - 1.
+  shape: [10, 10]
+  
+algo:
+  # Generic
+  budget: 512
+  sampling_domain:
+    - 0.
+    - 1.
+  # cmaes
+  mut_sigma0: 0.01
+  sigma0: 0.5
+
+other:
+  dump_bests: True

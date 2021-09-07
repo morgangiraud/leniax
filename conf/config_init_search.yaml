@@ -1,0 +1,30 @@
+defaults:
+  - world_params: default
+  - render_params: default
+  - run_params: init_search
+
+world_params:
+  update_fn_version: 'v1'
+  R: 13
+
+render_params:
+  size_power2: 7
+
+run_params:
+  nb_init_search: 128
+  max_run_iter: 1024
+
+kernels_params:
+  k:
+    - k_id: 0
+      r: 1
+      b: '1'
+      q: 4
+      gf_id: 0
+      m: 0.15
+      s: 0.015
+      h: 1
+      c_in: 0
+      c_out: 0
+
+      

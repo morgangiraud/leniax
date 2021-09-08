@@ -38,21 +38,25 @@ config_name = "orbium"
 # config_name = "aquarium-test.yaml"
 
 stat_trunc = True
-
+to_hd = True
 
 # cs = ConfigStore.instance()
 # cs.store(name=config_name, node=LeniaxConfig)
 @hydra.main(config_path=config_path, config_name=config_name)
 def run(omegaConf: DictConfig) -> None:
     config = leniax_helpers.get_container(omegaConf)
-    # config["world_params"]["scale"] = 1.
-    # config["render_params"]["world_size"] = [1024, 1024]
-    # config["render_params"]["pixel_size"] = 1
+
+    if to_hd is True:
+        config = leniax_utils.update_config_to_hd(config)
+        use_init_cells = False
+    else:
+        use_init_cells = True
+    
     leniax_utils.print_config(config)
 
     start_time = time.time()
     all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
-        config, with_jit=True, fft=True, use_init_cells=True
+        config, with_jit=True, fft=True, use_init_cells=use_init_cells
     )  # [nb_max_iter, N=1, C, world_dims...]
     if stat_trunc is True:
         all_cells = all_cells[:int(stats_dict['N']), 0]  # [nb_iter, C, world_dims...]

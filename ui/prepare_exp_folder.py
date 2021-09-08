@@ -9,7 +9,6 @@ experiments_dir = os.path.join(cdir, '..', 'experiments')
 
 
 def gather_viz_data(exp_dir: str):
-    breakpoint()
     exp_viz_dir = os.path.join(exp_dir, 'viz_data')
     leniax_utils.check_dir(exp_viz_dir)
 
@@ -30,6 +29,8 @@ def gather_viz_data(exp_dir: str):
 
         folder_link = str(i)
         link_dst = os.path.join(exp_viz_dir, folder_link)
+        if os.path.islink(link_dst):
+            os.remove(link_dst)
         os.symlink(subdir, link_dst)
 
         current_viz_data['relative_url'] = folder_link

@@ -7,7 +7,6 @@ import uuid
 import numpy as np
 import jax.numpy as jnp
 from typing import Dict, Tuple, List
-from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
 import matplotlib.pyplot as plt
 from absl import logging as absl_logging
@@ -24,16 +23,7 @@ from . import video as leniax_video
 cdir = os.path.dirname(os.path.realpath(__file__))
 
 
-def get_container(omegaConf: DictConfig) -> Dict:
-    main_path = ''
-    # We try to get the Hydra main config fullpath
-    try:
-        for source in HydraConfig.get().runtime.config_sources:
-            if source.provider == 'main':
-                main_path = source.path
-    except ValueError:
-        pass
-
+def get_container(omegaConf: DictConfig, main_path: str) -> Dict:
     # TODO: Need to check if missing first
     omegaConf.run_params.code = str(uuid.uuid4())
 
@@ -50,6 +40,7 @@ def get_container(omegaConf: DictConfig) -> Dict:
     # so we can extract primitives to use with other libs
     config = OmegaConf.to_container(omegaConf)
     assert isinstance(config, dict)
+
     config['main_path'] = main_path
 
     if 'scale' not in config['world_params']:
@@ -90,7 +81,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
 
     all_cells_0 = []
     for i in range(nb_init_search):
-        cells_0 = leniax_core.init_cells(world_size, nb_channels, [noises[i]])
+        cells_0 = leniax_core.create_init_cells(world_size, nb_channels, [noises[i]])
         all_cells_0.append(cells_0)
     all_cells_0_jnp = jnp.array(all_cells_0)
 
@@ -101,6 +92,76 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
 
         all_cells, _, _, all_stats = leniax_core.run_scan(
             all_cells_0_jnp[i],
+            K,
+            gfn_params,
+            kernels_weight_per_channel,
+            T,
+            max_run_iter,
+            R,
+            update_fn,
+            compute_stats_fn,
+        )
+        # https://jax.readthedocs.io/en/latest/async_dispatch.html
+        all_stats['N'].block_until_ready()
+
+        # t1 = time.time()
+
+        nb_iter_done = all_stats['N']
+        if current_max < nb_iter_done:
+            current_max = nb_iter_done
+            best_run = {"N": nb_iter_done, "all_cells": all_cells, "all_stats": all_stats}
+
+        if nb_iter_done >= max_run_iter:
+            break
+
+        # print(t1 - t0, nb_iter_done)
+
+    return rng_key, best_run, i
+
+
+def search_for_mutation(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tuple[jnp.ndarray, Dict, int]:
+    world_params = config['world_params']
+    nb_channels = world_params['nb_channels']
+    update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
+    weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
+    R = world_params['R']
+    T = jnp.array(world_params['T'])
+
+    render_params = config['render_params']
+    world_size = render_params['world_size']
+
+    ori_kernels_params = config['kernels_params']['k']
+
+    run_params = config['run_params']
+    nb_mut_search = run_params['nb_mut_search']
+    max_run_iter = run_params['max_run_iter']
+
+    raw_cells = leniax_core.load_raw_cells(config, True)
+    init_cells = leniax_core.create_init_cells(world_size, nb_channels, [raw_cells])
+
+    compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
+    K, mapping = leniax_kernels.get_kernels_and_mapping(ori_kernels_params, world_size, nb_channels, R, fft)
+    gfn_params = mapping.get_gfn_params()
+    kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
+    update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
+
+    best_run = {}
+    current_max = 0
+
+    for i in range(nb_mut_search):
+        # t0 = time.time()
+        copied_config = copy.deepcopy(config)
+        for gene in config['genotype']:
+            val = leniax_utils.get_param(copied_config, gene['key'])
+            val += np.random.normal(0., 0.0005)
+            leniax_utils.set_param(copied_config, gene['key'], val)
+        kernels_params = copied_config['kernels_params']['k']
+        K, mapping = leniax_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)
+        gfn_params = mapping.get_gfn_params()
+        kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
+
+        all_cells, _, _, all_stats = leniax_core.run_scan(
+            init_cells,
             K,
             gfn_params,
             kernels_weight_per_channel,

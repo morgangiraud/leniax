@@ -13,7 +13,7 @@ cdir = os.path.dirname(os.path.realpath(__file__))
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
 # config_name = "config_init_search"
 
-config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '01-aquarium', '0016')
+config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '05-maelstrom', '0036')
 config_name = "config"
 
 

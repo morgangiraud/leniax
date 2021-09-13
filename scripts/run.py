@@ -28,7 +28,7 @@ config_name = "orbium"
 
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '3c-15k')
 
-config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '01-aquarium', '0016')
+config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '10-oscillium', '0032')
 config_name = "config"
 
 # config_path = os.path.join(cdir, '..', 'tests', 'fixtures')

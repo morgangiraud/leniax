@@ -47,12 +47,6 @@ def run() -> None:
 
             leniax_utils.print_config(config)
 
-            print('Initialiazing and running', subdir)
-            all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
-                config, with_jit=True, fft=True, use_init_cells=use_init_cells
-            )  # [nb_max_iter, N=1, C, world_dims...]
-            all_cells = all_cells[:int(stats_dict['N']), 0]  # [nb_iter, C, world_dims...]
-            print(stats_dict['N'])
             colormaps_name_mapping = {
                 'plasma': 'ms-dos',
                 'turbo': 'x-ray',
@@ -64,7 +58,14 @@ def run() -> None:
                 colormap = plt.get_cmap('viridis')
             else:
                 colormap = plt.get_cmap('turbo')
-            # colormaps.append(leniax_colormaps.LeniaTemporalColormap('earth'))
+
+            print('Initialiazing and running', subdir)
+            all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
+                config, with_jit=True, fft=True, use_init_cells=use_init_cells
+            )  # [nb_max_iter, N=1, C, world_dims...]
+            all_cells = all_cells[:int(stats_dict['N']), 0]  # [nb_iter, C, world_dims...]
+            print(stats_dict['N'])
+
             leniax_helpers.dump_assets(subdir, config, all_cells, stats_dict, [colormap])
 
             # Prepare metadata

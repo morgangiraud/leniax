@@ -119,7 +119,10 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
     return rng_key, best_run, i
 
 
-def search_for_mutation(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tuple[jnp.ndarray, Dict, int]:
+def search_for_mutation(rng_key: jnp.ndarray,
+                        config: Dict,
+                        fft: bool = True,
+                        use_init_cells: bool = True) -> Tuple[jnp.ndarray, Dict, int]:
     world_params = config['world_params']
     nb_channels = world_params['nb_channels']
     update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
@@ -136,7 +139,7 @@ def search_for_mutation(rng_key: jnp.ndarray, config: Dict, fft: bool = True) ->
     nb_mut_search = run_params['nb_mut_search']
     max_run_iter = run_params['max_run_iter']
 
-    raw_cells = leniax_core.load_raw_cells(config, True)
+    raw_cells = leniax_core.load_raw_cells(config, use_init_cells=use_init_cells)
     init_cells = leniax_core.create_init_cells(world_size, nb_channels, [raw_cells])
 
     compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
@@ -179,7 +182,7 @@ def search_for_mutation(rng_key: jnp.ndarray, config: Dict, fft: bool = True) ->
         nb_iter_done = all_stats['N']
         if current_max < nb_iter_done:
             current_max = nb_iter_done
-            best_run = {"N": nb_iter_done, "all_cells": all_cells, "all_stats": all_stats}
+            best_run = {"N": nb_iter_done, "all_cells": all_cells, "all_stats": all_stats, "config": copied_config}
 
         if nb_iter_done >= max_run_iter:
             break
@@ -315,8 +318,8 @@ def update_individuals(
             truncated_stat = stats[k][i, :int(nb_steps), best_init_idx]
             config['behaviours'][k] = truncated_stat[-128:].mean()
 
+        ind.set_init_cells(leniax_utils.compress_array(cells0))
         ind.set_cells(leniax_utils.compress_array(leniax_utils.center_and_crop_cells(final_cells)))
-        ind.set_init_cells(leniax_utils.compress_array(leniax_utils.center_and_crop_cells(cells0)))
 
         if neg_fitness is True:
             fitness = -nb_steps

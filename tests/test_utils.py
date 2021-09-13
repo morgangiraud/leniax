@@ -1,9 +1,11 @@
 import os
 import unittest
+import yaml
 import jax.numpy as jnp
 import numpy as np
 
 from leniax import utils as leniax_utils
+from leniax.constant import EPSILON, NB_CHARS
 
 cfd = os.path.dirname(os.path.realpath(__file__))
 fixture_dir = os.path.join(cfd, 'fixtures')
@@ -27,7 +29,7 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_array_equal(cells_int_l, out)
 
     def test_make_array_compressible(self):
-        shape = [7, 7]
+        shape = [128, 128]
         cells = np.random.rand(*shape)
 
         compressible_cells = leniax_utils.make_array_compressible(cells)
@@ -36,13 +38,32 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_array_almost_equal(compressible_cells, cells_out)
 
     def test_compress_decompress_compress(self):
-        shape = [2, 4, 5]
+        shape = [7, 7]
         cells = np.random.rand(*shape)
 
         st = leniax_utils.compress_array(cells)
         cells_out = leniax_utils.decompress_array(st, len(shape))
 
         np.testing.assert_almost_equal(cells, cells_out, decimal=4)
+
+        new_st = leniax_utils.compress_array(cells)
+
+        assert st == new_st
+
+    def test_compress_decompress_compress_yaml(self):
+        max_val = NB_CHARS**2 - 1
+        cells = jnp.array(np.arange(0, NB_CHARS**2, dtype=np.int32) / max_val + EPSILON)
+        yaml_fullpath = os.path.join(fixture_dir, 'compress_yaml.yaml')
+
+        st = leniax_utils.compress_array(cells)
+        with open(yaml_fullpath, 'w') as f:
+            yaml.dump({'cells': st}, f)
+        with open(yaml_fullpath, 'r') as f:
+            st_loads = yaml.load(f)['cells']
+        os.remove(yaml_fullpath)
+        cells_out = leniax_utils.decompress_array(st_loads, 1)
+
+        np.testing.assert_array_almost_equal(cells, cells_out, decimal=4)
 
         new_st = leniax_utils.compress_array(cells)
 

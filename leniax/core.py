@@ -26,7 +26,7 @@ def init(config: Dict, fft: bool = True, use_init_cells: bool = True) -> Tuple[j
 
     scale = config['world_params']['scale']
     if scale != 1.:
-        cells = jnp.array([scipy.ndimage.zoom(cells[i], scale, order=0) for i in range(nb_channels)], dtype=jnp.float32)
+        cells = jnp.array([scipy.ndimage.zoom(cells[i], scale, order=2) for i in range(nb_channels)], dtype=jnp.float32)
         config['world_params']['R'] *= scale
 
     # assert cells.shape[1] * 2.2 < config['render_params']['world_size'][0]

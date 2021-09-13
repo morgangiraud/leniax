@@ -18,7 +18,7 @@ class TestPipeline(unittest.TestCase):
         last_frame_fullpath = f"{fixture_dir}/orbium-test_last_frame.p"
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="orbium-test")
-            config = leniax_helpers.get_container(omegaConf)
+            config = leniax_helpers.get_container(omegaConf, fixture_dir)
 
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
@@ -33,7 +33,7 @@ class TestPipeline(unittest.TestCase):
         last_frame_fullpath = f"{fixture_dir}/orbium-test_last_frame.p"
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="orbium-test")
-            config = leniax_helpers.get_container(omegaConf)
+            config = leniax_helpers.get_container(omegaConf, fixture_dir)
 
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
@@ -48,7 +48,7 @@ class TestPipeline(unittest.TestCase):
         last_frame_fullpath = f"{fixture_dir}/orbium-scutium-test_last_frame2.p"
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="orbium-scutium-test")
-            config = leniax_helpers.get_container(omegaConf)
+            config = leniax_helpers.get_container(omegaConf, fixture_dir)
 
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
@@ -63,7 +63,7 @@ class TestPipeline(unittest.TestCase):
         last_frame_fullpath = f"{fixture_dir}/orbium-scutium-test_last_frame2.p"
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="orbium-scutium-test")
-            config = leniax_helpers.get_container(omegaConf)
+            config = leniax_helpers.get_container(omegaConf, fixture_dir)
 
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
@@ -78,7 +78,7 @@ class TestPipeline(unittest.TestCase):
         last_frame_fullpath = f"{fixture_dir}/aquarium-test_last_frame.p"
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="aquarium-test")
-            config = leniax_helpers.get_container(omegaConf)
+            config = leniax_helpers.get_container(omegaConf, fixture_dir)
 
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
@@ -93,7 +93,7 @@ class TestPipeline(unittest.TestCase):
         last_frame_fullpath = f"{fixture_dir}/aquarium-test_last_frame.p"
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="aquarium-test")
-            config = leniax_helpers.get_container(omegaConf)
+            config = leniax_helpers.get_container(omegaConf, fixture_dir)
 
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)

@@ -28,30 +28,35 @@ config_name = "orbium"
 
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '3c-15k')
 
-# config_path = os.path.join(cdir, '..', 'outputs', '2021-08-18', '10-50-52', 'c-0000')
-# config_path = os.path.join(cdir, '..', 'experiments', '007_beta_cube_4', 'run-b[1.0]', 'c-0033')
-# config_path = os.path.join(cdir, '..', 'experiments', '012_orbium_k2_beta_cube_4', 'run-b[1.0, 0.0, 1.0]', 'c-0050')
-# config_path = os.path.join(cdir, '..', 'outputs', 'test1')
-# config_name = "config"
+config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '99-ko', '0158')
+config_name = "config"
 
 # config_path = os.path.join(cdir, '..', 'tests', 'fixtures')
 # config_name = "aquarium-test.yaml"
 
 stat_trunc = True
-to_hd = True
+to_hd = False
+
 
 # cs = ConfigStore.instance()
 # cs.store(name=config_name, node=LeniaxConfig)
 @hydra.main(config_path=config_path, config_name=config_name)
 def run(omegaConf: DictConfig) -> None:
-    config = leniax_helpers.get_container(omegaConf)
+    config = leniax_helpers.get_container(omegaConf, config_path)
+
+    config['render_params']['pixel_size_power2'] = 0
+    config['render_params']['pixel_size'] = 1
+    config['render_params']['size_power2'] = 7
+    config['render_params']['world_size'] = [128, 128]
+    config['world_params']['scale'] = 1.
+    config['run_params']['max_run_iter'] = 2048
 
     if to_hd is True:
         config = leniax_utils.update_config_to_hd(config)
         use_init_cells = False
     else:
         use_init_cells = True
-    
+
     leniax_utils.print_config(config)
 
     start_time = time.time()
@@ -75,6 +80,9 @@ def run(omegaConf: DictConfig) -> None:
     leniax_utils.save_config(save_dir, config)
 
     print("Dumping assets")
+    # import matplotlib.pyplot as plt
+    # colormaps = [plt.get_cmap(name) for name in ['plasma', 'turbo', 'viridis']]
+    # leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict, colormaps)
     leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict)
 
 

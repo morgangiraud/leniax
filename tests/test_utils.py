@@ -13,13 +13,21 @@ class TestUtils(unittest.TestCase):
     def test_val2ch_ch2val(self):
         cells_int_l = np.arange(0, 256).astype(int).tolist()
 
-        tmp = [leniax_utils.val2char(v) for v in cells_int_l]
-        out = [leniax_utils.char2val(c) for c in tmp]
+        tmp = [leniax_utils.val2ch(v) for v in cells_int_l]
+        out = [leniax_utils.ch2val(c) for c in tmp]
+
+        np.testing.assert_array_equal(cells_int_l, out)
+
+    def test_val2ch_ch2val_deprecated(self):
+        cells_int_l = np.arange(0, 256).astype(int).tolist()
+
+        tmp = [leniax_utils.val2char_deprecated(v) for v in cells_int_l]
+        out = [leniax_utils.char2val_deprecated(c) for c in tmp]
 
         np.testing.assert_array_equal(cells_int_l, out)
 
     def test_compress_decompress_compress(self):
-        shape = [2, 4, 4]
+        shape = [2, 4, 5]
         cells = np.random.rand(*shape)
 
         st = leniax_utils.compress_array(cells)
@@ -88,3 +96,34 @@ class TestUtils(unittest.TestCase):
         assert len(faces_list[1]) == (denominator + 1)**(nb_faces - 2) * denominator
         assert len(faces_list[2]) == (denominator + 1) * denominator**(nb_faces - 2)
         assert len(faces_list[3]) == denominator**(nb_faces - 1)
+
+    def test_set_param(self):
+        dic = {'test': {'hip': 2.}}
+
+        key_string = 'test.hop'
+        val = 1.
+        leniax_utils.set_param(dic, key_string, val)
+
+        target_dict = {'test': {'hip': 2., 'hop': 1.}}
+        self.assertDictEqual(dic, target_dict)
+
+        key_string = 'test.pim.pouf'
+        val = 1.
+        leniax_utils.set_param(dic, key_string, val)
+
+        target_dict = {'test': {'hip': 2., 'hop': 1., 'pim': {'pouf': 1.}}}
+        self.assertDictEqual(dic, target_dict)
+
+        key_string = 'test_arr.0.pouf'
+        val = 1.
+        leniax_utils.set_param(dic, key_string, val)
+
+        target_dict = {'test_arr': [{'pouf': 1}], 'test': {'hip': 2., 'hop': 1., 'pim': {'pouf': 1.}}}
+        self.assertDictEqual(dic, target_dict)
+
+        key_string = 'test_arr.2.woo'
+        val = 2
+        leniax_utils.set_param(dic, key_string, val)
+
+        target_dict = {'test_arr': [{'pouf': 1}, {}, {'woo': 2}], 'test': {'hip': 2., 'hop': 1., 'pim': {'pouf': 1.}}}
+        self.assertDictEqual(dic, target_dict)

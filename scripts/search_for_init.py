@@ -10,23 +10,30 @@ import leniax.helpers as leniax_helpers
 logging.set_verbosity(logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
-config_path = os.path.join(cdir, '..', 'conf')
-config_path_1c1k = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
-config_path_1c1kv2 = os.path.join(cdir, '..', 'conf', 'species', '1c-1k-v2')
+# config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
+# config_name = "config_init_search"
+
+config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '99-ko', '0126-ko')
+config_name = "config"
 
 
-@hydra.main(config_path=config_path, config_name="config_init_search")
-# @hydra.main(config_path=config_path_1c1k, config_name="prototype")
-# @hydra.main(config_path=config_path_1c1kv2, config_name="wanderer")
+@hydra.main(config_path=config_path, config_name=config_name)
 def launch(omegaConf: DictConfig) -> None:
-    config = leniax_helpers.get_container(omegaConf)
-    # config['run_params']['nb_init_search'] = 16
-    print(config)
+    config = leniax_helpers.get_container(omegaConf, config_path)
+    config['render_params']['pixel_size_power2'] = 0
+    config['render_params']['pixel_size'] = 1
+    config['render_params']['size_power2'] = 7
+    config['render_params']['world_size'] = [128, 128]
+    config['world_params']['scale'] = 1.
+    config['run_params']['max_run_iter'] = 2048
+    config['run_params']['nb_init_search'] = 256
+
+    leniax_utils.print_config(config)
 
     rng_key = leniax_utils.seed_everything(config['run_params']['seed'])
 
     t0 = time.time()
-    _, best, nb_init_done = leniax_helpers.search_for_init(rng_key, config)
+    _, best, nb_init_done = leniax_helpers.search_for_init(rng_key, config, fft=True)
     print(f"Init search done in {time.time() - t0} (nb_inits done: {nb_init_done})")
 
     all_cells = best['all_cells'][:int(best['N']), 0]

@@ -13,19 +13,20 @@ import leniax.qd as leniax_qd
 logging.set_verbosity(logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
-config_path = os.path.join(cdir, '..', 'conf')
-config_path_1c1k = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
-config_path_1c1kv2 = os.path.join(cdir, '..', 'conf', 'species', '1c-1k-v2')
+# config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
+# config_name = "config_init_search"
+
+config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '99-ko', '0035-ko')
+config_name = "config"
 
 
-# @hydra.main(config_path=config_path, config_name="config_init_search")
-# @hydra.main(config_path=config_path_1c1k, config_name="prototype")
-@hydra.main(config_path=config_path_1c1kv2, config_name="wanderer")
+@hydra.main(config_path=config_path, config_name=config_name)
 def launch(omegaConf: DictConfig) -> None:
-    config = leniax_helpers.get_container(omegaConf)
+    config = leniax_helpers.get_container(omegaConf, config_path)
     # config['run_params']['nb_init_search'] = 16
     # config['run_params']['max_run_iter'] = 512
-    print(config)
+
+    leniax_utils.print_config(config)
 
     rng_key = leniax_utils.seed_everything(config['run_params']['seed'])
     lenia_sols = []

@@ -54,7 +54,7 @@ scales = [
 # cs.store(name=config_name, node=LeniaxConfig)
 @hydra.main(config_path=config_path, config_name=config_name)
 def run(omegaConf: DictConfig) -> None:
-    ori_config = leniax_helpers.get_container(omegaConf)
+    ori_config = leniax_helpers.get_container(omegaConf, config_path)
 
     for res, scale in zip(resolutions, scales):
         config = copy.deepcopy(ori_config)

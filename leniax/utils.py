@@ -1,4 +1,5 @@
 # import time
+import io
 import binascii
 import copy
 import itertools
@@ -14,13 +15,11 @@ import numpy as np
 from PIL import Image
 from typing import Tuple, List, Dict, Any
 
-from .constant import NB_STATS_STEPS, EPSILON
+from .constant import NB_STATS_STEPS, EPSILON, NB_CHARS
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 save_dir = os.path.join(cdir, 'save')
 image_ext = "png"
-
-DIM_DELIM = {0: '', 1: '$', 2: '%', 3: '#', 4: '@A', 5: '@B', 6: '@C', 7: '@D', 8: '@E', 9: '@F'}
 
 
 ###
@@ -50,26 +49,6 @@ def recur_cubify(dim, list1, max_lens, nb_dims: int):
         list1.extend([0] * more)
 
 
-def char2val(ch: str) -> int:
-    if ch in '.b':
-        return 0
-    elif ch == 'o':
-        return 255
-    elif len(ch) == 1:
-        return ord(ch) - ord('A') + 1
-    else:
-        return (ord(ch[0]) - ord('p')) * 24 + (ord(ch[1]) - ord('A') + 25)
-
-
-def val2char(v: int) -> str:
-    if v == 0:
-        return '.'
-    elif v < 25:
-        return chr(ord('A') + v - 1)
-    else:
-        return chr(ord('p') + (v - 25) // 24) + chr(ord('A') + (v - 25) % 24)
-
-
 def _recur_drill_list(dim, lists, row_func, nb_dims: int):
     if dim < nb_dims - 1:
         return [_recur_drill_list(dim + 1, e, row_func, nb_dims) for e in lists]
@@ -85,28 +64,108 @@ def _recur_join_st(dim, lists, row_func, nb_dims: int):
 
 
 def compress_array(cells: jnp.ndarray) -> str:
-    serialized_cells = pickle.dumps(cells)
-    string_cells = codecs.encode(serialized_cells, "base64").decode()
+    cells_uint8 = jnp.array(cells * NB_CHARS**2 - 1, dtype=jnp.int32)
+    cells_shape = cells_uint8.shape
+
+    cells_char_l = [val2ch(item) for item in cells_uint8.flatten()]
+    string_cells = "".join(cells_char_l)
+    string_cells += '::' + ';'.join([str(c) for c in cells_shape])
 
     return string_cells
 
 
 def decompress_array(string_cells: str, nb_dims: int) -> jnp.ndarray:
     try:
-        serialized_cells = codecs.decode(string_cells.encode(), "base64")
-        cells = pickle.loads(serialized_cells)
-    except binascii.Error:
-        cells = deprecated_decompress_array(string_cells, nb_dims)
+        string_array = string_cells.split('::')
+        if len(string_array) != 2:
+            raise Exception()
+        cells_shape = [int(c) for c in string_array[-1].split(";")]
+        cells_val_l = [ch2val(string_array[0][i:i + 2]) for i in range(0, len(string_array[0]), 2)]
+        cells_uint8 = np.array(cells_val_l).reshape(cells_shape)
+        cells = cells_uint8 / (NB_CHARS**2 - 1.)
+    except Exception:
+        try:
+            string_bytes = io.BytesIO(string_cells.encode('latin1'))
+            cells_uint8 = np.load(string_bytes)['x']  # type: ignore
+            cells = cells_uint8 / 255.
+        except Exception:
+            try:
+                cells = decompress_array_base64(string_cells)
+            except binascii.Error:
+                cells = deprecated_decompress_array(string_cells, nb_dims)
 
-    return jnp.array(cells)
+    return jnp.array(cells, dtype=jnp.float32)
+
+
+def decompress_array_base64(string_cells: str) -> jnp.ndarray:
+    serialized_cells = codecs.decode(string_cells.encode(), "base64")
+    cells = pickle.loads(serialized_cells)
+
+    return jnp.array(cells, dtype=jnp.float32)
+
+
+def ch2val(c: str) -> int:
+    assert len(c) == 2
+    first_char = c[0]
+    second_char = c[1]
+
+    if ord(first_char) >= ord('a'):
+        first_char_idx = ord(first_char) - ord('a') - ord('A') + ord('Z')
+    else:
+        first_char_idx = ord(first_char) - ord('A')
+    if ord(second_char) >= ord('a'):
+        second_char_idx = ord(second_char) - ord('a') - ord('A') + ord('Z')
+    else:
+        second_char_idx = ord(second_char) - ord('A')
+
+    return first_char_idx * NB_CHARS + second_char_idx
+
+
+def val2ch(v: int) -> str:
+    first_char_idx = v // NB_CHARS
+    second_char_idx = v % NB_CHARS
+    # We do this trick to avoid the spaecial characters between
+    if ord('A') + first_char_idx > ord('Z'):
+        first_char = chr(ord('a') + ord('A') + first_char_idx - ord('Z'))
+    else:
+        first_char = chr(ord('A') + first_char_idx)
+    if ord('A') + second_char_idx > ord('Z'):
+        second_char = chr(ord('a') + ord('A') + second_char_idx - ord('Z'))
+    else:
+        second_char = chr(ord('A') + second_char_idx)
+
+    return first_char + second_char
 
 
 ###
 # Deprecated, kept for backward compatibilities
 ###
+DIM_DELIM = {0: '', 1: '$', 2: '%', 3: '#', 4: '@A', 5: '@B', 6: '@C', 7: '@D', 8: '@E', 9: '@F'}
+
+
+def char2val_deprecated(ch: str) -> int:
+    if ch in '.b':
+        return 0
+    elif ch == 'o':
+        return 255
+    elif len(ch) == 1:
+        return ord(ch) - ord('A') + 1
+    else:
+        return (ord(ch[0]) - ord('p')) * 24 + (ord(ch[1]) - ord('A') + 25)
+
+
+def val2char_deprecated(v: int) -> str:
+    if v == 0:
+        return '.'
+    elif v < 25:
+        return chr(ord('A') + v - 1)
+    else:
+        return chr(ord('p') + (v - 25) // 24) + chr(ord('A') + (v - 25) % 24)
+
+
 def deprecated_compress_array(cells):
     def drill_row(row):
-        return [(len(list(g)), val2char(v).strip()) for v, g in itertools.groupby(row)]
+        return [(len(list(g)), val2char_deprecated(v).strip()) for v, g in itertools.groupby(row)]
 
     def join_row_shorten(row):
         return [(str(n) if n > 1 else '') + c for n, c in row]
@@ -132,7 +191,7 @@ def deprecated_decompress_array(cells_code: str, nb_dims: int) -> jnp.ndarray:
             last = ch
         else:
             if last + ch not in delims:
-                append_stack(stacks[0], char2val(last + ch) / 255, count, is_repeat=True)
+                append_stack(stacks[0], char2val_deprecated(last + ch) / 255, count, is_repeat=True)
             else:
                 dim = delims.index(last + ch)
                 for d in range(dim):
@@ -146,7 +205,7 @@ def deprecated_decompress_array(cells_code: str, nb_dims: int) -> jnp.ndarray:
     recur_get_max_lens(0, cells_l, max_lens, nb_dims)
     recur_cubify(0, cells_l, max_lens, nb_dims)
 
-    cells = jnp.array(cells_l)
+    cells = jnp.array(cells_l, dtype=jnp.float32)
 
     return cells
 
@@ -169,6 +228,28 @@ def get_param(dic: Dict, key_string: str) -> Any:
 
     return val
 
+
+def set_param(dic: Dict, key_string: str, value: Any):
+    keys = key_string.split('.')
+    for i, key in enumerate(keys[:-1]):
+        if key.isdigit():
+            if isinstance(dic, list):
+                idx = int(key)
+                if len(dic) < idx + 1:
+                    for _ in range(idx + 1 - len(dic)):
+                        dic.append({})
+                dic = dic[idx]
+            else:
+                raise Exception('This key should be an array')
+        else:
+            if keys[i + 1].isdigit():
+                dic = dic.setdefault(key, [{}])
+            else:
+                dic = dic.setdefault(key, {})
+
+    dic[keys[-1]] = value
+
+
 def update_config_to_hd(ori_config: Dict) -> Dict:
     config = copy.deepcopy(ori_config)
 
@@ -187,6 +268,7 @@ def update_config_to_hd(ori_config: Dict) -> Dict:
             else:
                 # Backward compatibility
                 cells = decompress_array(cells, nb_dims + 1)  # we add the channel dim
+
         max_scaling = min(512 / cells.shape[1], 512 / cells.shape[2])
 
     config['world_params']['scale'] = min(10, round(max_scaling))

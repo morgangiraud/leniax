@@ -4,6 +4,7 @@ import jax.numpy as jnp
 from typing import List, Dict
 
 from .perlin import generate_perlin_noise_2d
+from .constant import NB_CHARS
 
 
 def random_uniform(rng_key, nb_noise: int, world_size: List[int], nb_channels: int):
@@ -68,6 +69,9 @@ def perlin(rng_key, nb_noise: int, world_size: List[int], R: float, kernel_param
     cells *= scaling
     init_cells = cells[:, jnp.newaxis, ...]
 
+    # We make sure the initialization can be compressed exactly
+    init_cells = jnp.array(init_cells * NB_CHARS**2 - 1, dtype=jnp.int32) / (NB_CHARS**2 - 1)
+
     return rng_key, init_cells
 
 
@@ -105,5 +109,8 @@ def perlin_local(rng_key, nb_noise: int, world_size: List[int], R: float, kernel
         mode='constant',
         constant_values=(0, 0)
     )
+
+    # We make sure the initialization can be compressed exactly
+    init_cells = jnp.array(init_cells * NB_CHARS**2 - 1, dtype=jnp.int32) / (NB_CHARS**2 - 1)
 
     return rng_key, init_cells

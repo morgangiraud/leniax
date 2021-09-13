@@ -46,12 +46,12 @@ After doing an analysis on more than 4000 selected creatures, I concluded that t
 To handle them nicely in the QD search, it's good that the heuristics bound them
 
 ## Now
-- Find an acceptable process to name and define properties
-- Define the set of properties
-- Name them and set properties
-- Explore other kernels
+- Reach 210 lenias stable in 128x128
+- Reach 210 lenias stable by the scaling factor up to 1024x1024
+
 
 ## Maybe next?
+- Explore other kernels
 - Add heuristic for static species (no speed & no inertia change)
 - The first pass of the cube exploration was with m[0.1, 0.6] et s[0., 0.1]. It could be interesting to finish the exploration: m[0.6, 0.9] et s[0.1, 0.2]
 - For heuristics, add that each channel should be within mass bounds separately

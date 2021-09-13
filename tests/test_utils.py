@@ -26,6 +26,15 @@ class TestUtils(unittest.TestCase):
 
         np.testing.assert_array_equal(cells_int_l, out)
 
+    def test_make_array_compressible(self):
+        shape = [7, 7]
+        cells = np.random.rand(*shape)
+
+        compressible_cells = leniax_utils.make_array_compressible(cells)
+        cells_out = leniax_utils.decompress_array(leniax_utils.compress_array(compressible_cells), len(shape))
+
+        np.testing.assert_array_almost_equal(compressible_cells, cells_out)
+
     def test_compress_decompress_compress(self):
         shape = [2, 4, 5]
         cells = np.random.rand(*shape)
@@ -33,7 +42,7 @@ class TestUtils(unittest.TestCase):
         st = leniax_utils.compress_array(cells)
         cells_out = leniax_utils.decompress_array(st, len(shape))
 
-        np.testing.assert_almost_equal(cells, cells_out, decimal=2)
+        np.testing.assert_almost_equal(cells, cells_out, decimal=4)
 
         new_st = leniax_utils.compress_array(cells)
 

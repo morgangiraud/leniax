@@ -52,7 +52,7 @@ def run() -> None:
                 config, with_jit=True, fft=True, use_init_cells=use_init_cells
             )  # [nb_max_iter, N=1, C, world_dims...]
             all_cells = all_cells[:int(stats_dict['N']), 0]  # [nb_iter, C, world_dims...]
-
+            print(stats_dict['N'])
             colormaps_name_mapping = {
                 'plasma': 'ms-dos',
                 'turbo': 'x-ray',

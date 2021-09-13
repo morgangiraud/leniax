@@ -1,19 +1,21 @@
+from leniax.utils import make_array_compressible
 import math
 import jax
 import jax.numpy as jnp
 from typing import List, Dict
 
 from .perlin import generate_perlin_noise_2d
-from .constant import NB_CHARS
 
 
 def random_uniform(rng_key, nb_noise: int, world_size: List[int], nb_channels: int):
     rng_key, subkey = jax.random.split(rng_key)
     maxvals = jnp.linspace(0.4, 1., nb_noise)[:, jnp.newaxis, jnp.newaxis, jnp.newaxis]
     rand_shape = [nb_noise] + [nb_channels] + world_size
-    noises = jax.random.uniform(subkey, rand_shape, minval=0, maxval=maxvals)
+    cells = jax.random.uniform(subkey, rand_shape, minval=0, maxval=maxvals)
 
-    return rng_key, noises
+    cells = make_array_compressible(cells)
+
+    return rng_key, cells
 
 
 def random_uniform_1k(rng_key, nb_noise: int, world_size, nb_channels: int, kernel_params):
@@ -24,6 +26,8 @@ def random_uniform_1k(rng_key, nb_noise: int, world_size, nb_channels: int, kern
     rand_shape = [nb_noise] + [nb_channels] + world_size
 
     cells = jax.random.uniform(subkey, rand_shape, minval=0, maxval=kernel_params['m'] * 2)
+
+    cells = make_array_compressible(cells)
 
     return rng_key, cells
 
@@ -42,6 +46,8 @@ def sinusoide_1c1k(rng_key, world_size, R, kernel_params):
     # Distances from the center of the grid
     distances = jnp.sqrt(jnp.sum(scaled_coords**2, axis=0))  # [dim_0, dim_1, ...]
     cells = ((distances % (6 * math.pi)) < 2 * math.pi) * (jnp.sin(distances) + 1) / 2.
+
+    cells = make_array_compressible(cells)
 
     return rng_key, cells
 
@@ -69,8 +75,7 @@ def perlin(rng_key, nb_noise: int, world_size: List[int], R: float, kernel_param
     cells *= scaling
     init_cells = cells[:, jnp.newaxis, ...]
 
-    # We make sure the initialization can be compressed exactly
-    init_cells = jnp.array(init_cells * NB_CHARS**2 - 1, dtype=jnp.int32) / (NB_CHARS**2 - 1)
+    init_cells = make_array_compressible(init_cells)
 
     return rng_key, init_cells
 
@@ -110,7 +115,6 @@ def perlin_local(rng_key, nb_noise: int, world_size: List[int], R: float, kernel
         constant_values=(0, 0)
     )
 
-    # We make sure the initialization can be compressed exactly
-    init_cells = jnp.array(init_cells * NB_CHARS**2 - 1, dtype=jnp.int32) / (NB_CHARS**2 - 1)
+    init_cells = make_array_compressible(init_cells)
 
     return rng_key, init_cells

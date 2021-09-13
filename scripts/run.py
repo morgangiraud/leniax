@@ -28,7 +28,7 @@ config_name = "orbium"
 
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '3c-15k')
 
-config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '99-ko', '0158')
+config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '01-aquarium', '0016')
 config_name = "config"
 
 # config_path = os.path.join(cdir, '..', 'tests', 'fixtures')
@@ -75,8 +75,10 @@ def run(omegaConf: DictConfig) -> None:
     save_dir = os.getcwd()  # changed by hydra
     leniax_utils.check_dir(save_dir)
 
-    config['run_params']['init_cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[0]))
-    config['run_params']['cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
+    if 'init_cells' not in config['run_params']:
+        config['run_params']['init_cells'] = leniax_utils.compress_array(all_cells[0])
+    if 'cells' not in config['run_params']:
+        config['run_params']['cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
     leniax_utils.save_config(save_dir, config)
 
     print("Dumping assets")

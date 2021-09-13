@@ -63,11 +63,21 @@ def _recur_join_st(dim, lists, row_func, nb_dims: int):
         return DIM_DELIM[nb_dims - 1 - dim].join(row_func(lists))
 
 
-def compress_array(cells: jnp.ndarray) -> str:
-    cells_uint8 = jnp.array(cells * NB_CHARS**2 - 1, dtype=jnp.int32)
-    cells_shape = cells_uint8.shape
+def make_array_compressible(cells: jnp.ndarray) -> jnp.ndarray:
+    max_val = NB_CHARS**2 - 1
 
-    cells_char_l = [val2ch(item) for item in cells_uint8.flatten()]
+    cells_int32 = jnp.array(cells * max_val, dtype=jnp.int32)
+    compressible_cells = jnp.array(cells_int32 / max_val + EPSILON, dtype=jnp.float32)
+
+    return compressible_cells
+
+
+def compress_array(cells: jnp.ndarray) -> str:
+    max_val = NB_CHARS**2 - 1
+    cells_int32 = jnp.array(cells * max_val, dtype=jnp.int32)
+    cells_shape = cells_int32.shape
+
+    cells_char_l = [val2ch(item) for item in cells_int32.flatten()]
     string_cells = "".join(cells_char_l)
     string_cells += '::' + ';'.join([str(c) for c in cells_shape])
 
@@ -77,12 +87,13 @@ def compress_array(cells: jnp.ndarray) -> str:
 def decompress_array(string_cells: str, nb_dims: int) -> jnp.ndarray:
     try:
         string_array = string_cells.split('::')
-        if len(string_array) != 2:
+        if len(string_array) != 2 and len(string_array[0]) % 2 == 0:
             raise Exception()
+        max_val = NB_CHARS**2 - 1
         cells_shape = [int(c) for c in string_array[-1].split(";")]
         cells_val_l = [ch2val(string_array[0][i:i + 2]) for i in range(0, len(string_array[0]), 2)]
-        cells_uint8 = np.array(cells_val_l).reshape(cells_shape)
-        cells = cells_uint8 / (NB_CHARS**2 - 1.)
+        cells_int32 = jnp.array(cells_val_l, dtype=jnp.int32).reshape(cells_shape)
+        cells = jnp.array(cells_int32 / max_val + EPSILON, dtype=jnp.float32)
     except Exception:
         try:
             string_bytes = io.BytesIO(string_cells.encode('latin1'))
@@ -109,12 +120,17 @@ def ch2val(c: str) -> int:
     first_char = c[0]
     second_char = c[1]
 
-    if ord(first_char) >= ord('a'):
-        first_char_idx = ord(first_char) - ord('a') - ord('A') + ord('Z')
+    if ord(first_char) >= ord('À'):
+        first_char_idx = ord(first_char) - ord('À') + (ord('Z') - ord('A')) + (ord('z') - ord('a'))
+    elif ord(first_char) >= ord('a'):
+        first_char_idx = ord(first_char) - ord('a') + (ord('Z') - ord('A'))
     else:
         first_char_idx = ord(first_char) - ord('A')
-    if ord(second_char) >= ord('a'):
-        second_char_idx = ord(second_char) - ord('a') - ord('A') + ord('Z')
+
+    if ord(second_char) >= ord('À'):
+        second_char_idx = ord(second_char) - ord('À') + (ord('Z') - ord('A')) + (ord('z') - ord('a'))
+    elif ord(second_char) >= ord('a'):
+        second_char_idx = ord(second_char) - ord('a') + (ord('Z') - ord('A'))
     else:
         second_char_idx = ord(second_char) - ord('A')
 
@@ -125,14 +141,19 @@ def val2ch(v: int) -> str:
     first_char_idx = v // NB_CHARS
     second_char_idx = v % NB_CHARS
     # We do this trick to avoid the spaecial characters between
-    if ord('A') + first_char_idx > ord('Z'):
-        first_char = chr(ord('a') + ord('A') + first_char_idx - ord('Z'))
-    else:
+    if ord('A') + first_char_idx <= ord('Z'):
         first_char = chr(ord('A') + first_char_idx)
-    if ord('A') + second_char_idx > ord('Z'):
-        second_char = chr(ord('a') + ord('A') + second_char_idx - ord('Z'))
+    elif ord('a') + first_char_idx - (ord('Z') - ord('A')) <= ord('z'):
+        first_char = chr(ord('a') + first_char_idx - (ord('Z') - ord('A')))
     else:
+        first_char = chr(ord('À') + first_char_idx - (ord('Z') - ord('A')) - (ord('z') - ord('a')))
+
+    if ord('A') + second_char_idx <= ord('Z'):
         second_char = chr(ord('A') + second_char_idx)
+    elif ord('a') + second_char_idx - (ord('Z') - ord('A')) <= ord('z'):
+        second_char = chr(ord('a') + second_char_idx - (ord('Z') - ord('A')))
+    else:
+        second_char = chr(ord('À') + second_char_idx - (ord('Z') - ord('A')) - (ord('z') - ord('a')))
 
     return first_char + second_char
 

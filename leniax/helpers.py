@@ -99,7 +99,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
             max_run_iter,
             R,
             update_fn,
-            compute_stats_fn,
+            compute_stats_fn
         )
         # https://jax.readthedocs.io/en/latest/async_dispatch.html
         all_stats['N'].block_until_ready()
@@ -169,7 +169,7 @@ def search_for_mutation(rng_key: jnp.ndarray, config: Dict, fft: bool = True) ->
             max_run_iter,
             R,
             update_fn,
-            compute_stats_fn,
+            compute_stats_fn
         )
         # https://jax.readthedocs.io/en/latest/async_dispatch.html
         all_stats['N'].block_until_ready()
@@ -375,10 +375,10 @@ def dump_assets(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict:
     with open(os.path.join(save_dir, 'stats_dict.p'), 'wb') as f:
         pickle.dump(stats_dict, f)
 
-    with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
-        np.save(f, np.array(all_cells))
+    # with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
+    #     np.save(f, np.array(all_cells))
 
-    dump_last_frame(save_dir, all_cells)
+    # dump_last_frame(save_dir, all_cells)
 
     dump_viz_data(save_dir, stats_dict, config)
 

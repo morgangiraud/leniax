@@ -205,9 +205,8 @@ def run_scan(
 
         y = {'cells': cells, 'field': field, 'potential': potential, 'stats': stats}
 
-        cells = new_cells
         new_carry = {
-            'fn_params': (cells, K, gfn_params, kernels_weight_per_channel, T),
+            'fn_params': (new_cells, K, gfn_params, kernels_weight_per_channel, T),
             'stats_properties': {
                 'total_shift_idx': total_shift_idx,
                 'mass_centroid': mass_centroid,
@@ -273,9 +272,8 @@ def run_scan_mem_optimized(
             cells, field, potential, total_shift_idx, mass_centroid, mass_angle
         )
 
-        cells = new_cells
         new_carry = {
-            'fn_params': (cells, K, gfn_params, kernels_weight_per_channel, T),
+            'fn_params': (new_cells, K, gfn_params, kernels_weight_per_channel, T),
             'stats_properties': {
                 'total_shift_idx': total_shift_idx,
                 'mass_centroid': mass_centroid,

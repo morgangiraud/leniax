@@ -191,7 +191,11 @@ def run() -> None:
                 attribute_val = attributes_names[k][3]
             else:
                 attribute_val = attributes_names[k][4]
-            current_metadata['attributes'].append({"value": attribute_val, "trait_type": attributes_map[k]})
+            current_metadata['attributes'].append({
+                "value": attribute_val, 
+                "trait_type": attributes_map[k],
+                "numerical_value": val,
+            })
 
         with open(metadata_fullpath, 'w') as f:
             json.dump(current_metadata, f)

@@ -13,9 +13,10 @@ cdir = os.path.dirname(os.path.realpath(__file__))
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
 # config_name = "config_init_search"
 
-config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '04-phantomium', '0008')
+config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '00-orbi', '0025')
 config_name = "config"
 
+nb_scale_for_stability = 1
 
 @hydra.main(config_path=config_path, config_name=config_name)
 def launch(omegaConf: DictConfig) -> None:
@@ -34,7 +35,8 @@ def launch(omegaConf: DictConfig) -> None:
     rng_key = leniax_utils.seed_everything(config['run_params']['seed'])
 
     t0 = time.time()
-    _, best, nb_mut_done = leniax_helpers.search_for_mutation(rng_key, config, fft=True, use_init_cells=True)
+    _, best, nb_mut_done = leniax_helpers.search_for_mutation(
+        rng_key, config, nb_scale_for_stability, fft=True, use_init_cells=True)
     print(f"Init search done in {time.time() - t0} (nb_muts done: {nb_mut_done})")
 
     all_cells = best['all_cells'][:int(best['N']), 0]

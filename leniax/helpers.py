@@ -121,6 +121,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
 
 def search_for_mutation(rng_key: jnp.ndarray,
                         config: Dict,
+                        nb_scale_for_stability: int = 1,
                         fft: bool = True,
                         use_init_cells: bool = True) -> Tuple[jnp.ndarray, Dict, int]:
     world_params = config['world_params']
@@ -133,58 +134,44 @@ def search_for_mutation(rng_key: jnp.ndarray,
     render_params = config['render_params']
     world_size = render_params['world_size']
 
-    ori_kernels_params = config['kernels_params']['k']
-
     run_params = config['run_params']
     nb_mut_search = run_params['nb_mut_search']
     max_run_iter = run_params['max_run_iter']
-
-    raw_cells = leniax_core.load_raw_cells(config, use_init_cells=use_init_cells)
-    init_cells = leniax_core.create_init_cells(world_size, nb_channels, [raw_cells])
-
-    compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
-    K, mapping = leniax_kernels.get_kernels_and_mapping(ori_kernels_params, world_size, nb_channels, R, fft)
-    gfn_params = mapping.get_gfn_params()
-    kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
-    update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
-
     best_run = {}
     current_max = 0
-
     for i in range(nb_mut_search):
-        # t0 = time.time()
         copied_config = copy.deepcopy(config)
         for gene in config['genotype']:
             val = leniax_utils.get_param(copied_config, gene['key'])
             val += np.random.normal(0., 0.0005)
             leniax_utils.set_param(copied_config, gene['key'], val)
-        kernels_params = copied_config['kernels_params']['k']
-        K, mapping = leniax_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)
-        gfn_params = mapping.get_gfn_params()
-        kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 
-        all_cells, _, _, all_stats = leniax_core.run_scan(
-            init_cells,
-            K,
-            gfn_params,
-            kernels_weight_per_channel,
-            T,
-            max_run_iter,
-            R,
-            update_fn,
-            compute_stats_fn
-        )
-        # https://jax.readthedocs.io/en/latest/async_dispatch.html
-        all_stats['N'].block_until_ready()
+        total_iter_done = 0
+        nb_iter_done = 0
+        for i in range(nb_scale_for_stability):
+            # t0 = time.time()
+            config['render_params']['world_size'] = [ws * 2**i for ws in world_size]
+            config['world_params']['scale'] = 2**i
 
-        # t1 = time.time()
+            all_cells, _, _, stats_dict = init_and_run(
+                config, with_jit=True, fft=True, use_init_cells=use_init_cells
+            )
+            stats_dict['N'].block_until_ready()
+            
+            nb_iter_done = max(nb_iter_done, stats_dict['N'])
+            total_iter_done += stats_dict['N']
 
-        nb_iter_done = all_stats['N']
-        if current_max < nb_iter_done:
-            current_max = nb_iter_done
-            best_run = {"N": nb_iter_done, "all_cells": all_cells, "all_stats": all_stats, "config": copied_config}
+        # Current_max at all scale
+        if current_max < total_iter_done:
+            current_max = total_iter_done
+            best_run = {
+                "N": nb_iter_done, 
+                "all_cells": all_cells, 
+                "all_stats": stats_dict, 
+                "config": copied_config,
+            }
 
-        if nb_iter_done >= max_run_iter:
+        if total_iter_done >= max_run_iter * nb_scale_for_stability:
             break
 
         # print(t1 - t0, nb_iter_done)
@@ -359,11 +346,10 @@ def process_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
     nb_iter_done = len(all_cells)
     print(f"[{padded_id}] - {nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
 
-    config['run_params']['init_cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[0]))
+    config['run_params']['init_cells'] = leniax_utils.compress_array(all_cells[0])
     config['run_params']['cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
     leniax_utils.save_config(save_dir, config)
 
-    print(f"[{padded_id}] - Dumping assets")
     dump_assets(save_dir, config, all_cells, stats_dict)
 
 
@@ -381,7 +367,7 @@ def dump_assets(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict:
     # with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
     #     np.save(f, np.array(all_cells))
 
-    # dump_last_frame(save_dir, all_cells)
+    dump_last_frame(save_dir, all_cells)
 
     dump_viz_data(save_dir, stats_dict, config)
 

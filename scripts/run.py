@@ -28,7 +28,8 @@ config_name = "orbium"
 
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '3c-15k')
 
-config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '10-oscillium', '0032')
+config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '00-orbi', '0025')
+# config_path = os.path.join(cdir, '..', 'experiments', '007_extended', 'run-b[1.0, 0.0, 0.3333333333333333]', 'c-0009')
 config_name = "config"
 
 # config_path = os.path.join(cdir, '..', 'tests', 'fixtures')

@@ -19,7 +19,9 @@ def gather_viz_data(exp_dir: str):
 
     all_viz_data: List[Dict] = []
     i = 0
-    for (subdir, _, _) in os.walk(exp_dir):
+    for (subdir, dirs, _) in os.walk(exp_dir):
+        dirs.sort()
+
         viz_data_filename = os.path.join(subdir, 'viz_data.json')
         if not os.path.isfile(viz_data_filename):
             continue

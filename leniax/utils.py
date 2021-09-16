@@ -66,15 +66,15 @@ def _recur_join_st(dim, lists, row_func, nb_dims: int):
 def make_array_compressible(cells: jnp.ndarray) -> jnp.ndarray:
     max_val = NB_CHARS**2 - 1
 
-    cells_int32 = jnp.array(cells * max_val, dtype=jnp.int32)
-    compressible_cells = jnp.array(cells_int32 / max_val + EPSILON, dtype=jnp.float32)
+    cells_int32 = jnp.array(jnp.round(cells * max_val), dtype=jnp.int32)
+    compressible_cells = jnp.array(cells_int32 / max_val, dtype=jnp.float32)
 
     return compressible_cells
 
 
 def compress_array(cells: jnp.ndarray) -> str:
     max_val = NB_CHARS**2 - 1
-    cells_int32 = jnp.array(cells * max_val, dtype=jnp.int32)
+    cells_int32 = cells_int32 = jnp.array(jnp.round(cells * max_val), dtype=jnp.int32)
     cells_shape = cells_int32.shape
 
     cells_char_l = [val2ch(item) for item in cells_int32.flatten()]
@@ -93,7 +93,7 @@ def decompress_array(string_cells: str, nb_dims: int) -> jnp.ndarray:
         cells_shape = [int(c) for c in string_array[-1].split(";")]
         cells_val_l = [ch2val(string_array[0][i:i + 2]) for i in range(0, len(string_array[0]), 2)]
         cells_int32 = jnp.array(cells_val_l, dtype=jnp.int32).reshape(cells_shape)
-        cells = jnp.array(cells_int32 / max_val + EPSILON, dtype=jnp.float32)
+        cells = jnp.array(cells_int32 / max_val, dtype=jnp.float32)
     except Exception:
         try:
             string_bytes = io.BytesIO(string_cells.encode('latin1'))

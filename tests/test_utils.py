@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from leniax import utils as leniax_utils
-from leniax.constant import EPSILON, NB_CHARS
+from leniax.constant import NB_CHARS
 
 cfd = os.path.dirname(os.path.realpath(__file__))
 fixture_dir = os.path.join(cfd, 'fixtures')
@@ -28,31 +28,29 @@ class TestUtils(unittest.TestCase):
 
         np.testing.assert_array_equal(cells_int_l, out)
 
-    def test_make_array_compressible(self):
-        shape = [128, 128]
-        cells = np.random.rand(*shape)
-
-        compressible_cells = leniax_utils.make_array_compressible(cells)
-        cells_out = leniax_utils.decompress_array(leniax_utils.compress_array(compressible_cells), len(shape))
-
-        np.testing.assert_array_almost_equal(compressible_cells, cells_out)
-
     def test_compress_decompress_compress(self):
-        shape = [7, 7]
-        cells = np.random.rand(*shape)
+        cells = np.arange(1e5) / 1e5
 
         st = leniax_utils.compress_array(cells)
-        cells_out = leniax_utils.decompress_array(st, len(shape))
+        cells_out = leniax_utils.decompress_array(st, 1)
 
-        np.testing.assert_almost_equal(cells, cells_out, decimal=4)
+        np.testing.assert_array_almost_equal(cells, cells_out, decimal=4)
 
         new_st = leniax_utils.compress_array(cells)
 
         assert st == new_st
 
+    def test_make_array_compressible(self):
+        cells = np.arange(1e5) / 1e5
+
+        compressible_cells = leniax_utils.make_array_compressible(cells)
+        cells_out = leniax_utils.decompress_array(leniax_utils.compress_array(compressible_cells), 1)
+
+        np.testing.assert_array_almost_equal(compressible_cells, cells_out, decimal=9)
+
     def test_compress_decompress_compress_yaml(self):
         max_val = NB_CHARS**2 - 1
-        cells = jnp.array(np.arange(0, NB_CHARS**2, dtype=np.int32) / max_val + EPSILON)
+        cells = jnp.array(np.arange(0, NB_CHARS**2, dtype=np.int32) / max_val)
         yaml_fullpath = os.path.join(fixture_dir, 'compress_yaml.yaml')
 
         st = leniax_utils.compress_array(cells)

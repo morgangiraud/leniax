@@ -211,6 +211,7 @@
                     const mouseover = function(event, d) {
                         tooltip
                         .html(`
+                            <p>viz_data/${d.relative_url}/</p>
                             <img src="./viz_data/${d.relative_url}/last_frame.png">
                             <video id="creature_vid" width="256" height="256" autoplay>
                                 <source src="./viz_data/${d.relative_url}/beast_plasma_512_512.mp4" type="video/mp4">

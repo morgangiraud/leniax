@@ -8,10 +8,14 @@ from typing import Dict, List, Union, Any
 from . import utils as leniax_utils
 
 
-def dump_video(save_dir: str, all_cells: jnp.ndarray, render_params: Dict, colormaps: Union[List, Any]):
+def dump_video(
+    save_dir: str, all_cells: jnp.ndarray, render_params: Dict, colormaps: Union[List, Any], prefix: str = ''
+):
     assert len(all_cells.shape) == 4  # [nb_iter, C, H, W]
     if type(colormaps) != list:
         colormaps = [colormaps]
+    if prefix == '':
+        prefix = 'beast'
 
     nb_iter_done = len(all_cells)
     width = all_cells[0].shape[-1] * render_params['pixel_size']
@@ -19,7 +23,7 @@ def dump_video(save_dir: str, all_cells: jnp.ndarray, render_params: Dict, color
 
     all_outputs_fullpath = []
     for colormap in colormaps:
-        output_fullpath = os.path.join(save_dir, f"beast_{colormap.name}_{width}_{height}.mp4")  # type: ignore
+        output_fullpath = os.path.join(save_dir, f"{prefix}_{colormap.name}_{width}_{height}.mp4")  # type: ignore
         process = (
             ffmpeg.input(
                 'pipe:',

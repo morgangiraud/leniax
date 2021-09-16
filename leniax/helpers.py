@@ -119,18 +119,16 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
     return rng_key, best_run, i
 
 
-def search_for_mutation(rng_key: jnp.ndarray,
-                        config: Dict,
-                        nb_scale_for_stability: int = 1,
-                        fft: bool = True,
-                        use_init_cells: bool = True) -> Tuple[jnp.ndarray, Dict, int]:
-    world_params = config['world_params']
-    nb_channels = world_params['nb_channels']
-    update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
-    weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
-    R = world_params['R']
-    T = jnp.array(world_params['T'])
+MUTATION_RATE = 1e-5
 
+
+def search_for_mutation(
+    rng_key: jnp.ndarray,
+    config: Dict,
+    nb_scale_for_stability: int = 1,
+    fft: bool = True,
+    use_init_cells: bool = True
+) -> Tuple[jnp.ndarray, Dict, int]:
     render_params = config['render_params']
     world_size = render_params['world_size']
 
@@ -143,31 +141,33 @@ def search_for_mutation(rng_key: jnp.ndarray,
         copied_config = copy.deepcopy(config)
         for gene in config['genotype']:
             val = leniax_utils.get_param(copied_config, gene['key'])
-            val += np.random.normal(0., 0.0005)
+            val += np.random.normal(0., MUTATION_RATE)
             leniax_utils.set_param(copied_config, gene['key'], val)
 
         total_iter_done = 0
         nb_iter_done = 0
-        for i in range(nb_scale_for_stability):
+        for scale_power in range(nb_scale_for_stability):
             # t0 = time.time()
-            config['render_params']['world_size'] = [ws * 2**i for ws in world_size]
-            config['world_params']['scale'] = 2**i
+            scaled_config = copy.deepcopy(copied_config)
+            scaled_config['render_params']['world_size'] = [ws * 2**scale_power for ws in world_size]
+            scaled_config['world_params']['scale'] = 2**scale_power
 
             all_cells, _, _, stats_dict = init_and_run(
-                config, with_jit=True, fft=True, use_init_cells=use_init_cells
+                scaled_config, with_jit=True, fft=fft, use_init_cells=use_init_cells
             )
             stats_dict['N'].block_until_ready()
-            
+
             nb_iter_done = max(nb_iter_done, stats_dict['N'])
             total_iter_done += stats_dict['N']
 
         # Current_max at all scale
+        # print(f'total_iter_done: {total_iter_done}')
         if current_max < total_iter_done:
             current_max = total_iter_done
             best_run = {
-                "N": nb_iter_done, 
-                "all_cells": all_cells, 
-                "all_stats": stats_dict, 
+                "N": nb_iter_done,
+                "all_cells": all_cells,
+                "all_stats": stats_dict,
                 "config": copied_config,
             }
 

@@ -191,7 +191,7 @@ def monotonic_heuristic(sign: jnp.ndarray, previous_sign: jnp.ndarray, monotone_
 # This number comes from the early days when I set the threshold
 # at 10% of a 128*128 ~= 1600 pixels with a kernel radius of 13
 # Which gives a volume threshold of 1600 / 13^2 ~= 9.5
-MASS_VOLUME_THRESHOLD = 10
+MASS_VOLUME_THRESHOLD = 10.
 MASS_VOLUME_STOP_STEP = 128
 
 

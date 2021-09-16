@@ -47,7 +47,7 @@ To handle them nicely in the QD search, it's good that the heuristics bound them
 
 ## Now
 - Reach 210 lenias stable in 128x128
-- Reach 210 lenias stable by the scaling factor up to 1024x1024
+- Reach 210 lenias stable by the scaling factor up to 512x512
 
 
 ## Maybe next?

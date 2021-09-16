@@ -47,7 +47,6 @@ def run() -> None:
                 qd_config = grid[0].qd_config
         max_val = qd_config['run_params']['max_run_iter']
 
-        print(subdir)
         os.chdir(subdir)
         leniax_qd.dump_best(grid, max_val)
 

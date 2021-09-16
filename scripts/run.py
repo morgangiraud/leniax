@@ -28,8 +28,8 @@ config_name = "orbium"
 
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '3c-15k')
 
-config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '00-orbi', '0025')
-# config_path = os.path.join(cdir, '..', 'experiments', '007_extended', 'run-b[1.0, 0.0, 0.3333333333333333]', 'c-0009')
+config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '05-maelstrom', '0189')
+# config_path = os.path.join(cdir, '..', 'outputs', 'tmp')
 config_name = "config"
 
 # config_path = os.path.join(cdir, '..', 'tests', 'fixtures')
@@ -50,7 +50,7 @@ def run(omegaConf: DictConfig) -> None:
     config['render_params']['size_power2'] = 7
     config['render_params']['world_size'] = [128, 128]
     config['world_params']['scale'] = 1.
-    config['run_params']['max_run_iter'] = 2048
+    config['run_params']['max_run_iter'] = 1024
 
     if to_hd is True:
         config = leniax_utils.update_config_to_hd(config)
@@ -76,10 +76,8 @@ def run(omegaConf: DictConfig) -> None:
     save_dir = os.getcwd()  # changed by hydra
     leniax_utils.check_dir(save_dir)
 
-    if 'init_cells' not in config['run_params']:
-        config['run_params']['init_cells'] = leniax_utils.compress_array(all_cells[0])
-    if 'cells' not in config['run_params']:
-        config['run_params']['cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
+    config['run_params']['init_cells'] = leniax_utils.compress_array(all_cells[0])
+    config['run_params']['cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
     leniax_utils.save_config(save_dir, config)
 
     print("Dumping assets")

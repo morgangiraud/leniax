@@ -27,12 +27,14 @@ for mp4_size in [128, 256, 512]:
 
         all_gifs[family_dir_name].append(os.path.join(subdir, mp4_filename))
 
-    for family_dir_name, family_gifs in all_gifs.items():
-        nb_gif = len(family_gifs)
+    for family_dir_name, family_mp4 in all_gifs.items():
+        # if int(family_dir_name.split('-')[0]) < 11:
+        #     continue
+        nb_mp4 = len(family_mp4)
 
-        grid_width = int(math.sqrt(nb_gif))
-        if grid_width**2 < nb_gif:
-            if grid_width * (grid_width + 1) < nb_gif:
+        grid_width = int(math.sqrt(nb_mp4))
+        if grid_width**2 < nb_mp4:
+            if grid_width * (grid_width + 1) < nb_mp4:
                 grid_width += 1
                 grid_height = grid_width
             else:
@@ -44,7 +46,7 @@ for mp4_size in [128, 256, 512]:
         input_setpts = "nullsrc=size={}x{} [base];".format(mp4_size * grid_width, mp4_size * grid_height)
         input_overlays = ""
 
-        for index, path_video in enumerate(family_gifs):
+        for index, path_video in enumerate(family_mp4):
             input_videos += " -i " + path_video
             input_setpts += "[{}:v] setpts=PTS-STARTPTS, scale={}x{} [video{}];".format(
                 index, mp4_size, mp4_size, index
@@ -58,7 +60,7 @@ for mp4_size in [128, 256, 512]:
             if index == 0:
                 input_overlays += "[base][video{}] overlay=shortest=1 [tmp{}];".format(index, index)
                 input_overlays += "[tmp{}]{}[tmp{}];".format(index, text, index)
-            elif index > 0 and index < len(family_gifs) - 1:
+            elif index > 0 and index < len(family_mp4) - 1:
                 input_overlays += "[tmp{}][video{}] overlay=shortest=1:x={}:y={} [tmp{}];".format(
                     index - 1, index, mp4_size * (index % grid_width), mp4_size * (index // grid_width), index
                 )

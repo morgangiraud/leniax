@@ -1,12 +1,16 @@
 import os
 import json
 from typing import List, Dict
+from shutil import copyfile
+from hydra import compose, initialize
 
 from leniax import utils as leniax_utils
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 experiments_dir = os.path.join(cdir, '..', 'experiments')
+exp_dir = os.path.join(experiments_dir, '007_extended_2')
 
+collection_name = 'collection-02'
 
 def gather_viz_data(exp_dir: str):
     exp_viz_dir = os.path.join(exp_dir, 'viz_data')
@@ -84,10 +88,30 @@ def create_categories_folder(exp_dir: str):
             with open(all_category_viz_data_fullpath, 'w') as f:
                 json.dump(category_viz_data, f)
 
+def make_collection(exp_dir, collection_name):
+    exp_viz_dir = os.path.join(exp_dir, 'viz_data')
+    originals_dir = os.path.join(exp_viz_dir, 'originals')
+    collection_dir = os.path.join(cdir, '..', 'outputs', collection_name)
+
+    if os.path.exists(collection_dir):
+        raise Exception(f"Collection directory {collection_dir} already exist")
+        
+    for (subdir, _, _) in os.walk(originals_dir, followlinks=True):
+        # First subdir is final_dir
+        config_filename = os.path.join(subdir, 'config.yaml')
+        if not os.path.isfile(config_filename):
+            continue
+
+        target_folder_name = subdir.split('/')[-1].zfill(5)
+        target_folder_fullpath = os.path.join(collection_dir, '000-no_family_yet', target_folder_name)
+        leniax_utils.check_dir(target_folder_fullpath)
+
+        target_config_fullpath = os.path.join(target_folder_fullpath, 'config.yaml')    
+        copyfile(config_filename, target_config_fullpath)
 
 if __name__ == "__main__":
-    exp_dir = os.path.join(experiments_dir, '007_extended')
-
     # gather_viz_data(exp_dir)
+
     # In between those calls, you should use viz.html to fill categories json
     create_categories_folder(exp_dir)
+    make_collection(exp_dir, collection_name)

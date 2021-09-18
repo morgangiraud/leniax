@@ -16,7 +16,7 @@ from leniax import video as leniax_video
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 
-collectin_name = 'collection-01'
+collectin_name = 'collection-02'
 collection_dir_relative = os.path.join('..', 'outputs', collectin_name)
 collection_dir = os.path.join(cdir, collection_dir_relative)
 config_filename = 'config.yaml'
@@ -104,14 +104,13 @@ def run() -> None:
                 colormap = plt.get_cmap('plasma')
             else:
                 colormap = plt.get_cmap('viridis')
-    
 
             print(f'Rendering {subdir}')
-            
+
             all_cells, _, _, stats_dict = leniax_core.run_scan(
                 cells_1, K_1, gfn_params_1, kernels_weight_per_channel_1, T, max_run_iter, R_1, update_fn_1, compute_stats_fn_1
             )
-            all_cells = all_cells[:, 0] # [nb_iter, C, world_dims...]
+            all_cells = all_cells[:, 0]  # [nb_iter, C, world_dims...]
             stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
             print(stats_dict['N'])
             leniax_helpers.dump_assets(subdir, config, all_cells, stats_dict, [colormap])
@@ -123,11 +122,16 @@ def run() -> None:
                     leniax_utils.center_and_crop_cells(all_cells[-128 + frame_idx])
                 )
                 compressible_cells_1 = leniax_utils.merge_cells(
-                    jnp.zeros_like(cells_1[0]),
-                    cropped_compressible_cells_1
+                    jnp.zeros_like(cells_1[0]), cropped_compressible_cells_1
                 )
-                compressible_cells_2 = jnp.array([scipy.ndimage.zoom(compressible_cells_1[i], 2, order=2) for i in range(1)], dtype=jnp.float32)
-                compressible_cells_4 = jnp.array([scipy.ndimage.zoom(compressible_cells_1[i], 4, order=2) for i in range(1)], dtype=jnp.float32)
+                compressible_cells_2 = jnp.array(
+                    [scipy.ndimage.zoom(compressible_cells_1[i], 2, order=2) for i in range(1)],
+                    dtype=jnp.float32,
+                )
+                compressible_cells_4 = jnp.array(
+                    [scipy.ndimage.zoom(compressible_cells_1[i], 4, order=2) for i in range(1)],
+                    dtype=jnp.float32,
+                )
 
                 compressible_cells_1 = compressible_cells_1[jnp.newaxis]
                 compressible_cells_2 = compressible_cells_2[jnp.newaxis]
@@ -138,7 +142,7 @@ def run() -> None:
                 )  # [nb_max_iter, N=1, C, world_dims...]
                 all_cells_1 = all_cells_1[:, 0]  # [nb_iter, C, world_dims...]
                 stats_dict_1 = {k: v.squeeze() for k, v in stats_dict_1.items()}
-                N_1 = stats_dict_1['N']                
+                N_1 = stats_dict_1['N']
 
                 all_cells_2, _, _, stats_dict_2 = leniax_core.run_scan(
                     compressible_cells_2, K_2, gfn_params_2, kernels_weight_per_channel_2, T, max_run_iter, R_2, update_fn_2, compute_stats_fn_2
@@ -146,10 +150,10 @@ def run() -> None:
                 all_cells_2 = all_cells_2[:, 0]  # [nb_iter, C, world_dims...]
                 stats_dict_2 = {k: v.squeeze() for k, v in stats_dict_2.items()}
                 N_2 = stats_dict_2['N']
-                
+
                 all_cells_4, _, _, stats_dict_4 = leniax_core.run_scan(
                     compressible_cells_4, K_4, gfn_params_4, kernels_weight_per_channel_4, T, max_run_iter, R_4, update_fn_4, compute_stats_fn_4
-                ) 
+                )
                 all_cells_4 = all_cells_4[:, 0]  # [nb_iter, C, world_dims...]
                 stats_dict_4 = {k: v.squeeze() for k, v in stats_dict_4.items()}
                 N_4 = stats_dict_4['N']
@@ -163,13 +167,15 @@ def run() -> None:
 
             metadata_fullpath = os.path.join(subdir, 'metadata.json')
             metadata = {
-                'name': "Lenia #",
+                'name':
+                "Lenia #",
                 'description':
                 'Lorem ipsum dolor sit amet, \
 consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
                 'external_link':
                 'https://lenia.stockmouton.com',
-                'image': '',
+                'image':
+                '',
                 'animation_url':
                 'on_chain_url',
                 'attributes': [{
@@ -186,21 +192,21 @@ consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolor
             with open(metadata_fullpath, 'w') as f:
                 json.dump(metadata, f)
 
-            # Prepare metadata
-            viz_data_fullpath = os.path.join(subdir, 'viz_data.json')
-            with open(viz_data_fullpath, 'r') as f:
-                viz_data = json.load(f)
-            stats = viz_data['stats']
+        # Prepare metadata
+        viz_data_fullpath = os.path.join(subdir, 'viz_data.json')
+        with open(viz_data_fullpath, 'r') as f:
+            viz_data = json.load(f)
+        stats = viz_data['stats']
 
-            for k, v in stats.items():
-                if 'mean' not in k:
-                    continue
-                if k not in all_mean_stats:
-                    all_mean_stats[k] = []
-                    all_std_stats[k] = []
+        for k, v in stats.items():
+            if 'mean' not in k:
+                continue
+            if k not in all_mean_stats:
+                all_mean_stats[k] = []
+                all_std_stats[k] = []
 
-                all_mean_stats[k].append(round(v, 5))
-                all_std_stats[k].append(round(v, 5))
+            all_mean_stats[k].append(round(v, 5))
+            all_std_stats[k].append(round(v, 5))
 
     # Compute Mean and Std of the whole collection to define the five categories
     collection_stats = {}
@@ -294,6 +300,7 @@ consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolor
         token_id += 1
 
     print(f'Nb creatures: {token_id}')
+
 
 if __name__ == '__main__':
     run()

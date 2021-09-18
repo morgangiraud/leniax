@@ -30,7 +30,7 @@ def dump_video(
                 format='rawvideo',
                 pix_fmt='rgb24',
                 s=f"{width}x{height}",
-                framerate=32,
+                framerate=30,
             ).output(
                 output_fullpath,
                 crf=23,

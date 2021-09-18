@@ -39,7 +39,8 @@ class LeniaIndividual(list):
     def get_config(self) -> Dict:
         if 'genotype' in self.qd_config:
             p_and_ds = self.get_genotype()
-            raw_values = list(self)
+            # Removing too much precision ensure that the one found are quite stable
+            raw_values = [round(raw_val, 6) for raw_val in self]
             assert len(raw_values) == len(p_and_ds)
 
             to_update = get_update_config(p_and_ds, raw_values)

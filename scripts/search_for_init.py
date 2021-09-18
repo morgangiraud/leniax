@@ -13,8 +13,8 @@ cdir = os.path.dirname(os.path.realpath(__file__))
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
 # config_name = "config_init_search"
 
-# config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '05-maelstrom', '0036')
-config_path = os.path.join(cdir, '..', 'experiments', '007_extended', 'run-b[1.0, 0.0, 0.3333333333333333]', 'c-0009')
+config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '04-aerium', '400')
+config_path = os.path.join(cdir, '..', 'outputs', 'tmp')
 config_name = "config"
 
 
@@ -27,7 +27,7 @@ def launch(omegaConf: DictConfig) -> None:
     config['render_params']['size_power2'] = 7
     config['render_params']['world_size'] = [128, 128]
     config['world_params']['scale'] = 1.
-    config['run_params']['max_run_iter'] = 2048
+    config['run_params']['max_run_iter'] = 4096
     config['run_params']['nb_init_search'] = 256
 
     leniax_utils.print_config(config)

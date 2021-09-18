@@ -7,6 +7,7 @@ import hydra
 
 import leniax.utils as leniax_utils
 import leniax.helpers as leniax_helpers
+from leniax import colormaps as leniax_colormaps
 # from leniax.structured_config import LeniaxConfig
 
 absl_logging.set_verbosity(absl_logging.ERROR)
@@ -28,7 +29,7 @@ config_name = "orbium"
 
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '3c-15k')
 
-config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '05-maelstrom', '0189')
+config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '00-genesis', '0000')
 # config_path = os.path.join(cdir, '..', 'outputs', 'tmp')
 config_name = "config"
 
@@ -48,15 +49,15 @@ def run(omegaConf: DictConfig) -> None:
     config['render_params']['pixel_size_power2'] = 0
     config['render_params']['pixel_size'] = 1
     config['render_params']['size_power2'] = 7
-    config['render_params']['world_size'] = [128, 128]
-    config['world_params']['scale'] = 1.
+    config['render_params']['world_size'] = [512, 512]
+    config['world_params']['scale'] = 8.
     config['run_params']['max_run_iter'] = 1024
 
     if to_hd is True:
         config = leniax_utils.update_config_to_hd(config)
         use_init_cells = False
     else:
-        use_init_cells = True
+        use_init_cells = False
 
     leniax_utils.print_config(config)
 
@@ -81,10 +82,27 @@ def run(omegaConf: DictConfig) -> None:
     leniax_utils.save_config(save_dir, config)
 
     print("Dumping assets")
-    # import matplotlib.pyplot as plt
-    # colormaps = [plt.get_cmap(name) for name in ['plasma', 'turbo', 'viridis']]
-    # leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict, colormaps)
-    leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict)
+    leniax_helpers.dump_assets(
+        save_dir,
+        config,
+        all_cells,
+        stats_dict,
+        [
+            # leniax_colormaps.colormaps['blackwhite'],
+            leniax_colormaps.colormaps['rainbow'],
+            # leniax_colormaps.colormaps['carmine-blue'],
+            # leniax_colormaps.colormaps['carmine-green'],
+            leniax_colormaps.colormaps['red'],
+            # leniax_colormaps.colormaps['vistoris-violet'],
+            # leniax_colormaps.colormaps['vistoris-green'],
+            # leniax_colormaps.colormaps['cinnamon'],
+            # leniax_colormaps.colormaps['golden'],
+            # leniax_colormaps.colormaps['ochraceous'],
+            # leniax_colormaps.colormaps['lemon-turquoise'],
+            # leniax_colormaps.colormaps['lemon-venice'],
+            # leniax_colormaps.colormaps['salvia'],
+        ]
+    )
 
 
 if __name__ == '__main__':

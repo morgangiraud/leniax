@@ -3,7 +3,6 @@ import os
 from absl import logging as absl_logging
 from omegaconf import DictConfig
 import hydra
-import matplotlib.pyplot as plt
 import copy
 
 import leniax.utils as leniax_utils
@@ -13,27 +12,9 @@ import leniax.colormaps as leniax_colormaps
 absl_logging.set_verbosity(absl_logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
+
 config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
 config_name = "orbium"
-# config_name = "vibratium"
-
-# config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k-v2')
-# config_name = "wanderer"
-
-# config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-2k')
-# config_name = "squiggle"
-
-# config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-3k')
-# config_name = "fish"
-
-# config_path = os.path.join(cdir, '..', 'conf', 'species', '3c-15k')
-
-# config_path = os.path.join(cdir, '..', 'outputs', '2021-08-18', '10-50-52', 'c-0000')
-# config_path = os.path.join(cdir, '..', 'experiments', '007_beta_cube_4', 'run-b[1.0]', 'c-0033')
-# config_name = "config"
-
-# config_path = os.path.join(cdir, '..', 'tests', 'fixtures')
-# config_name = "aquarium-test.yaml"
 
 stat_trunc = True
 resolutions = [
@@ -45,13 +26,11 @@ resolutions = [
 scales = [
     1,
     4,
-    6,
     8,
+    12,
 ]
 
 
-# cs = ConfigStore.instance()
-# cs.store(name=config_name, node=LeniaxConfig)
 @hydra.main(config_path=config_path, config_name=config_name)
 def run(omegaConf: DictConfig) -> None:
     ori_config = leniax_helpers.get_container(omegaConf, config_path)
@@ -65,7 +44,7 @@ def run(omegaConf: DictConfig) -> None:
         print('Initialiazing and running', config)
         start_time = time.time()
         all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
-            config, with_jit=False, fft=True
+            config, with_jit=False, fft=True, use_init_cells=False
         )  # [nb_max_iter, N=1, C, world_dims...]
         if stat_trunc is True:
             all_cells = all_cells[:int(stats_dict['N']), 0]  # [nb_iter, C, world_dims...]
@@ -86,8 +65,21 @@ def run(omegaConf: DictConfig) -> None:
         leniax_utils.save_config(save_dir, config)
 
         print("Dumping assets")
-        colormaps = [plt.get_cmap(name) for name in ['viridis', 'plasma', 'magma', 'cividis', 'turbo', 'ocean']]
-        colormaps.append(leniax_colormaps.LeniaTemporalColormap('earth'))
+        colormaps = [
+            leniax_colormaps.colormaps['blackwhite'],
+            leniax_colormaps.colormaps['rainbow'],
+            leniax_colormaps.colormaps['carmine-blue'],
+            leniax_colormaps.colormaps['carmine-green'],
+            leniax_colormaps.colormaps['red'],
+            leniax_colormaps.colormaps['vistoris-violet'],
+            leniax_colormaps.colormaps['vistoris-green'],
+            leniax_colormaps.colormaps['cinnamon'],
+            leniax_colormaps.colormaps['golden'],
+            leniax_colormaps.colormaps['ochraceous'],
+            leniax_colormaps.colormaps['lemon-turquoise'],
+            leniax_colormaps.colormaps['lemon-venice'],
+            leniax_colormaps.colormaps['salvia'],
+        ]
         leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict, colormaps)
 
 

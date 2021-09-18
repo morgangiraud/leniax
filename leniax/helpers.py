@@ -298,13 +298,6 @@ def update_individuals(
         final_cells = ind_final_cells[best_init_idx]
         # print(i, ind_Ns, max_idx)
 
-        config['behaviours'] = {}
-        for k in stats.keys():
-            if k == 'N':
-                continue
-            truncated_stat = stats[k][i, :int(nb_steps), best_init_idx]
-            config['behaviours'][k] = truncated_stat[-128:].mean()
-
         ind.set_init_cells(leniax_utils.compress_array(cells0))
         ind.set_cells(leniax_utils.compress_array(leniax_utils.center_and_crop_cells(final_cells)))
 
@@ -313,6 +306,13 @@ def update_individuals(
         else:
             fitness = nb_steps
         ind.fitness = fitness
+
+        config['behaviours'] = {}
+        for k in stats.keys():
+            if k == 'N':
+                continue
+            truncated_stat = stats[k][i, :int(nb_steps), best_init_idx]
+            config['behaviours'][k] = truncated_stat[-128:].mean()
 
         if 'phenotype' in ind.qd_config:
             features = [leniax_utils.get_param(config, key_string) for key_string in ind.qd_config['phenotype']]

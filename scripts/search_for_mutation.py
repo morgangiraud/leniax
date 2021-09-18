@@ -13,10 +13,11 @@ cdir = os.path.dirname(os.path.realpath(__file__))
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
 # config_name = "config_init_search"
 
-config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '00-orbi', '0025')
+config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '000-hope', '0060')
 config_name = "config"
 
 nb_scale_for_stability = 1
+
 
 @hydra.main(config_path=config_path, config_name=config_name)
 def launch(omegaConf: DictConfig) -> None:
@@ -27,8 +28,17 @@ def launch(omegaConf: DictConfig) -> None:
     config['render_params']['size_power2'] = 7
     config['render_params']['world_size'] = [128, 128]
     config['world_params']['scale'] = 1.
-    config['run_params']['max_run_iter'] = 2048
+    config['run_params']['max_run_iter'] = 4096
     config['run_params']['nb_mut_search'] = 128
+    use_init_cells = True
+    if 'init_cells' in config['run_params']:
+        init_cells = leniax_utils.decompress_array(
+            config['run_params']['init_cells'], len(config['render_params']['world_size'])
+        )
+        config['run_params']['init_cells'] = leniax_utils.make_array_compressible(init_cells)
+    else:
+        cells = leniax_utils.decompress_array(config['run_params']['cells'], len(config['render_params']['world_size']))
+        config['run_params']['cells'] = leniax_utils.make_array_compressible(cells)
 
     leniax_utils.print_config(config)
 
@@ -36,7 +46,7 @@ def launch(omegaConf: DictConfig) -> None:
 
     t0 = time.time()
     _, best, nb_mut_done = leniax_helpers.search_for_mutation(
-        rng_key, config, nb_scale_for_stability, fft=True, use_init_cells=True)
+        rng_key, config, nb_scale_for_stability, fft=True, use_init_cells=use_init_cells)
     print(f"Init search done in {time.time() - t0} (nb_muts done: {nb_mut_done})")
 
     all_cells = best['all_cells'][:int(best['N']), 0]

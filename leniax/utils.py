@@ -481,10 +481,11 @@ def save_images(
 
 
 def get_image(cells_buffer: jnp.ndarray, pixel_size: int, pixel_border_size: int, colormap):
-    c, y, x = cells_buffer.shape
-    cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=1)
-    cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=2)
-    # zero = np.uint8(np.clip(normalize(0, vmin, vmax), 0, 1) * 252)
+    c, h, w = cells_buffer.shape
+    if pixel_size != 1:
+        cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=1)
+        cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=2)
+
     zero = 0
     for i in range(pixel_border_size):
         cells_buffer[:, i::pixel_size, :] = zero
@@ -496,14 +497,16 @@ def get_image(cells_buffer: jnp.ndarray, pixel_size: int, pixel_border_size: int
         final_img = Image.fromarray(cells_uint8)
     else:
         img = colormap(cells_buffer)  # the colormap is applied to each channel, we just merge them
-        blank_img = np.zeros_like(img[0, :, :, :3]).astype(jnp.uint8)
-        final_img = Image.fromarray(blank_img)
-        for i in range(img.shape[0]):
-            other_img = Image.fromarray((img[i, :, :, :3] * 255).astype(jnp.uint8))
-            if i == 0:
-                final_img = Image.blend(final_img, other_img, alpha=1.)
-            else:
-                final_img = Image.blend(final_img, other_img, alpha=0.5)
+        final_img = Image.fromarray((img[0, :, :, :3] * 255).astype(jnp.uint8))
+        # if
+        # blank_img = np.zeros_like(img[0, :, :, :3]).astype(jnp.uint8)
+        # final_img = Image.fromarray(blank_img)
+        # for i in range(img.shape[0]):
+        #     other_img = Image.fromarray((img[i, :, :, :3] * 255).astype(jnp.uint8))
+        #     if i == 0:
+        #         final_img = Image.blend(final_img, other_img, alpha=1.)
+        #     else:
+        #         final_img = Image.blend(final_img, other_img, alpha=0.5)
 
     return final_img
 

@@ -1,4 +1,5 @@
 import os
+import random
 import json
 import copy
 import matplotlib.pyplot as plt
@@ -12,11 +13,11 @@ from leniax import statistics as leniax_stat
 from leniax import utils as leniax_utils
 from leniax import helpers as leniax_helpers
 from leniax import video as leniax_video
-# from leniax import colormaps as leniax_colormaps
+from leniax import colormaps as leniax_colormaps
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 
-collectin_name = 'collection-02'
+collectin_name = 'collection-01'
 collection_dir_relative = os.path.join('..', 'outputs', collectin_name)
 collection_dir = os.path.join(cdir, collection_dir_relative)
 config_filename = 'config.yaml'
@@ -38,6 +39,8 @@ def run() -> None:
         family_name = family_dir_name.split('-')[-1]
 
         # dir_idx = subdir.split('/')[-1]
+        # if len(dir_idx) != 5:
+        #     continue
         # to_check = ['11-kaleidium/0400']
         # if f"{family_dir_name}/{dir_idx}" not in to_check:
         #     continue
@@ -95,15 +98,10 @@ def run() -> None:
             update_fn_4 = leniax_core.build_update_fn(K_4.shape, mapping_4, update_fn_version, weighted_average, fft)
             compute_stats_fn_4 = leniax_stat.build_compute_stats_fn(tmp_config['world_params'], render_params_4)
 
-            colormaps_name_mapping = {
-                'plasma': 'ms-dos',
-                'turbo': 'x-ray',
-                'viridis': 'phantom',
-            }
-            if family_name == 'firium':
-                colormap = plt.get_cmap('plasma')
-            else:
-                colormap = plt.get_cmap('viridis')
+            colormap_names = list(leniax_colormaps.colormaps.keys())
+            colormap_names.remove('rainbow_transparent')
+            colormap_idx = random.randint(0, len(colormap_names) - 1)
+            colormap = leniax_colormaps.colormaps[colormap_names[colormap_idx]]
 
             print(f'Rendering {subdir}')
 
@@ -113,6 +111,9 @@ def run() -> None:
             all_cells = all_cells[:, 0]  # [nb_iter, C, world_dims...]
             stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
             print(stats_dict['N'])
+            if stats_dict['N'] < config['run_params']['max_run_iter'] and stats_dict['mass'][-1] == 0:
+                print('Current run finished with no mass, continuing')
+                continue
             leniax_helpers.dump_assets(subdir, config, all_cells, stats_dict, [colormap])
 
             # I didn't find a solution to discover which frames are stable to scale
@@ -179,7 +180,7 @@ consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolor
                 'animation_url':
                 'on_chain_url',
                 'attributes': [{
-                    "value": colormaps_name_mapping[colormap.name], "trait_type": "Colormap"
+                    "value": colormap.name, "trait_type": "Colormap"
                 }, {
                     "value": family_name, "trait_type": 'Family'
                 }],

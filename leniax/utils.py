@@ -406,6 +406,9 @@ def center_and_crop_cells(cells):
     )
     cells = crop_zero(centered_cells[0])
 
+    if 0 in cells.shape:
+        cells = jnp.zeros([cells.shape[0]] + [1] * (len(cells.shape) - 1))
+
     return cells
 
 
@@ -497,7 +500,8 @@ def get_image(cells_buffer: jnp.ndarray, pixel_size: int, pixel_border_size: int
         final_img = Image.fromarray(cells_uint8)
     else:
         img = colormap(cells_buffer)  # the colormap is applied to each channel, we just merge them
-        final_img = Image.fromarray((img[0, :, :, :3] * 255).astype(jnp.uint8))
+        rgba_uint8 = (img[0] * 255).astype(jnp.uint8)
+        final_img = Image.fromarray(rgba_uint8, 'RGBA')
         # if
         # blank_img = np.zeros_like(img[0, :, :, :3]).astype(jnp.uint8)
         # final_img = Image.fromarray(blank_img)

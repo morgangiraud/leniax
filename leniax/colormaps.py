@@ -1,17 +1,33 @@
+import json
 import jax.numpy as jnp
 from matplotlib.colors import ListedColormap
 from typing import List, Callable
 
-# An interesting idea from https://iquilezles.org/www/articles/palettes/palettes.htm
+# This might be cool? https://bottosson.github.io/misc/colorpicker/#ce7d96
 
 
 class LeniaColormap():
     def __init__(self, name, hex_bg_color, hex_colors) -> None:
         self.name = name
-        self.cmap = ListedColormap(hex_color(hex_bg_color, hex_colors))
+        self.hex_bg_color = hex_bg_color
+        self.hex_colors = hex_colors
+        self.cmap = ListedColormap(hex_to_palette_rgba(hex_bg_color, hex_colors))
 
     def __call__(self, data):
         return self.cmap(data)
+
+    def save(self):
+        return json.dumps({
+            'name': self.name,
+            'hex_bg_color': self.hex_bg_color,
+            'hex_colors': self.hex_colors,
+        })
+
+    @staticmethod
+    def load(self, json_string: str):
+        raw_obj = json.loads(json_string)
+
+        return LeniaColormap(raw_obj['name'], raw_obj['hex_bg_color'], raw_obj['hex_colors'])
 
 
 #######
@@ -90,105 +106,123 @@ def perceptual_steps(color1: List[int], color2: List[int], steps: int) -> List[L
     return colors
 
 
+def calculate_luminance(color_code: int) -> float:
+    index = float(color_code) / 255
+
+    if index < 0.03928:
+        return index / 12.92
+    else:
+        return ((index + 0.055) / 1.055)**2.4
+
+
+def calculate_relative_luminance(rgb: List[int]) -> float:
+    return 0.2126 * calculate_luminance(rgb[0]) + 0.7152 * calculate_luminance(rgb[1]
+                                                                               ) + 0.0722 * calculate_luminance(rgb[2])
+
+
+def check_ratio(rgb1: List[int], rgb2: List[int]) -> int:
+    light = rgb1 if sum(rgb1) > sum(rgb2) else rgb2
+    dark = rgb1 if sum(rgb1) < sum(rgb2) else rgb2
+
+    contrast_ratio = (calculate_relative_luminance(light) + 0.05) / (calculate_relative_luminance(dark) + 0.05)
+
+    if contrast_ratio < 4.5:
+        return 0
+    if contrast_ratio >= 4.5 and contrast_ratio < 7:
+        return 1
+    else:  # contrast_ratio >= 7
+        return 2
+
+
 #####
 
 
-def hex_to_rgba(hex: str) -> List[float]:
+def hex_to_rgba_uint8(hex: str) -> List[int]:
     hex = hex.replace('#', '')
-    return [int(hex[i:i + 2], 16) / 255. for i in (0, 2, 4)] + [1.]
+    return [int(hex[i:i + 2], 16) for i in (0, 2, 4)] + [255]
 
 
-def hex_color(hex_bg_color: str, hex_colors: List[str]) -> jnp.ndarray:
+def hex_to_palette_rgba(hex_bg_color: str, hex_colors: List[str]) -> jnp.ndarray:
     steps = 254 // (len(hex_colors) - 1)
-    rgb_colors = []
+    palette_rgb_uint8 = []
     for i in range(0, len(hex_colors) - 1):
-        rgb1 = [int(c * 255) for c in hex_to_rgba(hex_colors[i])[:3]]
-        rgb2 = [int(c * 255) for c in hex_to_rgba(hex_colors[i + 1])[:3]]
-        rgb_colors += perceptual_steps(rgb1, rgb2, steps)
-    rgba_colors = [rgb_color + [255] for rgb_color in rgb_colors]
-    rgba_bg_color = hex_to_rgba(hex_bg_color)
+        rgb1_uint8 = [c for c in hex_to_rgba_uint8(hex_colors[i])[:3]]
+        rgb2_uint8 = [c for c in hex_to_rgba_uint8(hex_colors[i + 1])[:3]]
+        palette_rgb_uint8 += perceptual_steps(rgb1_uint8, rgb2_uint8, steps)
+    fg_palette_rgba_uint8 = [rgb + [255] for rgb in palette_rgb_uint8]
 
-    bg_colors = jnp.array([rgba_bg_color])
-    colors = jnp.array(rgba_colors) / 255.
-    all_colors = jnp.vstack([bg_colors, colors])
+    # Transparent background
+    if hex_bg_color == '':
+        bg_rgba_uint8 = [0, 0, 0, 0]
+    else:
+        bg_rgba_uint8 = hex_to_rgba_uint8(hex_bg_color)
 
-    return all_colors
+    bg_rgba = jnp.array([bg_rgba_uint8]) / 255.
+    fg_palette_rgba = jnp.array(fg_palette_rgba_uint8) / 255.
+    palette_rgba = jnp.vstack([bg_rgba, fg_palette_rgba])
+
+    return palette_rgba
 
 
 colormaps = {
-    'blackwhite': LeniaColormap(
+    'blackwhite':
+    LeniaColormap(
         'blackwhite',  # Name
         '#000000',  # Background color
         ['#000000', '#ffffff'],  # Color palette
     ),
-    'grenadine': LeniaColormap(
-        'grenadine',  # Name
-        '#051230',  # Background color
-        ['#051230', '#f48067'],  # Color palette
-    ),
-    'olive': LeniaColormap(
-        'olive',  # Name
-        '#112f2c',  # Background color
-        ['#112f2c', '#f37420', '#d6b43e'],  # Color palette
-    ),
-    'carmine-blue': LeniaColormap(
+    'carmine-blue':
+    LeniaColormap(
         'carmine-blue',
         '#006eb8',
         ['#006eb8', '#fff200', '#cc1236'],
     ),
-    'carmine-green': LeniaColormap(
+    'carmine-green':
+    LeniaColormap(
         'carmine-green',
         '#1a7444',
         ['#1a7444', '#fff200', '#cc1236'],
     ),
-    'red': LeniaColormap(
-        'red',
-        '#1a7444',
-        ['#1a7444', '#fff200', '#a72144'],
-    ),
-    'vistoris-violet': LeniaColormap(
-        'vistoris-violet',
-        '#4f4086',
-        ['#4f4086', '#fdbf68', '#6d4145'],
-    ),
-    'vistoris-green': LeniaColormap(
-        'vistoris-green',
-        '#555832',
-        ['#555832', '#ffefae', '#6d4145'],
-    ),
-    'cinnamon': LeniaColormap(
+    'cinnamon':
+    LeniaColormap(
         'cinnamon',
         '#a7d4e4',
         ['#a7d4e4', '#71502f', '#fdc57e'],
     ),
-    'golden': LeniaColormap(
+    'golden':
+    LeniaColormap(
         'golden',
         '#b6bfc1',
         ['#b6bfc1', '#253122', '#f3a257'],
     ),
-    'ochraceous': LeniaColormap(
-        'ochraceous',
-        '#a1a39a',
-        ['#a1a39a', '#501345', '#d8a37b'],
+    'msdos':
+    LeniaColormap(
+        'msdos',
+        '#0c0786',
+        ['#0c0786', '#7500a8', '#c03b80', '#f79241', '#fcfea4'],
     ),
-    'lemon-turquoise': LeniaColormap(
-        'lemon-turquoise',
-        '#b5decc',
-        ['#b5decc', '#762c19', '#f8ed43'],
+    'rainbow':
+    LeniaColormap(
+        'rainbow',
+        '#000000',
+        ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF'],
     ),
-    'lemon-venice': LeniaColormap(
-        'lemon-venice',
-        '#62c6bf',
-        ['#62c6bf', '#253122', '#f8ed43'],
+    'rainbow_transparent':
+    LeniaColormap(
+        'rainbow_transparent',
+        '',
+        ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF'],
     ),
-    'salvia': LeniaColormap(
+    'salvia':
+    LeniaColormap(
         'salvia',
         '#b6bfc1',
         ['#b6bfc1', '#051230', '#97acc8'],
     ),
-    'rainbow': LeniaColormap(
-        'rainbow',
-        '#000000',
-        ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF'],
+    'whiteblack':
+    LeniaColormap(
+        'whiteblack',
+        '#ffffff',
+        ['#ffffff', '#000000'],
     ),
 }

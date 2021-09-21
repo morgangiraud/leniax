@@ -3,7 +3,6 @@ import pickle
 import jax
 from jax import vmap, lax, jit
 import jax.numpy as jnp
-# import numpy as np
 import scipy
 from typing import Callable, List, Dict, Tuple
 

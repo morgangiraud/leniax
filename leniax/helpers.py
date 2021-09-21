@@ -380,24 +380,25 @@ def dump_assets(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict:
         leniax_video.dump_gif(output_fullpath)
 
 
-def dump_last_frame(save_dir: str, all_cells: jnp.ndarray, raw: bool = False):
+def dump_last_frame(save_dir: str, all_cells: jnp.ndarray, raw: bool = False, colormap=None):
     """
         Args:
             - save_dir: str
             - all_cells: jnp.ndarray[nb_iter, C, world_dims...]
     """
     last_frame = all_cells[-1]
-    dump_frame(save_dir, 'last_frame', last_frame, raw)
+    dump_frame(save_dir, 'last_frame', last_frame, raw, colormap)
 
 
-def dump_frame(save_dir: str, filename: str, cells: jnp.ndarray, raw: bool = False):
+def dump_frame(save_dir: str, filename: str, cells: jnp.ndarray, raw: bool = False, colormap=None):
     if raw is False:
         cells = leniax_utils.center_and_crop_cells(cells)
+    if colormap is None:
+        colormap = plt.get_cmap('plasma')
 
     with open(os.path.join(save_dir, f"{filename}.p"), 'wb') as f:
         pickle.dump(np.array(cells), f)
 
-    colormap = plt.get_cmap('plasma')
     img = leniax_utils.get_image(cells, 1, 0, colormap)
     with open(os.path.join(save_dir, f"{filename}.png"), 'wb') as f:
         img.save(f, format='png')

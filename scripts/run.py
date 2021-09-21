@@ -14,27 +14,12 @@ absl_logging.set_verbosity(absl_logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 
-config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
-config_name = "orbium"
-# config_name = "vibratium"
+# config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
+# config_name = "orbium"
 
-# config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k-v2')
-# config_name = "wanderer"
-
-# config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-2k')
-# config_name = "squiggle"
-
-# config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-3k')
-# config_name = "fish"
-
-# config_path = os.path.join(cdir, '..', 'conf', 'species', '3c-15k')
-
-config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '00-genesis', '0000')
+config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '00-genesis', '0020')
 # config_path = os.path.join(cdir, '..', 'outputs', 'tmp')
 config_name = "config"
-
-# config_path = os.path.join(cdir, '..', 'tests', 'fixtures')
-# config_name = "aquarium-test.yaml"
 
 stat_trunc = True
 to_hd = False
@@ -49,8 +34,8 @@ def run(omegaConf: DictConfig) -> None:
     config['render_params']['pixel_size_power2'] = 0
     config['render_params']['pixel_size'] = 1
     config['render_params']['size_power2'] = 7
-    config['render_params']['world_size'] = [512, 512]
-    config['world_params']['scale'] = 8.
+    config['render_params']['world_size'] = [128, 128]
+    config['world_params']['scale'] = 1.
     config['run_params']['max_run_iter'] = 1024
 
     if to_hd is True:
@@ -71,6 +56,24 @@ def run(omegaConf: DictConfig) -> None:
         all_cells = all_cells[:, 0]  # [nb_iter, C, world_dims...]
     total_time = time.time() - start_time
 
+    # config['render_params']['world_size'] = [1024, 1024]
+    # config['world_params']['scale'] = 1.
+    # config['run_params']['max_run_iter'] = 1024
+    # config['world_params']['R'] *= 8
+    # config['run_params']['cells'] = leniax_utils.make_array_compressible(
+    #     leniax_utils.center_and_crop_cells(all_cells[-1])
+    # )
+
+    # start_time = time.time()
+    # all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
+    #     config, with_jit=True, fft=True, use_init_cells=use_init_cells
+    # )  # [nb_max_iter, N=1, C, world_dims...]
+    # if stat_trunc is True:
+    #     all_cells = all_cells[:int(stats_dict['N']), 0]  # [nb_iter, C, world_dims...]
+    # else:
+    #     all_cells = all_cells[:, 0]  # [nb_iter, C, world_dims...]
+    # total_time = time.time() - start_time
+
     nb_iter_done = len(all_cells)
     print(f"{nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
 
@@ -89,18 +92,15 @@ def run(omegaConf: DictConfig) -> None:
         stats_dict,
         [
             # leniax_colormaps.colormaps['blackwhite'],
-            leniax_colormaps.colormaps['rainbow'],
             # leniax_colormaps.colormaps['carmine-blue'],
             # leniax_colormaps.colormaps['carmine-green'],
-            leniax_colormaps.colormaps['red'],
-            # leniax_colormaps.colormaps['vistoris-violet'],
-            # leniax_colormaps.colormaps['vistoris-green'],
             # leniax_colormaps.colormaps['cinnamon'],
             # leniax_colormaps.colormaps['golden'],
-            # leniax_colormaps.colormaps['ochraceous'],
-            # leniax_colormaps.colormaps['lemon-turquoise'],
-            # leniax_colormaps.colormaps['lemon-venice'],
+            # leniax_colormaps.colormaps['msdos'],
+            leniax_colormaps.colormaps['rainbow'],
+            # leniax_colormaps.colormaps['rainbow_transparent'],
             # leniax_colormaps.colormaps['salvia'],
+            # leniax_colormaps.colormaps['whiteblack'],
         ]
     )
 

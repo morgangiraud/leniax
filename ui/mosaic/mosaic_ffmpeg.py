@@ -9,6 +9,7 @@ for mp4_size in [128, 256, 512]:
     all_gifs = {}
     for (subdir, dirs, filenames) in os.walk(collection_dir):
         dirs.sort()
+
         mp4_filename = ''
         for filename in filenames:
             if 'creature' in filename and 'mp4' in filename and str(mp4_size) in filename:
@@ -28,7 +29,7 @@ for mp4_size in [128, 256, 512]:
         all_gifs[family_dir_name].append(os.path.join(subdir, mp4_filename))
 
     for family_dir_name, family_mp4 in all_gifs.items():
-        # if int(family_dir_name.split('-')[0]) < 11:
+        # if int(family_dir_name.split('-')[0]) > 0:
         #     continue
         nb_mp4 = len(family_mp4)
 

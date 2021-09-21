@@ -7,13 +7,14 @@ from leniax import utils as leniax_utils
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 experiments_dir = os.path.join(cdir, '..', 'experiments')
-exp_dir = os.path.join(experiments_dir, '007_extended_3')
+exp_dir = os.path.join(experiments_dir, '007_extended_6')
+exp_viz_dir = os.path.join(exp_dir, 'viz_data')
 
 collection_name = 'collection-02'
 
 
 def gather_viz_data(exp_dir: str):
-    exp_viz_dir = os.path.join(exp_dir, 'viz_data')
+
     leniax_utils.check_dir(exp_viz_dir)
 
     ui_viz_link = os.path.join(cdir, 'viz_data')
@@ -33,7 +34,9 @@ def gather_viz_data(exp_dir: str):
         with open(viz_data_filename, 'r') as f:
             current_viz_data = json.load(f)
 
-        folder_link = str(i)
+        creature_idx = subdir.split('/')[-1]
+        exp_run_name = subdir.split('/')[-2]
+        folder_link = f'{exp_run_name}--{creature_idx}'
         link_dst = os.path.join(exp_viz_dir, folder_link)
         if os.path.islink(link_dst):
             os.remove(link_dst)
@@ -112,8 +115,9 @@ def make_collection(exp_dir, collection_name):
 
 
 if __name__ == "__main__":
-    # gather_viz_data(exp_dir)
-
     # In between those calls, you should use viz.html to fill categories json
-    create_categories_folder(exp_dir)
-    make_collection(exp_dir, collection_name)
+    if not os.path.isdir(exp_viz_dir):
+        gather_viz_data(exp_dir)
+    else:
+        create_categories_folder(exp_dir)
+        make_collection(exp_dir, collection_name)

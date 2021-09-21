@@ -34,7 +34,7 @@ Any growth functions that would boost the 0 value is doomed to fail. This would 
 ### 1c2d1k worlds
 - A random uniform initialisation convolved with a big enough kernel wil result in a neat constant field around the mean of the uniform distribution.
 
-### Replication
+### Replication issues
 There is a very strange behaviour that happens rarely but surely: it might happens that when running the vmap version of run_scan the check_heurisitics function returns different values N than when running each init separately.
 It seems to occur mainly on the last element of the set.
 
@@ -45,19 +45,18 @@ After doing an analysis on more than 4000 selected creatures, I concluded that t
 
 To handle them nicely in the QD search, it's good that the heuristics bound them
 
+The next one is:
+- mass_speed_mean
+
 ## Now
-- Find an acceptable process to name and define properties
-- Define the set of properties
-- Name them and set properties
-- Explore other kernels
+- Cleanup
 
 ## Maybe next?
+- Explore other kernels
 - Add heuristic for static species (no speed & no inertia change)
-- The first pass of the cube exploration was with m[0.1, 0.6] et s[0., 0.1]. It could be interesting to finish the exploration: m[0.6, 0.9] et s[0.1, 0.2]
 - For heuristics, add that each channel should be within mass bounds separately
 - Move on to 3d behaviours? 
     - Dump cdf of all fitness, behaviours and genome
-- Let's explore 1c-2k, 1c-3k for now (looking for 10 species with interelation)
 - define a qd state
 - save/load qd search states
 -  Go beyond perlin noise with simplex noise ? (https://www.bit-101.com/blog/2021/07/perlin-vs-simplex/)

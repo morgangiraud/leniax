@@ -22,7 +22,7 @@ class TestCore(unittest.TestCase):
     def test_run_scan_mem_optimized_perf(self):
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="qd_config-test")
-            qd_config = get_container(omegaConf)
+            qd_config = get_container(omegaConf, fixture_dir)
 
         R = qd_config['world_params']['R']
         max_run_iter = qd_config['run_params']['max_run_iter']
@@ -94,7 +94,7 @@ class TestCore(unittest.TestCase):
     def test_run_scan_perf(self):
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="orbium-test")
-            config = get_container(omegaConf)
+            config = get_container(omegaConf, fixture_dir)
 
         max_run_iter = 32
         cells, K, mapping = leniax_core.init(config)
@@ -135,7 +135,7 @@ class TestCore(unittest.TestCase):
     def test_update_fn_jit_perf(self):
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="orbium-test")
-            config = get_container(omegaConf)
+            config = get_container(omegaConf, fixture_dir)
 
         cells, K, mapping = leniax_core.init(config)
         world_params = config['world_params']

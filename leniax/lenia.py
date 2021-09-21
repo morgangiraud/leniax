@@ -1,6 +1,8 @@
 import copy
 import jax.numpy as jnp
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List, Tuple
+
+from leniax import utils as leniax_utils
 
 
 class LeniaIndividual(list):
@@ -37,7 +39,8 @@ class LeniaIndividual(list):
     def get_config(self) -> Dict:
         if 'genotype' in self.qd_config:
             p_and_ds = self.get_genotype()
-            raw_values = list(self)
+            # Removing too much precision ensure that the one found are quite stable
+            raw_values = [round(raw_val, 8) for raw_val in self]
             assert len(raw_values) == len(p_and_ds)
 
             to_update = get_update_config(p_and_ds, raw_values)
@@ -62,27 +65,6 @@ def update_config(old_config, to_update):
     return new_config
 
 
-def update_dict(dic: Dict, key_string: str, value: Any):
-    keys = key_string.split('.')
-    for i, key in enumerate(keys[:-1]):
-        if key.isdigit():
-            if isinstance(dic, list):
-                idx = int(key)
-                if len(dic) < idx + 1:
-                    for _ in range(idx + 1 - len(dic)):
-                        dic.append({})
-                dic = dic[idx]
-            else:
-                raise Exception('This key should be an array')
-        else:
-            if keys[i + 1].isdigit():
-                dic = dic.setdefault(key, [{}])
-            else:
-                dic = dic.setdefault(key, {})
-
-    dic[keys[-1]] = value
-
-
 def get_update_config(genotype: Dict, raw_values: list) -> Dict:
     to_update: Dict = {}
     for p_and_d, raw_val in zip(genotype, raw_values):
@@ -100,7 +82,7 @@ def get_update_config(genotype: Dict, raw_values: list) -> Dict:
         else:
             raise ValueError(f"type {val_type} unknown")
 
-        update_dict(to_update, key_str, val)
+        leniax_utils.set_param(to_update, key_str, val)
 
     return to_update
 

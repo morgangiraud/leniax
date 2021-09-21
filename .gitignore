@@ -14,6 +14,9 @@ experiments/007_beta_cube_4/*
 ## UI
 ui/*
 !ui/*.py
+!ui/mosaic
+ui/mosaic/*
+!ui/mosaic/*.py
 !ui/css
 !classifier.html
 !property_editor.html

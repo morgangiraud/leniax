@@ -31,7 +31,7 @@ config_path = os.path.join(cdir, '..', 'conf')
 
 @hydra.main(config_path=config_path, config_name="config_qd_cmame")
 def run(omegaConf: DictConfig) -> None:
-    config = get_container(omegaConf)
+    config = get_container(omegaConf, config_path)
     config['algo']['budget'] *= 2
     print(config)
 

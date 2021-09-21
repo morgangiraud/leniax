@@ -44,6 +44,8 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
         m_00 = centered_cells.sum(axis=non_batch_dims)
         g_00 = positive_field.sum(axis=non_batch_dims)
 
+        potential_volume = (potential > EPSILON).sum(axis=non_batch_dims) / R**2
+
         mass = m_00 / R**2
         mass_volume = (centered_cells > EPSILON).sum(axis=non_batch_dims) / R**2
         mass_density = mass / (mass_volume + EPSILON)
@@ -84,6 +86,7 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
             'mass_angle_speed': mass_angle_speed,
             'mass_growth_dist': mass_growth_dist,
             'inertia': inertia,
+            'potential_volume': potential_volume,
         }
 
         shift_idx = mass_centroid.astype(int).T
@@ -188,7 +191,7 @@ def monotonic_heuristic(sign: jnp.ndarray, previous_sign: jnp.ndarray, monotone_
 # This number comes from the early days when I set the threshold
 # at 10% of a 128*128 ~= 1600 pixels with a kernel radius of 13
 # Which gives a volume threshold of 1600 / 13^2 ~= 9.5
-MASS_VOLUME_THRESHOLD = 10
+MASS_VOLUME_THRESHOLD = 10.
 MASS_VOLUME_STOP_STEP = 128
 
 

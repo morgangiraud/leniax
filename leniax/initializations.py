@@ -1,3 +1,4 @@
+from leniax.utils import make_array_compressible
 import math
 import jax
 import jax.numpy as jnp
@@ -10,9 +11,11 @@ def random_uniform(rng_key, nb_noise: int, world_size: List[int], nb_channels: i
     rng_key, subkey = jax.random.split(rng_key)
     maxvals = jnp.linspace(0.4, 1., nb_noise)[:, jnp.newaxis, jnp.newaxis, jnp.newaxis]
     rand_shape = [nb_noise] + [nb_channels] + world_size
-    noises = jax.random.uniform(subkey, rand_shape, minval=0, maxval=maxvals)
+    cells = jax.random.uniform(subkey, rand_shape, minval=0, maxval=maxvals)
 
-    return rng_key, noises
+    cells = make_array_compressible(cells)
+
+    return rng_key, cells
 
 
 def random_uniform_1k(rng_key, nb_noise: int, world_size, nb_channels: int, kernel_params):
@@ -23,6 +26,8 @@ def random_uniform_1k(rng_key, nb_noise: int, world_size, nb_channels: int, kern
     rand_shape = [nb_noise] + [nb_channels] + world_size
 
     cells = jax.random.uniform(subkey, rand_shape, minval=0, maxval=kernel_params['m'] * 2)
+
+    cells = make_array_compressible(cells)
 
     return rng_key, cells
 
@@ -41,6 +46,8 @@ def sinusoide_1c1k(rng_key, world_size, R, kernel_params):
     # Distances from the center of the grid
     distances = jnp.sqrt(jnp.sum(scaled_coords**2, axis=0))  # [dim_0, dim_1, ...]
     cells = ((distances % (6 * math.pi)) < 2 * math.pi) * (jnp.sin(distances) + 1) / 2.
+
+    cells = make_array_compressible(cells)
 
     return rng_key, cells
 
@@ -67,6 +74,8 @@ def perlin(rng_key, nb_noise: int, world_size: List[int], R: float, kernel_param
     cells /= cells.max(axis=(1, 2), keepdims=True)
     cells *= scaling
     init_cells = cells[:, jnp.newaxis, ...]
+
+    init_cells = make_array_compressible(init_cells)
 
     return rng_key, init_cells
 
@@ -105,5 +114,7 @@ def perlin_local(rng_key, nb_noise: int, world_size: List[int], R: float, kernel
         mode='constant',
         constant_values=(0, 0)
     )
+
+    init_cells = make_array_compressible(init_cells)
 
     return rng_key, init_cells

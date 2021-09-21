@@ -13,9 +13,10 @@ cdir = os.path.dirname(os.path.realpath(__file__))
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
 # config_name = "config_init_search"
 
-config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '04-aerium', '400')
-config_path = os.path.join(cdir, '..', 'outputs', 'tmp')
+config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '000-hope', '0060')
 config_name = "config"
+
+nb_scale_for_stability = 1
 
 
 @hydra.main(config_path=config_path, config_name=config_name)
@@ -28,15 +29,25 @@ def launch(omegaConf: DictConfig) -> None:
     config['render_params']['world_size'] = [128, 128]
     config['world_params']['scale'] = 1.
     config['run_params']['max_run_iter'] = 4096
-    config['run_params']['nb_init_search'] = 256
+    config['run_params']['nb_mut_search'] = 128
+    use_init_cells = True
+    if 'init_cells' in config['run_params']:
+        init_cells = leniax_utils.decompress_array(
+            config['run_params']['init_cells'], len(config['render_params']['world_size'])
+        )
+        config['run_params']['init_cells'] = leniax_utils.make_array_compressible(init_cells)
+    else:
+        cells = leniax_utils.decompress_array(config['run_params']['cells'], len(config['render_params']['world_size']))
+        config['run_params']['cells'] = leniax_utils.make_array_compressible(cells)
 
     leniax_utils.print_config(config)
 
     rng_key = leniax_utils.seed_everything(config['run_params']['seed'])
 
     t0 = time.time()
-    _, best, nb_init_done = leniax_helpers.search_for_init(rng_key, config, fft=True)
-    print(f"Init search done in {time.time() - t0} (nb_inits done: {nb_init_done})")
+    _, best, nb_mut_done = leniax_helpers.search_for_mutation(
+        rng_key, config, nb_scale_for_stability, fft=True, use_init_cells=use_init_cells)
+    print(f"Init search done in {time.time() - t0} (nb_muts done: {nb_mut_done})")
 
     all_cells = best['all_cells'][:int(best['N']), 0]
     stats_dict = {k: v.squeeze() for k, v in best['all_stats'].items()}
@@ -46,9 +57,14 @@ def launch(omegaConf: DictConfig) -> None:
     save_dir = os.getcwd()  # changed by hydra
     leniax_utils.check_dir(save_dir)
 
+    config = best["config"]
     config['run_params']['init_cells'] = leniax_utils.compress_array(all_cells[0])
     config['run_params']['cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
     leniax_utils.save_config(save_dir, config)
+
+    # # Use the following with care, it overwrites the original configuration
+    # if best['N'] == config['run_params']['max_run_iter']:
+    #     leniax_utils.save_config(config_path, config)
 
     print("Dumping assets")
     leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict)
@@ -56,7 +72,3 @@ def launch(omegaConf: DictConfig) -> None:
 
 if __name__ == '__main__':
     launch()
-    # for i in range(49):
-    #     config_path_qd = os.path.join('..', 'outputs', 'good-search-2', str(i))
-    #     decorator = hydra.main(config_path=config_path_qd, config_name="config")
-    #     decorator(launch)()

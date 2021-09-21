@@ -7,7 +7,6 @@ import uuid
 import numpy as np
 import jax.numpy as jnp
 from typing import Dict, Tuple, List
-from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
 import matplotlib.pyplot as plt
 from absl import logging as absl_logging
@@ -24,16 +23,7 @@ from . import video as leniax_video
 cdir = os.path.dirname(os.path.realpath(__file__))
 
 
-def get_container(omegaConf: DictConfig) -> Dict:
-    main_path = ''
-    # We try to get the Hydra main config fullpath
-    try:
-        for source in HydraConfig.get().runtime.config_sources:
-            if source.provider == 'main':
-                main_path = source.path
-    except ValueError:
-        pass
-
+def get_container(omegaConf: DictConfig, main_path: str) -> Dict:
     # TODO: Need to check if missing first
     omegaConf.run_params.code = str(uuid.uuid4())
 
@@ -50,6 +40,7 @@ def get_container(omegaConf: DictConfig) -> Dict:
     # so we can extract primitives to use with other libs
     config = OmegaConf.to_container(omegaConf)
     assert isinstance(config, dict)
+
     config['main_path'] = main_path
 
     if 'scale' not in config['world_params']:
@@ -90,7 +81,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
 
     all_cells_0 = []
     for i in range(nb_init_search):
-        cells_0 = leniax_core.init_cells(world_size, nb_channels, [noises[i]])
+        cells_0 = leniax_core.create_init_cells(world_size, nb_channels, [noises[i]])
         all_cells_0.append(cells_0)
     all_cells_0_jnp = jnp.array(all_cells_0)
 
@@ -108,7 +99,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
             max_run_iter,
             R,
             update_fn,
-            compute_stats_fn,
+            compute_stats_fn
         )
         # https://jax.readthedocs.io/en/latest/async_dispatch.html
         all_stats['N'].block_until_ready()
@@ -121,6 +112,66 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
             best_run = {"N": nb_iter_done, "all_cells": all_cells, "all_stats": all_stats}
 
         if nb_iter_done >= max_run_iter:
+            break
+
+        # print(t1 - t0, nb_iter_done)
+
+    return rng_key, best_run, i
+
+
+MUTATION_RATE = 1e-5
+
+
+def search_for_mutation(
+    rng_key: jnp.ndarray,
+    config: Dict,
+    nb_scale_for_stability: int = 1,
+    fft: bool = True,
+    use_init_cells: bool = True
+) -> Tuple[jnp.ndarray, Dict, int]:
+    render_params = config['render_params']
+    world_size = render_params['world_size']
+
+    run_params = config['run_params']
+    nb_mut_search = run_params['nb_mut_search']
+    max_run_iter = run_params['max_run_iter']
+    best_run = {}
+    current_max = 0
+    for i in range(nb_mut_search):
+        copied_config = copy.deepcopy(config)
+        for gene in config['genotype']:
+            val = leniax_utils.get_param(copied_config, gene['key'])
+            val += np.random.normal(0., MUTATION_RATE)
+            leniax_utils.set_param(copied_config, gene['key'], val)
+
+        total_iter_done = 0
+        nb_iter_done = 0
+        for scale_power in range(nb_scale_for_stability):
+            # t0 = time.time()
+            scaled_config = copy.deepcopy(copied_config)
+            scaled_config['render_params']['world_size'] = [ws * 2**scale_power for ws in world_size]
+            scaled_config['world_params']['scale'] = 2**scale_power
+
+            all_cells, _, _, stats_dict = init_and_run(
+                scaled_config, with_jit=True, fft=fft, use_init_cells=use_init_cells
+            )
+            stats_dict['N'].block_until_ready()
+
+            nb_iter_done = max(nb_iter_done, stats_dict['N'])
+            total_iter_done += stats_dict['N']
+
+        # Current_max at all scale
+        # print(f'total_iter_done: {total_iter_done}')
+        if current_max < total_iter_done:
+            current_max = total_iter_done
+            best_run = {
+                "N": nb_iter_done,
+                "all_cells": all_cells,
+                "all_stats": stats_dict,
+                "config": copied_config,
+            }
+
+        if total_iter_done >= max_run_iter * nb_scale_for_stability:
             break
 
         # print(t1 - t0, nb_iter_done)
@@ -247,21 +298,21 @@ def update_individuals(
         final_cells = ind_final_cells[best_init_idx]
         # print(i, ind_Ns, max_idx)
 
-        config['behaviours'] = {}
-        for k in stats.keys():
-            if k == 'N':
-                continue
-            truncated_stat = stats[k][i, :int(nb_steps), best_init_idx]
-            config['behaviours'][k] = truncated_stat[-128:].mean()
-
+        ind.set_init_cells(leniax_utils.compress_array(cells0))
         ind.set_cells(leniax_utils.compress_array(leniax_utils.center_and_crop_cells(final_cells)))
-        ind.set_init_cells(leniax_utils.compress_array(leniax_utils.center_and_crop_cells(cells0)))
 
         if neg_fitness is True:
             fitness = -nb_steps
         else:
             fitness = nb_steps
         ind.fitness = fitness
+
+        config['behaviours'] = {}
+        for k in stats.keys():
+            if k == 'N':
+                continue
+            truncated_stat = stats[k][i, :int(nb_steps), best_init_idx]
+            config['behaviours'][k] = truncated_stat[-128:].mean()
 
         if 'phenotype' in ind.qd_config:
             features = [leniax_utils.get_param(config, key_string) for key_string in ind.qd_config['phenotype']]
@@ -295,11 +346,10 @@ def process_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
     nb_iter_done = len(all_cells)
     print(f"[{padded_id}] - {nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
 
-    config['run_params']['init_cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[0]))
+    config['run_params']['init_cells'] = leniax_utils.compress_array(all_cells[0])
     config['run_params']['cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
     leniax_utils.save_config(save_dir, config)
 
-    print(f"[{padded_id}] - Dumping assets")
     dump_assets(save_dir, config, all_cells, stats_dict)
 
 
@@ -314,8 +364,8 @@ def dump_assets(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict:
     with open(os.path.join(save_dir, 'stats_dict.p'), 'wb') as f:
         pickle.dump(stats_dict, f)
 
-    with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
-        np.save(f, np.array(all_cells))
+    # with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
+    #     np.save(f, np.array(all_cells))
 
     dump_last_frame(save_dir, all_cells)
 
@@ -330,24 +380,25 @@ def dump_assets(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict:
         leniax_video.dump_gif(output_fullpath)
 
 
-def dump_last_frame(save_dir: str, all_cells: jnp.ndarray, raw: bool = False):
+def dump_last_frame(save_dir: str, all_cells: jnp.ndarray, raw: bool = False, colormap=None):
     """
         Args:
             - save_dir: str
             - all_cells: jnp.ndarray[nb_iter, C, world_dims...]
     """
     last_frame = all_cells[-1]
-    dump_frame(save_dir, 'last_frame', last_frame, raw)
+    dump_frame(save_dir, 'last_frame', last_frame, raw, colormap)
 
 
-def dump_frame(save_dir: str, filename: str, cells: jnp.ndarray, raw: bool = False):
+def dump_frame(save_dir: str, filename: str, cells: jnp.ndarray, raw: bool = False, colormap=None):
     if raw is False:
         cells = leniax_utils.center_and_crop_cells(cells)
+    if colormap is None:
+        colormap = plt.get_cmap('plasma')
 
     with open(os.path.join(save_dir, f"{filename}.p"), 'wb') as f:
         pickle.dump(np.array(cells), f)
 
-    colormap = plt.get_cmap('plasma')
     img = leniax_utils.get_image(cells, 1, 0, colormap)
     with open(os.path.join(save_dir, f"{filename}.png"), 'wb') as f:
         img.save(f, format='png')

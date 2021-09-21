@@ -47,7 +47,8 @@ Look into the TODO file to follow the research and check issues associated with 
 ### Experiments and tooling
 To create an experiments, explore the results and create a collection out of it, follow those steps:
 - Create a folder named 'XXX_my_exp' in the experiments folder and a add a config file
-- Run the experiment 
+- Run the experiment
+- Use the script `python scripts/dump_best.py` to dump all the best solutions
 - Use the script `python ui/prepare_exp_folder.py` to gather all vizualisation data
 - Launch the webserver to classify `python ui.server.py` (go to http://127.0.0.1:5000/classifier.html)
 - Switch the comments in the script `python ui/prepare_exp_folder.py` and run it again to have your categories folder

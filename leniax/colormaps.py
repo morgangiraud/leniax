@@ -29,6 +29,9 @@ class LeniaColormap():
 
         return LeniaColormap(raw_obj['name'], raw_obj['hex_bg_color'], raw_obj['hex_colors'])
 
+    def print_uint8_rgb_colors(self):
+        print(jnp.array(jnp.array(self.cmap.colors) * 255, dtype=jnp.int32)[:, :3].tolist())
+
 
 #######
 

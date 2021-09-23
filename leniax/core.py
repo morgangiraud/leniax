@@ -64,7 +64,6 @@ def load_raw_cells(config: Dict, use_init_cells: bool = True) -> jnp.ndarray:
             with open(os.path.join(config['main_path'], 'last_frame.p'), 'rb') as f:
                 cells = jnp.array(pickle.load(f), dtype=jnp.float32)
         else:
-            # Backward compatibility
             cells = utils.decompress_array(cells, nb_dims + 1)  # we add the channel dim
     elif type(cells) is list:
         cells = jnp.array(cells, dtype=jnp.float32)

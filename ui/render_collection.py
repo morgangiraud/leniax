@@ -41,7 +41,7 @@ def run() -> None:
         # dir_idx = subdir.split('/')[-1]
         # if len(dir_idx) != 5:
         #     continue
-        # to_check = ['11-kaleidium/0400']
+        # to_check = ['02-terrarium/0135']
         # if f"{family_dir_name}/{dir_idx}" not in to_check:
         #     continue
 
@@ -54,7 +54,7 @@ def run() -> None:
             config['render_params']['size_power2'] = 7
             config['render_params']['world_size'] = [128, 128]
             config['world_params']['scale'] = 1.
-            config['run_params']['max_run_iter'] = 1024
+            config['run_params']['max_run_iter'] = 1200
 
             leniax_utils.print_config(config)
 
@@ -178,11 +178,9 @@ consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolor
                 'image':
                 '',
                 'animation_url':
-                'on_chain_url',
+                './on_chain_url',
                 'attributes': [{
                     "value": colormap.name, "trait_type": "Colormap"
-                }, {
-                    "value": family_name, "trait_type": 'Family'
                 }],
                 'config': {
                     'kernels_params': config['kernels_params']['k'],
@@ -247,6 +245,22 @@ consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolor
             viz_data = json.load(f)
         viz_data_stats = viz_data['stats']
 
+        family_dir_name = subdir.split('/')[-2]
+        family_name = family_dir_name.split('-')[-1]
+
+        current_metadata['name'] = f'Lenia #{token_id}'
+        current_metadata['tokenID'] = token_id
+        current_metadata['image'] = f'lenia-{token_id}.gif'
+
+        # We reset metadata attributes to the only attribute that should already be set: Colormap
+        for attribute in current_metadata['attributes']:
+            if attribute['trait_type'] == 'Colormap':
+                current_metadata['attributes'] = [attribute]
+                break
+        current_metadata['attributes'].append({
+            "value": family_name, "trait_type": 'Family'
+        })
+
         all_keys = list(collection_stats.keys())
         attributes_map = {
             'mass_mean': 'Weight',
@@ -291,9 +305,7 @@ consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolor
                 "trait_type": attributes_map[k],
                 "numerical_value": val,
             })
-        current_metadata['name'] = f'Lenia #{token_id}'
-        current_metadata['tokenID'] = token_id
-        current_metadata['image'] = f'lenia-{token_id}.gif'
+
 
         with open(metadata_fullpath, 'w') as f:
             json.dump(current_metadata, f)

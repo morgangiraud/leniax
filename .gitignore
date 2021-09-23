@@ -18,8 +18,9 @@ ui/*
 ui/mosaic/*
 !ui/mosaic/*.py
 !ui/css
-!classifier.html
-!property_editor.html
+!ui/classifier.html
+!ui/engine.js
+!ui/renderer.html
 
 # OSX
 .DS_Store

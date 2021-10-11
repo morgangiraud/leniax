@@ -314,7 +314,7 @@ def merge_cells(cells: jnp.ndarray, other_cells: jnp.ndarray, offset: List[int] 
 
     pads = []
     for i in range(len(cells.shape)):
-        pad_start = int(max((cells.shape[i] - other_cells.shape[i]) // 2 - offset[i], 0))
+        pad_start = int(max((cells.shape[i] - other_cells.shape[i]) // 2 + offset[i], 0))
         pad_end = int(cells.shape[i] - other_cells.shape[i] - pad_start)
 
         pads.append((pad_start, pad_end))
@@ -366,13 +366,34 @@ def crop_zero(kernels: jnp.ndarray) -> jnp.ndarray:
     return cropped_kernels
 
 
-def center_and_crop_cells(cells):
+def auto_center_cells(cells):
     world_size = cells.shape[1:]
     axes = tuple(range(-len(world_size), 0, 1))
 
     midpoint = jnp.asarray([size // 2 for size in world_size])[:, jnp.newaxis, jnp.newaxis]
     coords = jnp.indices(world_size)
     centered_coords = coords - midpoint
+
+    m_00 = cells.sum()
+    MX = [(cells * coord).sum() for coord in centered_coords]
+    mass_centroid = jnp.array(MX) / (m_00 + EPSILON)
+
+    shift_idx = jnp.round(mass_centroid).astype(int).T
+    centered_cells, _, _ = center_world(
+        cells[jnp.newaxis],
+        cells[jnp.newaxis],
+        cells[jnp.newaxis],
+        shift_idx[jnp.newaxis],
+        axes,
+    )
+
+    return centered_cells[0]
+
+
+def center_and_crop_cells(cells):
+    world_size = cells.shape[1:]
+    axes = tuple(range(-len(world_size), 0, 1))
+    midpoint = jnp.asarray([size // 2 for size in world_size])[:, jnp.newaxis, jnp.newaxis]
 
     if len(cells.shape) == 3:
         pre_shift_idx = [0, 0]
@@ -392,19 +413,8 @@ def center_and_crop_cells(cells):
         )
         cells = cells[0]
 
-    m_00 = cells.sum()
-    MX = [(cells * coord).sum() for coord in centered_coords]
-    mass_centroid = jnp.array(MX) / (m_00 + EPSILON)
-
-    shift_idx = jnp.round(mass_centroid).astype(int).T
-    centered_cells, _, _ = center_world(
-        cells[jnp.newaxis],
-        cells[jnp.newaxis],
-        cells[jnp.newaxis],
-        shift_idx[jnp.newaxis],
-        axes,
-    )
-    cells = crop_zero(centered_cells[0])
+    centered_cells = auto_center_cells(cells)
+    cells = crop_zero(centered_cells)
 
     if 0 in cells.shape:
         cells = jnp.zeros([cells.shape[0]] + [1] * (len(cells.shape) - 1))

@@ -47,12 +47,11 @@ def dump_video(
                 framerate=30,
             ).output(
                 output_fullpath,
-                crf=18,
-                preset='slower',
+                preset='slow',
                 movflags='faststart',
                 pix_fmt='yuv420p',
                 **{
-                    'c:v': 'libx264'
+                    'c:v': 'libx264', 'profile:v': 'high'
                 },
             ).overwrite_output().run_async(pipe_stdin=True, quiet=True)
         )

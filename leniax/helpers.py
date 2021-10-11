@@ -357,6 +357,9 @@ def process_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
 # Viz
 ###
 def dump_assets(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict: Dict, colormaps=None):
+    if colormaps is None:
+        colormaps = [plt.get_cmap('plasma')]  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
+
     leniax_utils.plot_stats(save_dir, stats_dict)
 
     plot_kernels(save_dir, config)
@@ -367,13 +370,11 @@ def dump_assets(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict:
     # with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
     #     np.save(f, np.array(all_cells))
 
-    dump_last_frame(save_dir, all_cells)
+    dump_last_frame(save_dir, all_cells, True, colormaps[0])
 
     dump_viz_data(save_dir, stats_dict, config)
 
     render_params = config['render_params']
-    if colormaps is None:
-        colormaps = [plt.get_cmap('plasma')]  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
     all_outputs_fullpath = leniax_video.dump_video(save_dir, all_cells, render_params, colormaps)
 
     for output_fullpath in all_outputs_fullpath:
@@ -396,8 +397,8 @@ def dump_frame(save_dir: str, filename: str, cells: jnp.ndarray, raw: bool = Fal
     if colormap is None:
         colormap = plt.get_cmap('plasma')
 
-    with open(os.path.join(save_dir, f"{filename}.p"), 'wb') as f:
-        pickle.dump(np.array(cells), f)
+    # with open(os.path.join(save_dir, f"{filename}.p"), 'wb') as f:
+    #     pickle.dump(np.array(cells), f)
 
     img = leniax_utils.get_image(cells, 1, 0, colormap)
     with open(os.path.join(save_dir, f"{filename}.png"), 'wb') as f:

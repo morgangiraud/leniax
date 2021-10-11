@@ -25,21 +25,21 @@ def init(config: Dict, fft: bool = True, use_init_cells: bool = True) -> Tuple[j
 
     scale = config['world_params']['scale']
     if scale != 1.:
-        cells = jnp.array([scipy.ndimage.zoom(cells[i], scale, order=2) for i in range(nb_channels)], dtype=jnp.float32)
+        cells = jnp.array([scipy.ndimage.zoom(cells[i], scale, order=0) for i in range(nb_channels)], dtype=jnp.float32)
         config['world_params']['R'] *= scale
 
     # assert cells.shape[1] * 2.2 < config['render_params']['world_size'][0]
     # assert cells.shape[2] * 2.2 < config['render_params']['world_size'][1]
-    # on = round(max(cells.shape[1] * 1.2, cells.shape[2] * 1.2) / 2.)
+    # on = round(max(cells.shape[1] * 1.25, cells.shape[2] * 1.25) / 2.)
     # init_cells = create_init_cells(world_size, nb_channels, [
     #     jnp.rot90(cells, k=2, axes=(1, 2)),
+    #     jnp.rot90(cells, k=1, axes=(1, 2)),
     #     jnp.rot90(cells, k=0, axes=(1, 2)),
     #     jnp.rot90(cells, k=-1, axes=(1, 2)),
-    #     jnp.rot90(cells, k=1, axes=(1, 2))
     # ], [
-    #     [0, on, on],
     #     [0, -on, -on],
     #     [0, -on, on],
+    #     [0, on, on],
     #     [0, on, -on],
     # ])
     init_cells = create_init_cells(world_size, nb_channels, [cells])
@@ -64,7 +64,6 @@ def load_raw_cells(config: Dict, use_init_cells: bool = True) -> jnp.ndarray:
             with open(os.path.join(config['main_path'], 'last_frame.p'), 'rb') as f:
                 cells = jnp.array(pickle.load(f), dtype=jnp.float32)
         else:
-            # Backward compatibility
             cells = utils.decompress_array(cells, nb_dims + 1)  # we add the channel dim
     elif type(cells) is list:
         cells = jnp.array(cells, dtype=jnp.float32)

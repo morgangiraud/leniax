@@ -50,10 +50,10 @@ endif
 # CI
 ###
 yapf:
-	yapf --style tox.ini -r -i leniax/. tests/. scripts/. ui/.
+	yapf --style tox.ini -r -i leniax/. tests/. scripts/. tools/.
 
 lint:
-	flake8 leniax/. tests/. scripts/. ui/.
+	flake8 leniax/. tests/. scripts/. tools/.
 
 typecheck:
 	mypy $(CURRENT_DIR)/leniax $(CURRENT_DIR)/scripts

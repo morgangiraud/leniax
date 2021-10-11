@@ -7,13 +7,13 @@ def load_long_description():
 
 setup(
     name="leniax",
-    version='1.0b',
+    version='1.0',
     python_requires='>=3.7.10',
     description='Lenia using the JAX library',
     url='https://github.com/stockmouton/leniax',
     author='Morgan Giraud',
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
         'Topic :: Scientific/Engineering :: Artificial Intelligence',
         'Programming Language :: Python :: 3.8',

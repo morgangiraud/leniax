@@ -42,19 +42,19 @@ def gauss_bump(x: jnp.ndarray, q: float = 1):
     return out
 
 
-def gauss(x: jnp.ndarray, q: float = 1):
-    out = ((x - q) / (0.3 * q))**2
-    out = jnp.exp(-out / 2)
-
-    return out
-
-
 def step4(x: jnp.ndarray, q: float = 1 / 4):
     return (x >= q) * (x <= 1 - q)
 
 
 def staircase(x: jnp.ndarray, q: float = 1 / 4):
     return (x >= q) * (x <= 1 - q) + (x < q) * 0.5
+
+
+def gauss(x: jnp.ndarray, q: float = 1):
+    out = ((x - q) / (0.3 * q))**2
+    out = jnp.exp(-out / 2)
+
+    return out
 
 
 kernel_core = {0: poly_quad4, 1: gauss_bump, 2: step4, 3: staircase, 4: gauss}

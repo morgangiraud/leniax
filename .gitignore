@@ -11,16 +11,16 @@ experiments/*
 experiments/007_beta_cube_4/*
 !experiments/007_beta_cube_4/config.yaml
 
-## UI
-ui/*
-!ui/*.py
-!ui/mosaic
-ui/mosaic/*
-!ui/mosaic/*.py
-!ui/css
-!ui/classifier.html
-!ui/engine.js
-!ui/renderer.html
+## Tools
+tools/*
+!tools/*.py
+!tools/mosaic
+tools/mosaic/*
+!tools/mosaic/*.py
+!tools/css
+!tools/classifier.html
+!tools/engine.js
+!tools/renderer.html
 
 # OSX
 .DS_Store

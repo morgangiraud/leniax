@@ -2,10 +2,6 @@
 A [Lenia](https://chakazul.github.io/lenia.html) library powered by JAX.
 It also provides a set of tools to search, classify and organize creatures.
 
-```
-Warning: The current library is in beta. It's not yet fully battle-tested!
-```
-
 ## Install
 Install Leniax library with conda (make sure you have it before typing the following command): `make install`
 **Currently, only an OSX environment is provided**

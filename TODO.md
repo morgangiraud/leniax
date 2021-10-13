@@ -49,7 +49,7 @@ The next one is:
 - mass_speed_mean
 
 ## Now
-- Cleanup
+- Scripts to explore all 2-2 combinations of collection 1 Lenia.
 
 ## Maybe next?
 - Explore other kernels

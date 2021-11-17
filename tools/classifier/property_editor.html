@@ -14,7 +14,6 @@
     
 
     d3.json("get_classified_creatures_ids").then( function(creatures) {
-        console.log("biboup");
         const categories = Object.keys(creatures)
         const catButtonsDiv = document.getElementById("cat_buttons")
         for (let index = 0; index < categories.length; index++) {

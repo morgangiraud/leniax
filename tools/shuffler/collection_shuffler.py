@@ -7,7 +7,7 @@
 # - add reaminig files to the list
 # - copy all 3 elements to a folder (metadata.json, 512_video.mp4, 512_gif.gif)
 
-import os 
+import os
 import random
 import json
 import shutil
@@ -28,10 +28,10 @@ reserved_list = [
     "00-genesis/0000",  # DAO
     "05-maelstrom/0084",  # Bert
     "00-genesis/0121",  # Morgan
-    "01-aquarium/00086", # Morgan
-    "07-pulsium/0186", # Morgan
-    "04-ignis/0007", # Alex
-    "01-aquarium/0031", # Alex
+    "01-aquarium/00086",  # Morgan
+    "07-pulsium/0186",  # Morgan
+    "04-ignis/0007",  # Alex
+    "01-aquarium/0031",  # Alex
 ]
 
 creatures_reserved = {}
@@ -46,8 +46,7 @@ for (subdir, dirs, _) in os.walk(collection_dir):
 
     with open(metadata_fullpath, 'r') as f:
         metadata = json.load(f)
-    
-    
+
     colormap_name = ""
     for attr in metadata["attributes"]:
         if attr["trait_type"] == 'Colormap':
@@ -75,7 +74,6 @@ for (subdir, dirs, _) in os.walk(collection_dir):
             is_reserved = True
             break
 
-
     if is_reserved:
         creatures_reserved[str(idx)] = data
     else:
@@ -83,13 +81,12 @@ for (subdir, dirs, _) in os.walk(collection_dir):
 
 random.shuffle(creatures)
 
-
 final_set = [creatures_reserved[str(i)] for i in range(len(reserved_list))] + creatures
 
-assert(len(list(creatures_reserved.values())) == len(reserved_list))
-assert(len(final_set) == 202)
+assert (len(list(creatures_reserved.values())) == len(reserved_list))
+assert (len(final_set) == 202)
 
-if os.path.exists(output_metadata_dir):    
+if os.path.exists(output_metadata_dir):
     shutil.rmtree(output_metadata_dir)
 os.makedirs(output_metadata_dir)
 
@@ -110,7 +107,7 @@ for i, datum in enumerate(final_set):
         for attribute in metadata['attributes']:
             if attribute['trait_type'] == 'Colormap':
                 if '-' in attribute['value']:
-                    attribute['value'] = ' '.join([w.capitalize()  for w in attribute['value'].split('-')])
+                    attribute['value'] = ' '.join([w.capitalize() for w in attribute['value'].split('-')])
                 break
 
         all_metadata.append(metadata)

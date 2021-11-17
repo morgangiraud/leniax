@@ -21,7 +21,8 @@ attributes_names = {
     'mass_mean': ['Fly', 'Feather', 'Welter', 'Cruiser', 'Heavy'],
     'mass_volume_mean': ['Demie', 'Standard', 'Magnum', 'Jeroboam', 'Balthazar'],
     'mass_speed_mean': ['Immovable', 'Unrushed', 'Swift', 'Turbo', 'Flash'],
-    'growth_mean': ['Kiai', 'Kiroku', 'Kiroku', 'Kihaku', 'Hibiki'], # Because there are only 4 variations, I double the second one
+    'growth_mean': ['Kiai', 'Kiroku', 'Kiroku', 'Kihaku',
+                    'Hibiki'],  # Because there are only 4 variations, I double the second one
     'growth_volume_mean': ['Etheric', 'Mental', 'Astral', 'Celestial', 'Spiritual'],
     'mass_density_mean': ['Aluminium', 'Iron', 'Steel', 'Tungsten', 'Vibranium'],
     'mass_growth_dist_mean': ['Kawarimi', 'Shunshin', 'Raiton', 'Hiraishin', 'Kamui'],
@@ -50,7 +51,7 @@ base_gif = [
 with open(os.path.join(cdir, 'fake_metadata.json'), 'r') as f:
     base_metadata = json.load(f)
 
-if os.path.exists(output_metadata_dir):    
+if os.path.exists(output_metadata_dir):
     shutil.rmtree(output_metadata_dir)
 os.makedirs(output_metadata_dir)
 
@@ -71,20 +72,15 @@ for i in range(202):
     metadata['tokenID'] = f"{i}"
     colormap_name = gif_name.split('.')[0]
     if '-' in colormap_name:
-        colormap_name = ' '.join([w.capitalize()  for w in colormap_name.split('-')])
-    metadata['attributes'] = [{
-        "value": colormap_name,
-        "trait_type": "Colormap"
-    }]
+        colormap_name = ' '.join([w.capitalize() for w in colormap_name.split('-')])
+    metadata['attributes'] = [{"value": colormap_name, "trait_type": "Colormap"}]
 
-    for k,v in attributes_names.items():
-        metadata['attributes'].append(
-            {
-                "value": np.random.choice(attributes_names[k], p=[0.1, 0.2, 0.4, 0.2, 0.1]),
-                "trait_type": attributes_map[k],
-                "numerical_value": random.random()
-            }
-        )
+    for k, v in attributes_names.items():
+        metadata['attributes'].append({
+            "value": np.random.choice(attributes_names[k], p=[0.1, 0.2, 0.4, 0.2, 0.1]),
+            "trait_type": attributes_map[k],
+            "numerical_value": random.random()
+        })
 
     all_metadata.append(metadata)
     with open(dst_metadata_path, 'w') as f:

@@ -170,78 +170,48 @@ def hex_to_palette_rgba(hex_bg_color: str, hex_colors: List[str]) -> jnp.ndarray
 colormaps = {
     'alizarin':
     LeniaColormap(
-        'alizarin', "d6c3c9", ["e71d36", "af4319", "772014", "3f220f", "19180a", "485696", "e7e7e7", "f9c784"][::-1]
+        'alizarin', "d6c3c9", ['f9c784', 'e7e7e7', '485696', '19180a', '3f220f', '772014', 'af4319', 'e71d36']
     ),
     'black-white':
     LeniaColormap(
         'black-white', '000000', ['ffffff', 'd9dbe1', 'b6b9c1', '9497a1', '737780', '555860', '393b41', '1f2123'][::-1]
     ),
     'carmine-blue':
-    LeniaColormap(
-        'carmine-blue',
-        '#006eb8',
-        ['#006eb8', '#fff200', '#cc1236'],
-    ),
+    LeniaColormap('carmine-blue', '#006eb8', ['#006eb8', '#fff200', '#cc1236']),
     'cinnamon':
-    LeniaColormap(
-        'cinnamon',
-        '#a7d4e4',
-        ['#a7d4e4', '#71502f', '#fdc57e'],
-    ),
+    LeniaColormap('cinnamon', '#a7d4e4', ['#a7d4e4', '#71502f', '#fdc57e']),
     'city':
     LeniaColormap(
         'city', 'F93943', ['ffa600', 'fff6e6', 'ffca66', '004b63', 'e6f9ff', '66daff', '3a0099', '23005c'][::-1]
     ),
     'golden':
-    LeniaColormap(
-        'golden',
-        '#b6bfc1',
-        ['#b6bfc1', '#253122', '#f3a257'],
-    ),
+    LeniaColormap('golden', '#b6bfc1', ['#b6bfc1', '#253122', '#f3a257']),
     'laurel':
     LeniaColormap(
         'laurel', '381d2a', ['ffbfd7', 'ffe6ef', 'ff80b0', '71bf60', 'eaffe6', '96ff80', 'bffbff', '60b9bf'][::-1]
     ),
     'msdos':
-    LeniaColormap(
-        'msdos',
-        '#0c0786',
-        ['#0c0786', '#7500a8', '#c03b80', '#f79241', '#fcfea4'],
-    ),
+    LeniaColormap('msdos', '#0c0786', ['#0c0786', '#7500a8', '#c03b80', '#f79241', '#fcfea4']),
     'pink-beach':
     LeniaColormap(
         'pink-beach', 'f4777f', ['00429d', '4771b2', '73a2c6', 'a5d5d8', 'ffffe0', 'ffbcaf', 'cf3759', '93003a'][::-1]
     ),
     'rainbow':
-    LeniaColormap(
-        'rainbow',
-        '#000000',
-        ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF'],
-    ),
+    LeniaColormap('rainbow', '#000000', ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF']),
     'rainbow_transparent':
     LeniaColormap(
-        'rainbow_transparent',
-        '',
-        ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF'],
+        'rainbow_transparent', '', ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF']
     ),
     'river-Leaf':
     LeniaColormap(
         'river-Leaf', "80ab82", ["4c5b5c", "ff715b", "f9cb40", "bced09", "2f52e0", "99f7ab", "c5d6d8", "7dcd85"][::-1]
     ),
     'salvia':
-    LeniaColormap(
-        'salvia',
-        '#b6bfc1',
-        ['#b6bfc1', '#051230', '#97acc8'],
-    ),
+    LeniaColormap('salvia', '#b6bfc1', ['#b6bfc1', '#051230', '#97acc8']),
     'summer':
     LeniaColormap(
         'summer', 'ffe000', ['003dc7', '002577', 'e6edff', '6695ff', 'ff9400', '995900', 'fff4e6', 'ffbf66'][::-1]
     ),
     'white-black':
-    LeniaColormap(
-        'white-black',
-        '#ffffff',
-        ['#ffffff', '#000000'],
-    )
+    LeniaColormap('white-black', '#ffffff', ['#ffffff', '#000000'])
 }

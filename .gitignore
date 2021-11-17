@@ -11,17 +11,21 @@ experiments/*
 experiments/007_beta_cube_4/*
 !experiments/007_beta_cube_4/config.yaml
 
-## UI
+## Tools
 tools/*
 !tools/*.py
+!tools/classifier
+!tools/classifier/css
+!tools/classifier.html
+
 !tools/mosaic
 tools/mosaic/*
 !tools/mosaic/*.py
-!tools/css
-!tools/classifier.html
+
 !tools/faker
 tools/faker/*
 !tools/faker/*.py
+
 !tools/shuffler
 tools/shuffler/*
 !tools/shuffler/*.py

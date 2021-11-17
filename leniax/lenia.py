@@ -1,5 +1,4 @@
 import copy
-import jax.numpy as jnp
 from typing import Dict, List, Tuple
 
 from leniax import utils as leniax_utils
@@ -23,7 +22,7 @@ class LeniaIndividual(list):
     fitness: float
     features: List[float]
 
-    def __init__(self, config: Dict, rng_key: jnp.ndarray):
+    def __init__(self, config: Dict, rng_key):
         super().__init__()
 
         self.qd_config = copy.deepcopy(config)

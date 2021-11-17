@@ -1,6 +1,6 @@
 import os
 import pickle
-import jax
+import functools
 from jax import vmap, lax, jit
 import jax.numpy as jnp
 import scipy
@@ -174,7 +174,7 @@ def run(
     return all_cells_jnp, all_fields_jnp, all_potentials_jnp, stats_dict
 
 
-@jax.partial(jit, static_argnums=(5, 6, 7, 8))
+@functools.partial(jit, static_argnums=(5, 6, 7, 8))
 def run_scan(
     cells0: jnp.ndarray,
     K: jnp.ndarray,
@@ -234,8 +234,8 @@ def run_scan(
     return ys['cells'], ys['field'], ys['potential'], ys['stats']
 
 
-@jax.partial(jit, static_argnums=(5, 6, 7, 8))
-@jax.partial(vmap, in_axes=(0, 0, 0, 0, 0, None, None, None, None), out_axes=0)
+@functools.partial(jit, static_argnums=(5, 6, 7, 8))
+@functools.partial(vmap, in_axes=(0, 0, 0, 0, 0, None, None, None, None), out_axes=0)
 def run_scan_mem_optimized(
     cells0: jnp.ndarray,
     K: jnp.ndarray,

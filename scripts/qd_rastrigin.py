@@ -3,7 +3,7 @@ import psutil
 from absl import logging
 from omegaconf import DictConfig
 import hydra
-import jax
+import functools
 import jax.numpy as jnp
 import pickle
 import math
@@ -78,7 +78,7 @@ def run(omegaConf: DictConfig) -> None:
     # See https://stackoverflow.com/questions/40217873/multiprocessing-use-only-the-physical-cores
     n_workers = psutil.cpu_count(logical=False) - 1
     nb_iter = config['algo']['budget'] // (batch_size * len(emitters))
-    eval_fn = jax.partial(leniax_qd.eval_debug, neg_fitness=True)
+    eval_fn = functools.partial(leniax_qd.eval_debug, neg_fitness=True)
     metrics = leniax_qd.run_qd_search(eval_fn, nb_iter, lenia_generator, optimizer, fitness_domain, log_freq, n_workers)
 
     # Save results

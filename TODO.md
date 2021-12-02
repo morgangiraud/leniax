@@ -48,15 +48,24 @@ To handle them nicely in the QD search, it's good that the heuristics bound them
 The next one is:
 - mass_speed_mean
 
-## Now
-- Scripts to explore all 2-2 combinations of collection 1 Lenia.
+## Todo
+- Check the total variation of a centered Lenia, see if we can create perfect loops
+    - This could be the step to create fake Lenia in 3D
+- Descendants search
+    - Build an analysis tool
+- Look for better heuristics to choose potential candidate creature
+    - Add heuristic for static species (no speed & no inertia change)
+    - For heuristics, add that each channel should be within mass bounds separately
+- TPU capability
 
 ## Maybe next?
 - Explore other kernels
-- Add heuristic for static species (no speed & no inertia change)
-- For heuristics, add that each channel should be within mass bounds separately
 - Move on to 3d behaviours? 
     - Dump cdf of all fitness, behaviours and genome
-- define a qd state
-- save/load qd search states
--  Go beyond perlin noise with simplex noise ? (https://www.bit-101.com/blog/2021/07/perlin-vs-simplex/)
+- Improve QD search (currentlly multi emitters CMA-ME https://arxiv.org/pdf/2007.05352.pdf)
+    - define a qd state
+    - save/load qd search states
+    - https://arxiv.org/pdf/2109.05489.pdf ?
+- Explore new init schemes
+    -  Go beyond perlin noise with simplex noise ? (https://www.bit-101.com/blog/2021/07/perlin-vs-simplex/)
+- GPU renderer

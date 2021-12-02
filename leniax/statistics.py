@@ -1,3 +1,4 @@
+import functools
 import jax
 import jax.numpy as jnp
 from jax import jit
@@ -106,7 +107,7 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
 ###
 # Heuristics
 ###
-@jax.partial(jit, static_argnums=(1, ))
+@functools.partial(jit, static_argnums=(1, ))
 def check_heuristics(stats: Dict[str, jnp.ndarray], R: float, dt: jnp.ndarray):
     def fn(carry, stat_t):
         should_continue = carry['should_continue']

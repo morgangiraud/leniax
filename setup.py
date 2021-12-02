@@ -26,8 +26,8 @@ setup(
         'hydra-core>=1.1.0',
         'ribs>=0.4.0',
         'ffmpeg-python>=0.2.0', 
-        'jax>=0.2.17', 
-        'jaxlib>=0.1.67',
+        'jax>=0.2.25', 
+        'jaxlib>=0.1.69',
         'PyYAML>=0.2.5'
     ]
 )

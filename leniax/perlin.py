@@ -3,6 +3,7 @@ Source code taken directly from: https://github.com/pvigier/perlin-numpy/blob/ma
 and adapted to jax by Morgan Giraud
 """
 
+import functools
 import jax
 import jax.numpy as jnp
 from typing import Tuple
@@ -12,7 +13,7 @@ def interpolant(t):
     return t * t * t * (t * (t * 6 - 15) + 10)
 
 
-@jax.partial(jax.jit, static_argnums=(1, 2, 3, 4))
+@functools.partial(jax.jit, static_argnums=(1, 2, 3, 4))
 def generate_perlin_noise_2d(
     angles: jnp.ndarray,
     shape: Tuple[int, int],

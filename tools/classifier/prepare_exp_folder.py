@@ -6,8 +6,8 @@ from shutil import copyfile
 from leniax import utils as leniax_utils
 
 cdir = os.path.dirname(os.path.realpath(__file__))
-experiments_dir = os.path.join(cdir, '..', 'experiments')
-exp_dir = os.path.join(experiments_dir, '007_extended_6')
+experiments_dir = os.path.join(cdir, '..', '..', 'experiments')
+exp_dir = os.path.join(experiments_dir, '013_descendants')
 exp_viz_dir = os.path.join(exp_dir, 'viz_data')
 
 collection_name = 'collection-02'

@@ -13,11 +13,9 @@ import leniax.qd as leniax_qd
 logging.set_verbosity(logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
-# config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
-# config_name = "config_init_search"
-
-config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '99-ko', '0035-ko')
-config_name = "config"
+config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
+config_name = "config_init_search"
+# config_name = "config"
 
 
 @hydra.main(config_path=config_path, config_name=config_name)

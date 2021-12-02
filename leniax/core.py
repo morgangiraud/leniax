@@ -1,7 +1,7 @@
 import os
 import pickle
 import functools
-from jax import vmap, lax, jit
+from jax import vmap, pmap, lax, jit
 import jax.numpy as jnp
 import scipy
 from typing import Callable, List, Dict, Tuple
@@ -186,6 +186,17 @@ def run_scan(
     update_fn: Callable,
     compute_stats_fn: Callable
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict[str, jnp.ndarray]]:
+    """
+        Args:
+            - cells0:                       jnp.ndarray[N_init, nb_channels, world_dims...]
+            - K:
+                fft:                        jnp.ndarray[1, nb_channels, max_k_per_channel, K_dims...]
+                raw:                        jnp.ndarray[nb_channels * max_k_per_channel, 1, K_dims...]
+            - gfn_params:                   jnp.ndarray[nb_kernels, nb_gfn_params]
+            - kernels_weight_per_channel:   jnp.ndarray[nb_channels, nb_kernels]
+            - T:                            jnp.ndarray[1]
+    """
+
     N = cells0.shape[0]
     nb_world_dims = cells0.ndim - 2
 
@@ -249,11 +260,83 @@ def run_scan_mem_optimized(
 ) -> Tuple[Dict[str, jnp.ndarray], jnp.ndarray]:
     """
         Args:
-            - cells0: jnp.ndarray[N, nb_channels, world_dims...]
-            - K: jnp.ndarray[max_k_per_channel, nb_kernels * nb_channels, K_dims...]
-            - gfn_params: jnp.ndarray[N, nb_kernels, 2]
-            - kernels_weight_per_channel: jnp.ndarray[N, nb_channels, nb_kernels]
-            - T: jnp.ndarray[N]
+            - cells0:                       jnp.ndarray[N_sols, N_init, nb_channels, world_dims...]
+            - K:
+                fft:                        jnp.ndarray[N_sols, 1, nb_channels, max_k_per_channel, K_dims...]
+                raw:                        jnp.ndarray[N_sols, nb_channels * max_k_per_channel, 1, K_dims...]
+            - gfn_params:                   jnp.ndarray[N_sols, nb_kernels, nb_gfn_params]
+            - kernels_weight_per_channel:   jnp.ndarray[N_sols, nb_channels, nb_kernels]
+            - T:                            jnp.ndarray[N_sols]
+    """
+    N = cells0.shape[0]
+    nb_world_dims = cells0.ndim - 2
+
+    def fn(carry, x):
+        cells, K, gfn_params, kernels_weight_per_channel, T = carry['fn_params']
+        new_cells, field, potential = update_fn(cells, K, gfn_params, kernels_weight_per_channel, 1. / T)
+
+        stat_props = carry['stats_properties']
+        total_shift_idx = stat_props['total_shift_idx']
+        mass_centroid = stat_props['mass_centroid']
+        mass_angle = stat_props['mass_angle']
+        stats, total_shift_idx, mass_centroid, mass_angle = compute_stats_fn(
+            cells, field, potential, total_shift_idx, mass_centroid, mass_angle
+        )
+
+        new_carry = {
+            'fn_params': (new_cells, K, gfn_params, kernels_weight_per_channel, T),
+            'stats_properties': {
+                'total_shift_idx': total_shift_idx,
+                'mass_centroid': mass_centroid,
+                'mass_angle': mass_angle,
+            }
+        }
+
+        return new_carry, stats
+
+    total_shift_idx = jnp.zeros([N, nb_world_dims], dtype=jnp.int32)
+    mass_centroid = jnp.zeros([nb_world_dims, N])
+    mass_angle = jnp.zeros([N])
+    init_carry = {
+        'fn_params': (cells0, K, gfn_params, kernels_weight_per_channel, T),
+        'stats_properties': {
+            'total_shift_idx': total_shift_idx,
+            'mass_centroid': mass_centroid,
+            'mass_angle': mass_angle,
+        }
+    }
+
+    final_carry, stats = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
+
+    final_cells = final_carry['fn_params'][0]
+
+    continue_stat = leniax_stat.check_heuristics(stats, R, 1. / T)
+    stats['N'] = continue_stat.sum(axis=0)
+
+    return stats, final_cells
+
+
+@functools.partial(pmap, in_axes=(0, 0, 0, 0, 0, None, None, None, None), out_axes=0, static_broadcasted_argnums=(5, 6, 7, 8))
+def run_scan_mem_optimized_pmap(
+    cells0: jnp.ndarray,
+    K: jnp.ndarray,
+    gfn_params: jnp.ndarray,
+    kernels_weight_per_channel: jnp.ndarray,
+    T: jnp.ndarray,
+    max_run_iter: int,
+    R: float,
+    update_fn: Callable,
+    compute_stats_fn: Callable
+) -> Tuple[Dict[str, jnp.ndarray], jnp.ndarray]:
+    """
+        Args:
+            - cells0:                       jnp.ndarray[N_sols, N_init, nb_channels, world_dims...]
+            - K:
+                fft:                        jnp.ndarray[N_sols, 1, nb_channels, max_k_per_channel, K_dims...]
+                raw:                        jnp.ndarray[N_sols, nb_channels * max_k_per_channel, 1, K_dims...]
+            - gfn_params:                   jnp.ndarray[N_sols, nb_kernels, nb_gfn_params]
+            - kernels_weight_per_channel:   jnp.ndarray[N_sols, nb_channels, nb_kernels]
+            - T:                            jnp.ndarray[N_sols]
     """
     N = cells0.shape[0]
     nb_world_dims = cells0.ndim - 2

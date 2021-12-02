@@ -194,7 +194,7 @@ def run_scan(
                 raw:                        jnp.ndarray[nb_channels * max_k_per_channel, 1, K_dims...]
             - gfn_params:                   jnp.ndarray[nb_kernels, nb_gfn_params]
             - kernels_weight_per_channel:   jnp.ndarray[nb_channels, nb_kernels]
-            - T:                            jnp.ndarray[1]
+            - T:                            jnp.ndarray[]
     """
 
     N = cells0.shape[0]
@@ -317,6 +317,7 @@ def run_scan_mem_optimized(
 
 
 @functools.partial(pmap, in_axes=(0, 0, 0, 0, 0, None, None, None, None), out_axes=0, static_broadcasted_argnums=(5, 6, 7, 8))
+@functools.partial(vmap, in_axes=(0, 0, 0, 0, 0, None, None, None, None), out_axes=0)
 def run_scan_mem_optimized_pmap(
     cells0: jnp.ndarray,
     K: jnp.ndarray,
@@ -330,13 +331,13 @@ def run_scan_mem_optimized_pmap(
 ) -> Tuple[Dict[str, jnp.ndarray], jnp.ndarray]:
     """
         Args:
-            - cells0:                       jnp.ndarray[N_sols, N_init, nb_channels, world_dims...]
+            - cells0:                       jnp.ndarray[N_device, N_sols, N_init, nb_channels, world_dims...]
             - K:
-                fft:                        jnp.ndarray[N_sols, 1, nb_channels, max_k_per_channel, K_dims...]
-                raw:                        jnp.ndarray[N_sols, nb_channels * max_k_per_channel, 1, K_dims...]
-            - gfn_params:                   jnp.ndarray[N_sols, nb_kernels, nb_gfn_params]
-            - kernels_weight_per_channel:   jnp.ndarray[N_sols, nb_channels, nb_kernels]
-            - T:                            jnp.ndarray[N_sols]
+                fft:                        jnp.ndarray[N_device, N_sols, 1, nb_channels, max_k_per_channel, K_dims...]
+                raw:                        jnp.ndarray[N_device, N_sols, nb_channels * max_k_per_channel, 1, K_dims...]
+            - gfn_params:                   jnp.ndarray[N_device, N_sols, nb_kernels, nb_gfn_params]
+            - kernels_weight_per_channel:   jnp.ndarray[N_device, N_sols, nb_channels, nb_kernels]
+            - T:                            jnp.ndarray[N_device, N_sols]
     """
     N = cells0.shape[0]
     nb_world_dims = cells0.ndim - 2

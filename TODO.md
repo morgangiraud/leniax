@@ -56,7 +56,6 @@ The next one is:
 - Look for better heuristics to choose potential candidate creature
     - Add heuristic for static species (no speed & no inertia change)
     - For heuristics, add that each channel should be within mass bounds separately
-- TPU capability
 
 ## Maybe next?
 - Explore other kernels

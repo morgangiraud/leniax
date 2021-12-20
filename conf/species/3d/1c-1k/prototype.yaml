@@ -3,7 +3,10 @@ world_params:
   R: 13
   T: 10
   nb_channels: 1
-  nb_dims: 2
+  nb_dims: 3
+  scale: 1.0
+  update_fn_version: v1
+  weighted_average: true
 
 # Lenia kernels parameters
 kernels_params:
@@ -22,17 +25,17 @@ kernels_params:
 # Parameters sampled by the QD algorithm.
 genotype:
 - domain:
-  - 0.0
-  - 1.0
+  - 0.1
+  - 0.6
   key: kernels_params.k.0.m
   type: float
 - domain:
   - 0.0
-  - 0.75
+  - 0.1
   key: kernels_params.k.0.s
   type: float
 
-# Lenia properties used as a phenotype (parameters of behavioral statistics)
+# Lenia properties used as a phenotype (parameters or behavioral statistics)
 phenotype:
 - kernels_params.k.0.m
 - kernels_params.k.0.s
@@ -43,7 +46,7 @@ grid:
   - - 0.0
     - 1.0
   - - 0.0
-    - 0.75
+    - 1.0
   shape:
   - 20
   - 20
@@ -72,10 +75,11 @@ render_params:
   pixel_border_size: 0
   pixel_size: 1
   pixel_size_power2: 1
-  size_power2: 7
+  size_power2: 6
   world_size:
-  - 128
-  - 128
+  - 64
+  - 64
+  - 64
 
 # Generic configuration parameters
 other:

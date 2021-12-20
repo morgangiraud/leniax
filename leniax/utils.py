@@ -371,7 +371,7 @@ def auto_center_cells(cells):
     world_size = cells.shape[1:]
     axes = tuple(range(-len(world_size), 0, 1))
 
-    midpoint = jnp.asarray([size // 2 for size in world_size])[:, jnp.newaxis, jnp.newaxis]
+    midpoint = jnp.expand_dims(jnp.asarray([size // 2 for size in world_size]), axis=axes)
     coords = jnp.indices(world_size)
     centered_coords = coords - midpoint
 
@@ -394,25 +394,24 @@ def auto_center_cells(cells):
 def center_and_crop_cells(cells):
     world_size = cells.shape[1:]
     axes = tuple(range(-len(world_size), 0, 1))
-    midpoint = jnp.asarray([size // 2 for size in world_size])[:, jnp.newaxis, jnp.newaxis]
+    midpoint = jnp.expand_dims(jnp.asarray([size // 2 for size in world_size]), axis=axes)
 
-    if len(cells.shape) == 3:
-        pre_shift_idx = [0, 0]
-        check_height_zero = ~jnp.all(cells == 0, axis=(0, 2))
-        if check_height_zero[0] and check_height_zero[-1] and not check_height_zero.prod():
-            pre_shift_idx[0] = int(midpoint[0])
-        check_width_zero = ~jnp.all(cells == 0, axis=(0, 1))
-        if check_width_zero[0] and check_width_zero[-1] and not check_width_zero.prod():
-            pre_shift_idx[1] = int(midpoint[1])
+    pre_shift_idx = [0] * len(world_size)
+    for i in range(0, len(world_size)):
+        axes_to_colapse = list(range(len(world_size) + 1))
+        axes_to_colapse.pop(i + 1)
+        check_zero = ~jnp.all(cells == 0, axis=axes_to_colapse)
+        if check_zero[0] and check_zero[-1] and not check_zero.prod():
+            pre_shift_idx[i] = int(midpoint[0])
 
-        cells, _, _ = center_world(
-            cells[jnp.newaxis],
-            cells[jnp.newaxis],
-            cells[jnp.newaxis],
-            jnp.array(pre_shift_idx)[jnp.newaxis],
-            axes,
-        )
-        cells = cells[0]
+    cells, _, _ = center_world(
+        cells[jnp.newaxis],  # Adding the batch axis
+        cells[jnp.newaxis],
+        cells[jnp.newaxis],
+        jnp.array(pre_shift_idx)[jnp.newaxis],
+        axes,
+    )
+    cells = cells[0]
 
     centered_cells = auto_center_cells(cells)
     cells = crop_zero(centered_cells)
@@ -495,33 +494,46 @@ def save_images(
 
 
 def get_image(cells_buffer: jnp.ndarray, pixel_size: int, pixel_border_size: int, colormap):
-    c, h, w = cells_buffer.shape
+    c = cells_buffer.shape[0]
+    nb_dims = len(cells_buffer.shape) - 1
+
     if pixel_size != 1:
-        cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=1)
-        cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=2)
+        for i in range(nb_dims):
+            cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=i + 1)
 
     zero = 0
     for i in range(pixel_border_size):
-        cells_buffer[:, i::pixel_size, :] = zero
-        cells_buffer[:, :, i::pixel_size] = zero
+        if nb_dims == 2:
+            cells_buffer[:, i::pixel_size, :] = zero
+            cells_buffer[:, :, i::pixel_size] = zero
+        elif nb_dims == 3:
+            cells_buffer[:, i::pixel_size, :, :] = zero
+            cells_buffer[:, :, i::pixel_size, :] = zero
+            cells_buffer[:, :, :, i::pixel_size] = zero
 
-    if c == 3:
-        cells_uint8 = np.uint8(cells_buffer * 255)
-        cells_uint8 = np.transpose(cells_uint8, (1, 2, 0))  # type: ignore
-        final_img = Image.fromarray(cells_uint8)
+    if nb_dims == 2:
+        if c == 3:
+            cells_uint8 = np.uint8(cells_buffer * 255)
+            cells_uint8 = np.transpose(cells_uint8, (1, 2, 0))  # type: ignore
+            final_img = Image.fromarray(cells_uint8)
+        else:
+            img = colormap(cells_buffer[0])  # the colormap is applied to each channel, we just merge them
+            rgba_uint8 = (img * 255).astype(jnp.uint8)
+            final_img = Image.fromarray(rgba_uint8, 'RGBA')
+    elif nb_dims == 3:
+        fig = plt.figure()
+        ax = fig.gca()
+        ax.axis('off')
+        fig.tight_layout(pad=0)
+        ax.margins(0)
+        colors = plt.get_cmap('viridis')(cells_buffer)
+        colors[:, :, :, 3] = 0.5
+        ax.voxels(cells_buffer, facecolors=colors)
+        fig.canvas.draw()
+        image_from_plot = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        final_img = image_from_plot.reshape(fig.canvas.get_width_height()[::-1] + (3, ))
     else:
-        img = colormap(cells_buffer)  # the colormap is applied to each channel, we just merge them
-        rgba_uint8 = (img[0] * 255).astype(jnp.uint8)
-        final_img = Image.fromarray(rgba_uint8, 'RGBA')
-        # if
-        # blank_img = np.zeros_like(img[0, :, :, :3]).astype(jnp.uint8)
-        # final_img = Image.fromarray(blank_img)
-        # for i in range(img.shape[0]):
-        #     other_img = Image.fromarray((img[i, :, :, :3] * 255).astype(jnp.uint8))
-        #     if i == 0:
-        #         final_img = Image.blend(final_img, other_img, alpha=1.)
-        #     else:
-        #         final_img = Image.blend(final_img, other_img, alpha=0.5)
+        raise ValueError("nb_dims > 3 not supported")
 
     return final_img
 

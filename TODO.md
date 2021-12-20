@@ -68,3 +68,4 @@ The next one is:
 - Explore new init schemes
     -  Go beyond perlin noise with simplex noise ? (https://www.bit-101.com/blog/2021/07/perlin-vs-simplex/)
 - GPU renderer
+- Could we use something like Townscaper to create insane island 3d gallery?

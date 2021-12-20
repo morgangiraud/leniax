@@ -13,11 +13,11 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
     R = world_params['R']
     dt = 1. / world_params['T']
 
-    midpoint = jnp.asarray([size // 2 for size in world_size])[:, jnp.newaxis, jnp.newaxis]
-    coords = jnp.indices(world_size)
-    centered_coords = coords - midpoint  # [nb_dims, H, W]
-    non_batch_dims = tuple(range(1, 1 + 1 + len(world_size), 1))
     axes = tuple(range(-len(world_size), 0, 1))
+    midpoint = jnp.expand_dims(jnp.asarray([size // 2 for size in world_size]), axis=axes)
+    coords = jnp.indices(world_size)
+    centered_coords = coords - midpoint  # [nb_dims, H, W, ...]
+    non_batch_dims = tuple(range(1, 1 + 1 + len(world_size), 1))
 
     @jit
     def compute_stats(cells, field, potential, previous_total_shift_idx, previous_mass_centroid, previous_mass_angle):

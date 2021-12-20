@@ -71,9 +71,6 @@ def get_kernels_and_mapping(kernels_params: List,
         and keep track of the kernel graph in mapping:
         - Each kernel is applied to one channel and the result is added to one other channel
     """
-    if fft is True and len(world_size) > 2:
-        raise ValueError("fft cannot be used to compute the update for world in more than 2D")
-
     kernels_list = []
     mapping = KernelMapping(nb_channels, len(kernels_params))
     # We need to sort those kernels_params to make sure kernels_weight_per_channel is in the right order
@@ -117,8 +114,10 @@ def get_kernels_and_mapping(kernels_params: List,
     mapping.true_channels = jnp.concatenate(true_channels)
 
     if fft is True:
+        axes = list(range(-1, -len(world_size) - 1, -1))
         K = jnp.stack(kernels_per_channel)[jnp.newaxis, :, :, 0, ...]  # [1, nb_channels, max_k_per_channel, H, W]
-        K = jnp.fft.fft2(jnp.fft.fftshift(K, axes=(-2, -1)), axes=(-2, -1))
+        K = jnp.fft.fftshift(K, axes=axes)
+        K = jnp.fft.fftn(K, axes=axes)
         assert K.shape[0] == 1
         assert K.shape[1] == nb_channels
         assert K.shape[2] == max_k_per_channel

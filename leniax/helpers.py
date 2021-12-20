@@ -79,6 +79,9 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
     else:
         raise ValueError('update_fn_version {update_fn_version} does not exist')
 
+    if nb_channels > 1:
+        noises = jnp.repeat(noises, nb_channels, axis=1)
+
     all_cells_0 = []
     for i in range(nb_init_search):
         cells_0 = leniax_core.create_init_cells(world_size, nb_channels, [noises[i]])

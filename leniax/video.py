@@ -18,7 +18,7 @@ def dump_video(
         prefix = 'beast'
 
     nb_iter_done = len(all_cells)
-    width = all_cells[0].shape[-1] * render_params['pixel_size']
+    width = all_cells[0].shape[-1] * render_params['pixel_size'] * all_cells.shape[1]
     height = all_cells[0].shape[-2] * render_params['pixel_size']
 
     all_outputs_fullpath = []

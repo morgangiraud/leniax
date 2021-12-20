@@ -517,8 +517,10 @@ def get_image(cells_buffer: jnp.ndarray, pixel_size: int, pixel_border_size: int
             cells_uint8 = np.transpose(cells_uint8, (1, 2, 0))  # type: ignore
             final_img = Image.fromarray(cells_uint8)
         else:
-            img = colormap(cells_buffer[0])  # the colormap is applied to each channel, we just merge them
-            rgba_uint8 = (img * 255).astype(jnp.uint8)
+            img = colormap(cells_buffer)  # the colormap is applied to each channel, we just merge them
+            img_shape = list(img.shape[1:])
+            img_shape[1] *= img.shape[0]
+            rgba_uint8 = np.uint8(img * 255).transpose(1, 0, 2, 3).reshape(img_shape)
             final_img = Image.fromarray(rgba_uint8, 'RGBA')
     elif nb_dims == 3:
         fig = plt.figure()

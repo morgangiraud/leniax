@@ -14,10 +14,10 @@ absl_logging.set_verbosity(absl_logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 
-# config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '1c-1k')
-# config_name = "orbium"
-config_path = os.path.join(cdir, '..', 'conf', 'species', '3d', '1c-1k')
-config_name = "prototype"
+config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '1c-1k')
+config_name = "orbium"
+# config_path = os.path.join(cdir, '..', 'conf', 'species', '3d', '1c-1k')
+# config_name = "prototype"
 
 # config_path = os.path.join(cdir, '..', 'outputs', 'tmp')
 # config_name = "config"

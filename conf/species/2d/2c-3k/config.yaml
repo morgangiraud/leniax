@@ -1,6 +1,6 @@
 world_params:
   nb_dims: 2
-  nb_channels: 1
+  nb_channels: 2
   R: 13
   T: 10
   scale: 1.0
@@ -21,8 +21,8 @@ kernels_params:
       c_out: 0
     - r: 1
       b: '1'
-      m: 0.15
-      s: 0.015
+      m: 0.12
+      s: 0.01
       h: 1
       k_id: 0
       q: 4
@@ -31,8 +31,8 @@ kernels_params:
       c_out: 0
     - r: 1
       b: '1'
-      m: 0.15
-      s: 0.015
+      m: 0.18
+      s: 0.005
       h: 1
       k_id: 0
       q: 4

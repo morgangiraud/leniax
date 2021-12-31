@@ -10,9 +10,8 @@ import leniax.helpers as leniax_helpers
 logging.set_verbosity(logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
-config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
-config_name = "config_init_search"
-# config_name = "config"
+config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '2c-3k')
+config_name = "config"
 
 
 @hydra.main(config_path=config_path, config_name=config_name)

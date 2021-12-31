@@ -57,7 +57,7 @@ class TestUtils(unittest.TestCase):
         with open(yaml_fullpath, 'w') as f:
             yaml.dump({'cells': st}, f)
         with open(yaml_fullpath, 'r') as f:
-            st_loads = yaml.load(f)['cells']
+            st_loads = yaml.safe_load(f)['cells']
         os.remove(yaml_fullpath)
         cells_out = leniax_utils.decompress_array(st_loads, 1)
 

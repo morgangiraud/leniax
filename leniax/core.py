@@ -60,7 +60,9 @@ def load_raw_cells(config: Dict, use_init_cells: bool = True) -> jnp.ndarray:
     else:
         cells = config['run_params']['cells']
     if type(cells) is str:
-        if cells == 'last_frame.p':
+        if cells == 'MISSING':
+            cells = jnp.array([])
+        elif cells == 'last_frame.p':
             with open(os.path.join(config['main_path'], 'last_frame.p'), 'rb') as f:
                 cells = jnp.array(pickle.load(f), dtype=jnp.float32)
         else:
@@ -83,13 +85,17 @@ def create_init_cells(
     """
     world_shape = [nb_channels] + world_size  # [C, world_dims...]
     cells = jnp.zeros(world_shape)
-    if other_cells is not None:
+    if isinstance(other_cells, list):
         if len(offsets) == len(other_cells):
             for c, offset in zip(other_cells, offsets):
-                cells = utils.merge_cells(cells, c, offset)
+                if len(c) != 0:
+                    cells = utils.merge_cells(cells, c, offset)
         else:
             for c in other_cells:
-                cells = utils.merge_cells(cells, c)
+                if len(c) != 0:
+                    cells = utils.merge_cells(cells, c)
+    else:
+        raise ValueError(f'Don\'t know how to handle {type(other_cells)}')
 
     cells = cells[jnp.newaxis, ...]
 
@@ -190,8 +196,8 @@ def run_scan(
         Args:
             - cells0:                       jnp.ndarray[N_init, nb_channels, world_dims...]
             - K:
-                fft:                        jnp.ndarray[1, nb_channels, max_k_per_channel, K_dims...]
-                raw:                        jnp.ndarray[nb_channels * max_k_per_channel, 1, K_dims...]
+                - fft:                      jnp.ndarray[1, nb_channels, max_k_per_channel, K_dims...]
+                - raw:                      jnp.ndarray[nb_channels * max_k_per_channel, 1, K_dims...]
             - gfn_params:                   jnp.ndarray[nb_kernels, nb_gfn_params]
             - kernels_weight_per_channel:   jnp.ndarray[nb_channels, nb_kernels]
             - T:                            jnp.ndarray[]
@@ -316,7 +322,9 @@ def run_scan_mem_optimized(
     return stats, final_cells
 
 
-@functools.partial(pmap, in_axes=(0, 0, 0, 0, 0, None, None, None, None), out_axes=0, static_broadcasted_argnums=(5, 6, 7, 8))
+@functools.partial(
+    pmap, in_axes=(0, 0, 0, 0, 0, None, None, None, None), out_axes=0, static_broadcasted_argnums=(5, 6, 7, 8)
+)
 @functools.partial(vmap, in_axes=(0, 0, 0, 0, 0, None, None, None, None), out_axes=0)
 def run_scan_mem_optimized_pmap(
     cells0: jnp.ndarray,
@@ -439,6 +447,8 @@ def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: jnp.nda
     if fft is True:
         max_k_per_channel = kernel_shape[1]
         C = kernel_shape[2]
+        nb_dims = len(kernel_shape) - 3
+        axes = list(range(-1, -nb_dims - 1, -1))
 
         def get_potential(cells: jnp.ndarray, K: jnp.ndarray) -> jnp.ndarray:
             """
@@ -448,11 +458,9 @@ def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: jnp.nda
 
                 The first dimension of cells and K is the vmap dimension
             """
-            fft_cells = jnp.fft.fft2(cells, axes=(-2, -1))[:, :, jnp.newaxis, ...]  # [N, nb_channels, 1, world_dims...]
+            fft_cells = jnp.fft.fftn(cells, axes=axes)[:, :, jnp.newaxis, ...]  # [N, nb_channels, 1, world_dims...]
             fft_out = fft_cells * K
-            conv_out = jnp.real(
-                jnp.fft.ifft2(fft_out, axes=(-2, -1))
-            )  # [N, nb_channels, max_k_per_channel, world_dims...]
+            conv_out = jnp.real(jnp.fft.ifftn(fft_out, axes=axes))  # [N, nb_channels, max_k_per_channel, world_dims...]
 
             world_shape = cells.shape[2:]
             final_shape = (-1, max_k_per_channel * C) + world_shape

@@ -14,8 +14,17 @@ absl_logging.set_verbosity(absl_logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 
-config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
+config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '1c-1k')
 config_name = "orbium"
+config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '3c-15k')
+config_name = "aquarium"
+# config_path = os.path.join(cdir, '..', 'conf', 'species', '3d', '1c-1k')
+# config_name = "prototype"
+
+# config_path = os.path.join(cdir, '..', 'experiments', '014_2channels_1hidden', 'run-b[1.0]', 'c-0013')
+# config_path = os.path.join(cdir, '..', 'experiments', '014_2channels_1hidden', 'run-b[1.0]', 'c-0078')
+# config_path = os.path.join(cdir, '..', 'experiments', '014_2channels_1hidden', 'run-b[1.0]', 'c-0058')
+# config_name = "config"
 
 # config_path = os.path.join(cdir, '..', 'outputs', 'tmp')
 # config_name = "config"
@@ -35,8 +44,8 @@ def run(omegaConf: DictConfig) -> None:
     # config['render_params']['size_power2'] = 7
     # config['render_params']['world_size'] = [1024, 1024]
     # config['world_params']['scale'] = 8.
-    # config['run_params']['max_run_iter'] = 300
-    # use_init_cells = False
+    config['run_params']['max_run_iter'] = 512
+    use_init_cells = True
 
     if to_hd is True:
         config = leniax_utils.update_config_to_hd(config)
@@ -46,7 +55,7 @@ def run(omegaConf: DictConfig) -> None:
 
     start_time = time.time()
     all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
-        config, with_jit=True, fft=True, use_init_cells=use_init_cells
+        config, with_jit=False, fft=True, use_init_cells=use_init_cells
     )  # [nb_max_iter, N=1, C, world_dims...]
     if stat_trunc is True:
         all_cells = all_cells[:int(stats_dict['N']), 0]  # [nb_iter, C, world_dims...]
@@ -91,7 +100,7 @@ def run(omegaConf: DictConfig) -> None:
         # leniax_colormaps.colormaps['city'],
         # leniax_colormaps.colormaps['golden'],
         # leniax_colormaps.colormaps['laurel'],
-        leniax_colormaps.colormaps['msdos'],
+        # leniax_colormaps.colormaps['msdos'],
         # leniax_colormaps.colormaps['pink-beach'],
         # leniax_colormaps.colormaps['rainbow'],
         # leniax_colormaps.colormaps['rainbow_transparent'],
@@ -99,6 +108,8 @@ def run(omegaConf: DictConfig) -> None:
         # leniax_colormaps.colormaps['salvia'],
         # leniax_colormaps.colormaps['summer'],
         # leniax_colormaps.colormaps['white-black'],
+        # leniax_colormaps.Hilbert2d3dColormap('hilbert-2d3d'),
+        leniax_colormaps.ExtendedColormap('rg-colors'),
     ]
     leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict, colormaps)
     for colormap in colormaps:

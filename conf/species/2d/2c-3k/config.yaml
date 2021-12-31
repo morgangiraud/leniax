@@ -1,0 +1,55 @@
+world_params:
+  nb_dims: 2
+  nb_channels: 2
+  R: 13
+  T: 10
+  scale: 1.0
+  update_fn_version: v1
+  weighted_average: true
+
+kernels_params:
+  k:
+    - r: 1
+      b: '1'
+      m: 0.15
+      s: 0.015
+      h: 1
+      k_id: 0
+      q: 4
+      gf_id: 0
+      c_in: 0
+      c_out: 0
+    - r: 1
+      b: '1'
+      m: 0.12
+      s: 0.01
+      h: 1
+      k_id: 0
+      q: 4
+      gf_id: 0
+      c_in: 1
+      c_out: 0
+    - r: 1
+      b: '1'
+      m: 0.18
+      s: 0.005
+      h: 1
+      k_id: 0
+      q: 4
+      gf_id: 0
+      c_in: 1
+      c_out: 1
+
+render_params:
+  pixel_size_power2: 2
+  size_power2: 7
+  pixel_border_size: 0
+  world_size: MISSING
+  pixel_size: MISSING
+
+run_params:
+  cells: MISSING
+  code: dfa255f7-70ed-491c-a8f3-30f779355dd1
+  max_run_iter: 1024
+  nb_init_search: 64
+  seed: 1

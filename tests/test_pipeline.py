@@ -87,7 +87,7 @@ class TestPipeline(unittest.TestCase):
         last_frame = all_cells[-1, 0]
 
         assert len(all_cells) == 32
-        np.testing.assert_array_almost_equal(true_last_frame, last_frame, decimal=4)
+        np.testing.assert_array_almost_equal(true_last_frame, last_frame, decimal=3)
 
     def test_aquarium_fft(self):
         last_frame_fullpath = f"{fixture_dir}/aquarium-test_last_frame.p"
@@ -102,4 +102,4 @@ class TestPipeline(unittest.TestCase):
         last_frame = all_cells[-1, 0]
 
         assert len(all_cells) == 32
-        np.testing.assert_array_almost_equal(true_last_frame, last_frame, decimal=4)
+        np.testing.assert_array_almost_equal(true_last_frame, last_frame, decimal=3)

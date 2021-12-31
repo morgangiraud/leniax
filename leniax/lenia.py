@@ -92,7 +92,7 @@ def linear_scale(raw_value: float, domain: Tuple[float, float]) -> float:
     return val
 
 
-def log_scale(raw_value: float, domain: Tuple[float, float]) -> float:
-    val = domain[0] * (domain[1] / domain[0])**raw_value
+# def log_scale(raw_value: float, domain: Tuple[float, float]) -> float:
+#     val = domain[0] * (domain[1] / domain[0])**raw_value
 
-    return val
+#     return val

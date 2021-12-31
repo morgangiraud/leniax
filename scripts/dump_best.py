@@ -8,7 +8,8 @@ from leniax import qd as leniax_qd
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
 
-final_dir = os.path.join(cdir, '..', 'experiments', '007_extended_6')
+# final_dir = os.path.join(cdir, '..', 'experiments', '007_extended_6')
+final_dir = os.path.join(cdir, '..', 'experiments', '014_2channels_1hidden', 'run-b[1.0]')
 # final_dir = os.path.join(cdir, '..', 'experiments', '999_debug')
 
 

@@ -79,6 +79,9 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
     else:
         raise ValueError('update_fn_version {update_fn_version} does not exist')
 
+    if nb_channels > 1:
+        noises = jnp.repeat(noises, nb_channels, axis=1)
+
     all_cells_0 = []
     for i in range(nb_init_search):
         cells_0 = leniax_core.create_init_cells(world_size, nb_channels, [noises[i]])
@@ -400,7 +403,7 @@ def dump_frame(save_dir: str, filename: str, cells: jnp.ndarray, raw: bool = Fal
     # with open(os.path.join(save_dir, f"{filename}.p"), 'wb') as f:
     #     pickle.dump(np.array(cells), f)
 
-    img = leniax_utils.get_image(cells, 1, 0, colormap)
+    img = leniax_utils.get_image(np.array(cells), 1, colormap)
     with open(os.path.join(save_dir, f"{filename}.png"), 'wb') as f:
         img.save(f, format='png')
 
@@ -432,29 +435,53 @@ def plot_kernels(save_dir, config):
         all_ks.append(leniax_kernels.get_kernel(k, world_size, R, True))
         all_gs.append(leniax_gf.growth_fns[k['gf_id']](x, k['m'], k['s']) * k['h'])
     Ks = leniax_utils.crop_zero(jnp.vstack(all_ks))
-    K_size = Ks.shape[-1]
-    K_mid = K_size // 2
-
-    fullpath = f"{save_dir}/Ks.png"
     nb_Ks = Ks.shape[0]
-    vmax = Ks.max()
+
+    # Plot kernels image where color represent intensity
     rows = int(nb_Ks**0.5)
     cols = nb_Ks // rows
     axes = []
     fig = plt.figure(figsize=(6, 6))
-    for i in range(nb_Ks):
-        axes.append(fig.add_subplot(rows, cols, i + 1))
-        axes[-1].title.set_text(f"kernel K{i}")
-        plt.imshow(Ks[i], cmap='viridis', interpolation="nearest", vmin=0, vmax=vmax)
 
+    # We assume the kernel has the same size on all dimensions
+    K_size = Ks.shape[-1]
+    K_mid = K_size // 2
+    vmax = Ks.max()
+    fullpath = f"{save_dir}/Ks.png"
+    if len(Ks.shape) == 3:
+        # 2D kernels
+
+        for i in range(nb_Ks):
+            axes.append(fig.add_subplot(rows, cols, i + 1))
+            axes[-1].title.set_text(f"kernel K{i}")
+            plt.imshow(Ks[i], cmap='viridis', interpolation="nearest", vmin=0, vmax=vmax)
+    elif len(Ks.shape) == 4:
+        # 3D kernels
+        for i in range(nb_Ks):
+            K_to_plot = np.array(Ks[i] > 0)  # Need a real numpy array to work with the voxels function
+            K_to_plot[K_mid:] = 0
+            K_to_plot[:, :, K_mid:] = 0
+
+            colors = plt.get_cmap('viridis')(Ks[i] / vmax)
+            colors[:, :, :, 3] = 0.5
+
+            axes.append(fig.add_subplot(rows, cols, i + 1, projection='3d'))
+            axes[-1].title.set_text(f"kernel K{i}")
+            axes[-1].voxels(K_to_plot, facecolors=colors)
+    else:
+        raise ValueError('We do not support plotting kernels containing more than 3 dimensions')
     plt.tight_layout()
     fig.savefig(fullpath)
     plt.close(fig)
 
+    # Plot Kernels and growth functions
     fullpath = f"{save_dir}/Ks_graph.png"
     fig, ax = plt.subplots(1, 2, figsize=(10, 2))
 
-    ax[0].plot(range(K_size), Ks[:, K_mid, :].T)
+    if len(Ks.shape) == 3:
+        ax[0].plot(range(K_size), Ks[:, K_mid, :].T)
+    elif len(Ks.shape) == 4:
+        ax[0].plot(range(K_size), Ks[:, K_mid, K_mid, :].T)
     ax[0].title.set_text('Ks cross-sections')
     ax[0].set_xlim([K_mid - R - 3, K_mid + R + 3])
 

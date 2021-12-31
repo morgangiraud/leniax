@@ -196,8 +196,8 @@ def run_scan(
         Args:
             - cells0:                       jnp.ndarray[N_init, nb_channels, world_dims...]
             - K:
-                fft:                        jnp.ndarray[1, nb_channels, max_k_per_channel, K_dims...]
-                raw:                        jnp.ndarray[nb_channels * max_k_per_channel, 1, K_dims...]
+                - fft:                      jnp.ndarray[1, nb_channels, max_k_per_channel, K_dims...]
+                - raw:                      jnp.ndarray[nb_channels * max_k_per_channel, 1, K_dims...]
             - gfn_params:                   jnp.ndarray[nb_kernels, nb_gfn_params]
             - kernels_weight_per_channel:   jnp.ndarray[nb_channels, nb_kernels]
             - T:                            jnp.ndarray[]

@@ -89,7 +89,7 @@ dependencies:
   - python-flatbuffers=2.0=pyhd8ed1ab_0
   - python_abi=3.8=2_cp38
   - pytz=2021.1=pyhd8ed1ab_0
-  - pyyaml=5.4.1=py38h5406a74_0
+  - pyyaml=6.0=py38h96a0964_3
   - readline=8.1=h05e3726_0
   - scikit-learn=0.24.2=py38h37f3bb3_1
   - scipy=1.7.1=py38hd329d04_0

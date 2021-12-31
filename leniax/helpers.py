@@ -403,7 +403,7 @@ def dump_frame(save_dir: str, filename: str, cells: jnp.ndarray, raw: bool = Fal
     # with open(os.path.join(save_dir, f"{filename}.p"), 'wb') as f:
     #     pickle.dump(np.array(cells), f)
 
-    img = leniax_utils.get_image(cells, 1, 0, colormap)
+    img = leniax_utils.get_image(np.array(cells), 1, colormap)
     with open(os.path.join(save_dir, f"{filename}.png"), 'wb') as f:
         img.save(f, format='png')
 

@@ -425,103 +425,18 @@ def center_and_crop_cells(cells):
 ###
 # VIZ
 ###
-MARKER_COLORS_W = [0x5F, 0x5F, 0x5F, 0x7F, 0x7F, 0x7F, 0xFF, 0xFF, 0xFF]
-MARKER_COLORS_B = [0x9F, 0x9F, 0x9F, 0x7F, 0x7F, 0x7F, 0x0F, 0x0F, 0x0F]
-
-
-def save_images(
-    save_dir: str,
-    cells_l: List[jnp.ndarray],
-    vmin: float,
-    vmax: float,
-    pixel_size: int,
-    pixel_border_size: int,
-    colormap,
-    idx: int,
-    suffix: str = ""
-):
-    # TODO: optimize
-    # print("------")
-    # t0 = time.time()
-    if len(cells_l) % 2 == 0:
-        nrows = len(cells_l) // 2
-    else:
-        nrows = len(cells_l) // 2 + 1
-    ncols = nrows
-
-    fig, axs = plt.subplots(nrows, ncols, sharex=True, sharey=True)
-    if len(cells_l) == 1:
-        axs.axis('off')
-    else:
-        for i in range(nrows):
-            for j in range(ncols):
-                axs[i][j].axis('off')
-    filename = f"{str(idx).zfill(5)}{suffix}.{image_ext}"
-    fullpath = os.path.join(save_dir, filename)
-
-    # t1 = time.time()
-    # print(f"init time: {t1 - t0}")
-
-    for i, cells in enumerate(cells_l):
-        assert len(cells.shape) == 3, 'we only handle images under the format [C, H, W]'
-        assert cells.shape[0] < 4, 'we only handle images with less than 3 channels'
-
-        # sub_t0 = time.time()
-        norm_cells = jnp.clip(normalize(cells, vmin, vmax), 0, 1)
-        # sub_t1 = time.time()
-        img = get_image(norm_cells, pixel_size, pixel_border_size, colormap)
-        # sub_t2 = time.time()
-
-        if len(cells_l) == 1:
-            axs.imshow(img)
-        else:
-            y = i // nrows
-            x = i % nrows
-            axs[y][x].imshow(img)
-
-        # print(f"norm time: {sub_t1 - sub_t0}")
-        # print(f"get_image time: {sub_t2 - sub_t1}")
-
-    # t2 = time.time()
-    plt.tight_layout()
-    fig.savefig(fullpath)
-    plt.close(fig)
-
-    # t3 = time.time()
-
-    # print(f"total gen time: {t2 - t1}")
-    # print(f"save time: {t3 - t2}")
-
-
-def get_image(cells_buffer: jnp.ndarray, pixel_size: int, pixel_border_size: int, colormap):
-    c = cells_buffer.shape[0]
+def get_image(cells_buffer: np.ndarray, pixel_size: int, colormap) -> Image:
     nb_dims = len(cells_buffer.shape) - 1
 
     if pixel_size != 1:
         for i in range(nb_dims):
-            cells_buffer = jnp.repeat(cells_buffer, pixel_size, axis=i + 1)
-
-    zero = 0
-    for i in range(pixel_border_size):
-        if nb_dims == 2:
-            cells_buffer[:, i::pixel_size, :] = zero
-            cells_buffer[:, :, i::pixel_size] = zero
-        elif nb_dims == 3:
-            cells_buffer[:, i::pixel_size, :, :] = zero
-            cells_buffer[:, :, i::pixel_size, :] = zero
-            cells_buffer[:, :, :, i::pixel_size] = zero
+            cells_buffer = np.repeat(cells_buffer, pixel_size, axis=i + 1)
 
     if nb_dims == 2:
-        if c == 3:
-            cells_uint8 = np.uint8(cells_buffer * 255)
-            cells_uint8 = np.transpose(cells_uint8, (1, 2, 0))  # type: ignore
-            final_img = Image.fromarray(cells_uint8)
-        else:
-            img = colormap(cells_buffer)  # the colormap is applied to each channel, we just merge them
-            img_shape = list(img.shape[1:])
-            img_shape[1] *= img.shape[0]
-            rgba_uint8 = np.uint8(img * 255).transpose(1, 0, 2, 3).reshape(img_shape)
-            final_img = Image.fromarray(rgba_uint8, 'RGBA')
+        cells_buffer = np.transpose(cells_buffer, (1, 2, 0))
+        img = colormap(cells_buffer)[:, :, 0]  # the colormap is applied to each channel, we just merge them
+        rgba_uint8 = np.uint8(img * 255)
+        final_img = Image.fromarray(rgba_uint8, 'RGBA')
     elif nb_dims == 3:
         fig = plt.figure()
         ax = fig.gca()
@@ -649,9 +564,16 @@ def print_config(config: Dict):
 # Random
 ###
 def seed_everything(seed: int):
-    rng_key = jax.random.PRNGKey(seed)
-    np.random.seed(seed)
     random.seed(seed)
+
+    npseed = random.randint(1, 1_000_000)
+    np.random.seed(npseed)
+
+    ospyseed = random.randint(1, 1_000_000)
+    os.environ['PYTHONHASHSEED'] = str(ospyseed)
+
+    jseed = random.randint(1, 1_000_000)
+    rng_key = jax.random.PRNGKey(jseed)
 
     return rng_key
 

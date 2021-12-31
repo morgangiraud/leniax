@@ -1,7 +1,9 @@
 import json
+import numpy as np
 import jax.numpy as jnp
 from matplotlib.colors import ListedColormap
 from typing import List, Callable
+from hilbertcurve.hilbertcurve import HilbertCurve
 
 # This might be cool? https://bottosson.github.io/misc/colorpicker/#ce7d96
 
@@ -31,6 +33,75 @@ class LeniaColormap():
 
     def print_uint8_rgb_colors(self):
         print(jnp.array(jnp.array(self.cmap.colors) * 255, dtype=jnp.int32)[:, :3].tolist())
+
+
+class Hilbert2d3dColormap():
+    def __init__(self, name: str, p_pixels: int = 7, p_colors: int = 12):
+        self.name = name
+
+        H = 2**p_pixels
+        W = 2**p_pixels
+        self.nb_pixels = H * W
+        self.mapping = np.zeros([H, W, 4])
+
+        self.nb_colors = (2**p_colors)**2
+
+        self.pixel_colors_step_size = (2**(p_colors - p_pixels))**2
+
+        self.hilbert2d = HilbertCurve(p_pixels, 2)
+        self.hilbert3d = HilbertCurve(p_colors, 3)
+
+        self.populate()
+
+    def populate(self):
+        for i in range(self.nb_pixels):
+            rgb = self.hilbert3d.point_from_distance(self.pixel_colors_step_size * i)
+            px_pos = self.hilbert2d.point_from_distance(i)
+
+            self.mapping[px_pos[0], px_pos[1]] = np.array(list(rgb) + [255]) / 255
+
+    def __call__(self, data):
+        assert data.shape[-1] == 2
+        ori_shape = data.shape
+        data = data.reshape(-1, 2)
+
+        max_h = self.mapping.shape[0] - 1
+        max_w = self.mapping.shape[1] - 1
+
+        data[:, 0] = (data[:, 0] * max_h).round()
+        data[:, 1] = (data[:, 1] * max_w).round()
+        data = data.astype(np.uint8)
+
+        data = self.mapping[data[:, 0], data[:, 1]]
+
+        return data.reshape(list(ori_shape[:-1]) + [1, 4])
+
+
+class ExtendedColormap():
+    def __init__(self, name: str):
+        self.name = name
+
+    def __call__(self, data):
+        c = data.shape[-1]
+        if c == 1:
+            g_layer = np.zeros(list(data.shape[:-1]) + [1])
+            b_layer = np.zeros(list(data.shape[:-1]) + [1])
+            a_layer = np.ones(list(data.shape[:-1]) + [1])
+
+            data = np.concatenate([data, g_layer, b_layer, a_layer], axis=-1)
+        elif c == 2:
+            b_layer = np.zeros(list(data.shape[:-1]) + [1])
+            a_layer = np.ones(list(data.shape[:-1]) + [1])
+
+            data = np.concatenate([data, b_layer, a_layer], axis=-1)
+        elif c == 3:
+            a_layer = np.ones(list(data.shape[:-1]) + [1])
+
+            data = np.concatenate([data, a_layer], axis=-1)
+        else:
+            raise ValueError(f"This colormap can't handle more than 3 channels. Current value {c}")
+
+        return np.expand_dims(data, axis=-2)
 
 
 #######

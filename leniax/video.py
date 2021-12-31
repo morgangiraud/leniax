@@ -16,36 +16,34 @@ def dump_video(
         colormaps = [colormaps]
     if prefix == '':
         prefix = 'beast'
+    is_transparent = False
 
-    nb_iter_done = len(all_cells)
-    width = all_cells[0].shape[-1] * render_params['pixel_size'] * all_cells.shape[1]
-    height = all_cells[0].shape[-2] * render_params['pixel_size']
+    np_all_cells = np.array(all_cells)
+    nb_iter_done = len(np_all_cells)
+    width = np_all_cells[0].shape[-1] * render_params['pixel_size']
+    height = np_all_cells[0].shape[-2] * render_params['pixel_size']
 
     all_outputs_fullpath = []
     for colormap in colormaps:
-        # Transparence
-        # output_fullpath = os.path.join(save_dir, f"{prefix}_{colormap.name}_{width}_{height}.mkv")  # type: ignore
-        # process = (
-        #     ffmpeg.input(
-        #         'pipe:',
-        #         format='rawvideo',
-        #         pix_fmt='rgba',
-        #         s=f"{width}x{height}",
-        #         framerate=30,
-        #     ).output(
-        #         output_fullpath,
-        #         vcodec="ffv1"
-        #     ).overwrite_output().run_async(pipe_stdin=True, quiet=True)
-        # )
-        output_fullpath = os.path.join(save_dir, f"{prefix}_{colormap.name}_{width}_{height}.mp4")  # type: ignore
-        process = (
-            ffmpeg.input(
-                'pipe:',
-                format='rawvideo',
-                pix_fmt='rgba',
-                s=f"{width}x{height}",
-                framerate=30,
-            ).output(
+        process = ffmpeg.input(
+            'pipe:',
+            format='rawvideo',
+            pix_fmt='rgba',
+            s=f"{width}x{height}",
+            framerate=30,
+        )
+
+        if is_transparent:
+            output_fullpath = os.path.join(save_dir, f"{prefix}_{colormap.name}_{width}_{height}.mkv")  # type: ignore
+            process = process.output(
+                output_fullpath, vcodec="ffv1"
+            ).overwrite_output().run_async(
+                pipe_stdin=True, quiet=True
+            )
+
+        else:
+            output_fullpath = os.path.join(save_dir, f"{prefix}_{colormap.name}_{width}_{height}.mp4")  # type: ignore
+            process = process.output(
                 output_fullpath,
                 preset='slow',
                 movflags='faststart',
@@ -53,14 +51,15 @@ def dump_video(
                 **{
                     'c:v': 'libx264', 'profile:v': 'high'
                 },
-            ).overwrite_output().run_async(pipe_stdin=True, quiet=True)
-        )
+            ).overwrite_output().run_async(
+                pipe_stdin=True, quiet=True
+            )
+
         all_times = []
         for i in range(nb_iter_done):
             start_time = time.time()
-            img = leniax_utils.get_image(
-                all_cells[i], render_params['pixel_size'], render_params['pixel_border_size'], colormap
-            )
+
+            img = leniax_utils.get_image(np_all_cells[i], render_params['pixel_size'], colormap)
             process.stdin.write(img.tobytes())
 
             all_times.append(time.time() - start_time)
@@ -78,10 +77,11 @@ def dump_video(
 
 def dump_gif(video_fullpath):
     """
-        ffmpeg -i video_fullpath
-            -vf "fps=10,scale=width:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse"
-            -loop 0
-            output.gif
+        Command run:
+            ffmpeg -i video_fullpath
+                -vf "fps=10,scale=width:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse"
+                -loop 0
+                output.gif
     """
     output_fullpath = os.path.splitext(video_fullpath)[0] + '.gif'
 
@@ -100,19 +100,20 @@ def dump_gif(video_fullpath):
 
 def dump_qd_ribs_result(output_fullpath):
     """
-        ffmpeg  -framerate 16 -i '%4d-emitter_0.png' \
-            -framerate 16 -i '%4d-emitter_1.png' \
-            -framerate 16 -i '%4d-emitter_2.png' \
-            -framerate 16 -i '%4d-emitter_3.png' \
-            -framerate 16 -i '%4d-archive_ccdf.png' \
-            -framerate 16 -i '%4d-archive_heatmap.png' \
-            -filter_complex "[0:v][1:v]hstack[h1];\
-                [2:v][3:v]hstack[h2];\
-                [4:v][5:v]hstack[h3];\
-                [h1][h2]vstack[v1];\
-                [v1][h3]vstack[o]"\
-            -map "[o]"\
-            out.mp4
+        Command run:
+            ffmpeg  -framerate 16 -i '%4d-emitter_0.png' \
+                -framerate 16 -i '%4d-emitter_1.png' \
+                -framerate 16 -i '%4d-emitter_2.png' \
+                -framerate 16 -i '%4d-emitter_3.png' \
+                -framerate 16 -i '%4d-archive_ccdf.png' \
+                -framerate 16 -i '%4d-archive_heatmap.png' \
+                -filter_complex "[0:v][1:v]hstack[h1];\
+                    [2:v][3:v]hstack[h2];\
+                    [4:v][5:v]hstack[h3];\
+                    [h1][h2]vstack[v1];\
+                    [v1][h3]vstack[o]"\
+                -map "[o]"\
+                out.mp4
     """
     inputs = [
         '%4d-emitter_0.png',

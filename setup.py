@@ -23,11 +23,11 @@ setup(
     long_description_content_type='text/markdown',
     packages=find_packages(exclude=['tests', 'tests/*']),
     install_requires=[
-        'hydra-core>=1.1.0',
+        'hydra-core>=1.1.1',
         'ribs>=0.4.0',
         'ffmpeg-python>=0.2.0', 
-        'jax>=0.2.25', 
-        'jaxlib>=0.1.69',
+        'jax>=0.2.26', 
+        'jaxlib>=0.1.75',
         'PyYAML>=0.2.5'
     ]
 )

@@ -14,7 +14,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from PIL import Image
-from typing import Tuple, List, Dict, Any
+from typing import Tuple, List, Dict, Any, Union
 
 from .constant import NB_STATS_STEPS, EPSILON, NB_CHARS
 
@@ -235,7 +235,7 @@ def deprecated_decompress_array(cells_code: str, nb_dims: int) -> jnp.ndarray:
 ###
 # Config
 ###
-def get_param(dic: Dict, key_string: str) -> Any:
+def get_param(dic: Dict, key_string: str) -> Union[float, int]:
     keys = key_string.split('.')
     for key in keys:
         if key.isdigit():
@@ -244,11 +244,13 @@ def get_param(dic: Dict, key_string: str) -> Any:
             dic = dic[key]
 
     if isinstance(dic, jnp.ndarray):
-        val = float(jnp.mean(dic))
+        return float(jnp.mean(dic))
+    elif type(dic) == int or type(dic) == float:
+        return float(dic)           # type: ignore
+    elif type(dic) == str:
+        return dic                  # type: ignore
     else:
-        val = dic
-
-    return val
+        raise ValueError(f"dic type {type(dic)} not supported")
 
 
 def set_param(dic: Dict, key_string: str, value: Any):

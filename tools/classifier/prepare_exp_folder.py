@@ -7,10 +7,10 @@ from leniax import utils as leniax_utils
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 experiments_dir = os.path.join(cdir, '..', '..', 'experiments')
-exp_dir = os.path.join(experiments_dir, '013_descendants')
+exp_dir = os.path.join(experiments_dir, '015_3channels')
 exp_viz_dir = os.path.join(exp_dir, 'viz_data')
 
-collection_name = 'collection-02'
+collection_name = 'collection-test'
 
 
 def gather_viz_data(exp_dir: str):
@@ -24,13 +24,13 @@ def gather_viz_data(exp_dir: str):
 
     all_viz_data: List[Dict] = []
     i = 0
-    for (subdir, dirs, _) in os.walk(exp_dir):
+    for (subdir, dirs, files) in os.walk(exp_dir):
         dirs.sort()
 
         viz_data_filename = os.path.join(subdir, 'viz_data.json')
         if not os.path.isfile(viz_data_filename):
             continue
-
+        
         with open(viz_data_filename, 'r') as f:
             current_viz_data = json.load(f)
 
@@ -43,6 +43,11 @@ def gather_viz_data(exp_dir: str):
         os.symlink(subdir, link_dst)
 
         current_viz_data['relative_url'] = folder_link
+
+        for filename in files:
+            if ".mp4" in filename:
+                current_viz_data['video_name'] = filename
+                break
         all_viz_data.append(current_viz_data)
 
         i += 1

@@ -15,6 +15,7 @@ experiments/007_beta_cube_4/*
 tools/*
 !tools/*.py
 !tools/classifier
+tools/classifier/viz_data
 !tools/classifier/css
 !tools/classifier.html
 

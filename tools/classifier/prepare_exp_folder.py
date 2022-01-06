@@ -30,7 +30,7 @@ def gather_viz_data(exp_dir: str):
         viz_data_filename = os.path.join(subdir, 'viz_data.json')
         if not os.path.isfile(viz_data_filename):
             continue
-        
+
         with open(viz_data_filename, 'r') as f:
             current_viz_data = json.load(f)
 

@@ -141,7 +141,7 @@ def ch2val(c: str) -> int:
 def val2ch(v: int) -> str:
     first_char_idx = v // NB_CHARS
     second_char_idx = v % NB_CHARS
-    # We do this trick to avoid the spaecial characters between
+    # We do this trick to avoid the special characters between
     if ord('A') + first_char_idx <= ord('Z'):
         first_char = chr(ord('A') + first_char_idx)
     elif ord('a') + first_char_idx - (ord('Z') - ord('A')) <= ord('z'):
@@ -246,9 +246,9 @@ def get_param(dic: Dict, key_string: str) -> Union[float, int]:
     if isinstance(dic, jnp.ndarray):
         return float(jnp.mean(dic))
     elif type(dic) == int or type(dic) == float:
-        return float(dic)           # type: ignore
+        return float(dic)  # type: ignore
     elif type(dic) == str:
-        return dic                  # type: ignore
+        return dic  # type: ignore
     else:
         raise ValueError(f"dic type {type(dic)} not supported")
 

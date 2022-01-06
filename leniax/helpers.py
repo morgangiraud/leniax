@@ -19,6 +19,7 @@ from . import utils as leniax_utils
 from . import kernels as leniax_kernels
 from . import growth_functions as leniax_gf
 from . import video as leniax_video
+from leniax import colormaps as leniax_colormaps
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 
@@ -361,7 +362,9 @@ def process_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
 ###
 def dump_assets(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict: Dict, colormaps=None):
     if colormaps is None:
-        colormaps = [plt.get_cmap('plasma')]  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
+        colormaps = [
+            leniax_colormaps.ExtendedColormap('extended')
+        ]  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
 
     leniax_utils.plot_stats(save_dir, stats_dict)
 

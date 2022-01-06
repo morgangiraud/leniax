@@ -14,17 +14,19 @@ absl_logging.set_verbosity(absl_logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 
-config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '1c-1k')
-config_name = "orbium"
-config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '3c-15k')
-config_name = "aquarium"
+# config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '1c-1k')
+# config_name = "orbium"
+# config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '3c-15k')
+# config_name = "aquarium"
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '3d', '1c-1k')
 # config_name = "prototype"
 
-# config_path = os.path.join(cdir, '..', 'experiments', '014_2channels_1hidden', 'run-b[1.0]', 'c-0013')
-# config_path = os.path.join(cdir, '..', 'experiments', '014_2channels_1hidden', 'run-b[1.0]', 'c-0078')
-# config_path = os.path.join(cdir, '..', 'experiments', '014_2channels_1hidden', 'run-b[1.0]', 'c-0058')
-# config_name = "config"
+# config_path = os.path.join(cdir, '..', 'experiments', '014_2channels', 'run-b[1.0]', 'c-0013')
+# config_path = os.path.join(cdir, '..', 'experiments', '014_2channels', 'run-b[1.0]', 'c-0078')
+# config_path = os.path.join(cdir, '..', 'experiments', '014_2channels', 'run-b[1.0]', 'c-0058')
+# config_path = os.path.join(cdir, '..', 'experiments', '014_2channels', 'run-orbium-b[1.0]', 'c-0019')
+config_path = os.path.join(cdir, '..', 'experiments', '015_3channels', 'c-0004')
+config_name = "config"
 
 # config_path = os.path.join(cdir, '..', 'outputs', 'tmp')
 # config_name = "config"
@@ -40,11 +42,11 @@ def run(omegaConf: DictConfig) -> None:
     config = leniax_helpers.get_container(omegaConf, config_path)
 
     # config['render_params']['pixel_size_power2'] = 0
-    # config['render_params']['pixel_size'] = 1
+    config['render_params']['pixel_size'] = 2
     # config['render_params']['size_power2'] = 7
-    # config['render_params']['world_size'] = [1024, 1024]
-    # config['world_params']['scale'] = 8.
-    config['run_params']['max_run_iter'] = 512
+    config['render_params']['world_size'] = [256, 256]
+    config['world_params']['scale'] = 2.
+    config['run_params']['max_run_iter'] = 2048
     use_init_cells = True
 
     if to_hd is True:
@@ -53,6 +55,7 @@ def run(omegaConf: DictConfig) -> None:
 
     leniax_utils.print_config(config)
 
+    print("Rendering: start")
     start_time = time.time()
     all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
         config, with_jit=False, fft=True, use_init_cells=use_init_cells
@@ -82,14 +85,18 @@ def run(omegaConf: DictConfig) -> None:
     # total_time = time.time() - start_time
 
     nb_iter_done = len(all_cells)
-    print(f"{nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
+    print(f"Rendering: {nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
 
     save_dir = os.getcwd()  # changed by hydra
     leniax_utils.check_dir(save_dir)
 
+    print("Compressing")
+    start_time = time.time()
     config['run_params']['init_cells'] = leniax_utils.compress_array(all_cells[0])
     config['run_params']['cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
     leniax_utils.save_config(save_dir, config)
+    total_time = time.time() - start_time
+    print(f"Compressing in {total_time} seconds")
 
     print("Dumping assets")
     colormaps = [
@@ -109,7 +116,7 @@ def run(omegaConf: DictConfig) -> None:
         # leniax_colormaps.colormaps['summer'],
         # leniax_colormaps.colormaps['white-black'],
         # leniax_colormaps.Hilbert2d3dColormap('hilbert-2d3d'),
-        leniax_colormaps.ExtendedColormap('rg-colors'),
+        leniax_colormaps.ExtendedColormap('extended'),
     ]
     leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict, colormaps)
     for colormap in colormaps:

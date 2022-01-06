@@ -1,0 +1,30 @@
+kernels_params:
+  k:
+  - b: '1'
+    c_in: 0
+    c_out: 0
+    gf_id: 0
+    h: 1
+    k_id: 0
+    m: 0.15
+    q: 4
+    r: 1
+    s: 0.015
+render_params:
+  pixel_border_size: 0
+  pixel_size: 1
+  pixel_size_power2: 0
+  size_power2: 7
+  world_size:
+  - 128
+  - 128
+run_params:
+  max_run_iter: 2048
+  nb_init_search: 256
+  seed: 1
+world_params:
+  R: 13
+  T: 10
+  nb_channels: 1
+  nb_dims: 2
+  scale: 1.0

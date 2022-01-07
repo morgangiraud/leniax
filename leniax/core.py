@@ -590,7 +590,11 @@ def update_cells(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp
     cells_new = cells + dt * field
     clipped_cells = jnp.clip(cells_new, 0., 1.)
 
-    return clipped_cells
+    # Straight-through estimator
+    zero = cells_new - lax.stop_gradient(cells_new)
+    out = zero + lax.stop_gradient(clipped_cells)
+
+    return out
 
 
 def update_cells_v2(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp.ndarray:

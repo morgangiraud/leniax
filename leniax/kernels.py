@@ -22,10 +22,10 @@ class KernelMapping(object):
 
     def get_gfn_params(self) -> jnp.ndarray:
         flat_gfn_params = [item for sublist in self.gfn_params for item in sublist]
-        return jnp.array(flat_gfn_params)
+        return jnp.array(flat_gfn_params, dtype=jnp.float32)
 
     def get_kernels_weight_per_channel(self) -> jnp.ndarray:
-        return jnp.array(self.kernels_weight_per_channel)
+        return jnp.array(self.kernels_weight_per_channel, dtype=jnp.float32)
 
 
 def poly_quad4(x: jnp.ndarray, q: float = 4):

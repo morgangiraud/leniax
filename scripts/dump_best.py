@@ -11,8 +11,7 @@ config_path = os.path.join(cdir, '..', 'conf')
 # final_dir = os.path.join(cdir, '..', 'experiments', '007_extended_6')
 # final_dir = os.path.join(cdir, '..', 'experiments', '014_2channels', 'run-b[1.0]')
 # final_dir = os.path.join(cdir, '..', 'experiments', '014_2channels', 'run-orbium-b[1.0]')
-final_dir = os.path.join(cdir, '..', 'experiments', '015_3channels', 'run-b[1.0]')
-final_dir = os.path.join(cdir, '..', 'experiments', '015_3channels', 'run-b[1.0]-16batches')
+final_dir = os.path.join(cdir, '..', 'experiments', '015_3channels', 'run-b[1.0]_from_0_and_134')
 # final_dir = os.path.join(cdir, '..', 'experiments', '999_debug')
 
 

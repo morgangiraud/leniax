@@ -24,7 +24,7 @@ install_requires = [
     
 setup(
     name="leniax",
-    version='1.0',
+    version='1.0.0',
     python_requires='>=3.7.10',  # I keep this minimum python version for Google Collab
     description='Lenia using the JAX library',
     url='https://github.com/stockmouton/leniax',

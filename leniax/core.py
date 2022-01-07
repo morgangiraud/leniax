@@ -70,6 +70,10 @@ def load_raw_cells(config: Dict, use_init_cells: bool = True) -> jnp.ndarray:
     elif type(cells) is list:
         cells = jnp.array(cells, dtype=jnp.float32)
 
+    # We repair the missing channel in case of the single channel got squeezed out
+    if len(cells.shape) == nb_dims and config['world_params']['nb_channels'] == 1:
+        cells = jnp.expand_dims(cells, 0)
+
     return cells
 
 

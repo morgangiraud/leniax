@@ -56,7 +56,7 @@ def get_parameters_for_scale(scale: float, world_size: List[int], config: Dict, 
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
     R = config['world_params']['R']
-    update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
+    update_fn = leniax_helpers.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
     compute_stats_fn = leniax_stat.build_compute_stats_fn(tmp_config['world_params'], render_params)
 
     return {

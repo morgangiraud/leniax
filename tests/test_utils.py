@@ -29,7 +29,7 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_array_equal(cells_int_l, out)
 
     def test_compress_decompress_compress(self):
-        cells = np.arange(1e5) / 1e5
+        cells = np.arange(0, 1e5, 100) / 1e5
 
         st = leniax_utils.compress_array(cells)
         cells_out = leniax_utils.decompress_array(st, 1)
@@ -41,7 +41,7 @@ class TestUtils(unittest.TestCase):
         assert st == new_st
 
     def test_make_array_compressible(self):
-        cells = np.arange(1e5) / 1e5
+        cells = np.arange(0, 1e5, 100) / 1e5
 
         compressible_cells = leniax_utils.make_array_compressible(cells)
         cells_out = leniax_utils.decompress_array(leniax_utils.compress_array(compressible_cells), 1)
@@ -50,7 +50,7 @@ class TestUtils(unittest.TestCase):
 
     def test_compress_decompress_compress_yaml(self):
         max_val = NB_CHARS**2 - 1
-        cells = jnp.array(np.arange(0, NB_CHARS**2, dtype=np.int32) / max_val)
+        cells = jnp.array(np.arange(0, NB_CHARS**2, 10, dtype=np.int32) / max_val)
         yaml_fullpath = os.path.join(fixture_dir, 'compress_yaml.yaml')
 
         st = leniax_utils.compress_array(cells)

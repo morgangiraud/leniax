@@ -4,9 +4,10 @@ import copy
 import json
 import pickle
 import uuid
+import functools
 import numpy as np
 import jax.numpy as jnp
-from typing import Dict, Tuple, List
+from typing import Callable, Dict, Tuple, List
 from omegaconf import DictConfig, OmegaConf
 import matplotlib.pyplot as plt
 from absl import logging as absl_logging
@@ -19,6 +20,8 @@ from . import utils as leniax_utils
 from . import kernels as leniax_kernels
 from . import growth_functions as leniax_gf
 from . import video as leniax_video
+from .growth_functions import growth_fns
+from .kernels import KernelMapping
 from leniax import colormaps as leniax_colormaps
 
 cdir = os.path.dirname(os.path.realpath(__file__))
@@ -70,7 +73,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
     K, mapping = leniax_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
-    update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
+    update_fn = build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
     compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     if update_fn_version == 'v1':
@@ -198,7 +201,7 @@ def init_and_run(config: Dict, with_jit: bool = False, fft: bool = True, use_ini
 
     max_run_iter = config['run_params']['max_run_iter']
 
-    update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
+    update_fn = build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
     compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     if with_jit is True:
@@ -355,6 +358,65 @@ def process_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
     leniax_utils.save_config(save_dir, config)
 
     dump_assets(save_dir, config, all_cells, stats_dict)
+
+
+def build_update_fn(
+    K_shape: Tuple[int, ...],
+    mapping: KernelMapping,
+    update_fn_version: str = 'v1',
+    average_weight: bool = True,
+    fft: bool = True,
+) -> Callable:
+    get_potential_fn = build_get_potential_fn(K_shape, mapping.true_channels, fft)
+    get_field_fn = build_get_field_fn(mapping.cin_growth_fns, average_weight)
+    if update_fn_version == 'v1':
+        update_fn = leniax_core.update_cells
+    elif update_fn_version == 'v2':
+        update_fn = leniax_core.update_cells_v2
+    else:
+        raise ValueError(f"version {update_fn_version} does not exist")
+
+    return functools.partial(
+        leniax_core.update, get_potential_fn=get_potential_fn, get_field_fn=get_field_fn, update_fn=update_fn
+    )
+
+
+def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: jnp.ndarray, fft: bool = True) -> Callable:
+    # First 2 dimensions are for fake batch dim and nb_channels
+    if fft is True:
+        max_k_per_channel = kernel_shape[1]
+        C = kernel_shape[2]
+        nb_dims = len(kernel_shape) - 3
+        axes = tuple(range(-1, -nb_dims - 1, -1))
+
+        return functools.partial(
+            leniax_core.get_potential_fft,
+            true_channels=true_channels,
+            max_k_per_channel=max_k_per_channel,
+            C=C,
+            axes=axes
+        )
+    else:
+        padding = jnp.array([[0, 0]] * 2 + [[dim // 2, dim // 2] for dim in kernel_shape[2:]])
+
+        return functools.partial(leniax_core.get_potential, padding=padding, true_channels=true_channels)
+
+
+def build_get_field_fn(cin_growth_fns: List[List[int]], average: bool = True) -> Callable:
+    growth_fn_l = []
+    for growth_fns_per_channel in cin_growth_fns:
+        for gf_id in growth_fns_per_channel:
+            growth_fn = growth_fns[gf_id]
+            growth_fn_l.append(growth_fn)
+
+    growth_fn_t = tuple(growth_fn_l)
+
+    if average:
+        weighted_fn = leniax_core.weighted_select_average
+    else:
+        weighted_fn = leniax_core.weighted_select
+
+    return functools.partial(leniax_core.get_field, growth_fn_t=growth_fn_t, weighted_fn=weighted_fn)
 
 
 ###

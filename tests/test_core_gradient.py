@@ -6,6 +6,7 @@ from hydra import compose, initialize
 
 from leniax.helpers import get_container
 from leniax import core as leniax_core
+from leniax import helpers as leniax_helpers
 from leniax import kernels as leniax_kernels
 
 cfd = os.path.dirname(os.path.realpath(__file__))
@@ -26,7 +27,7 @@ class TestCore(unittest.TestCase):
         world_params = config['world_params']
         dt = 1. / jnp.array(world_params['T'])
         update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
-        update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version)
+        update_fn = leniax_helpers.build_update_fn(K.shape, mapping, update_fn_version)
 
         def apply_update(cells, K, gfn_params, kernels_weight_per_channel, dt, target):
             cells_out, _, _ = update_fn(cells, K, gfn_params, kernels_weight_per_channel, dt)
@@ -61,7 +62,7 @@ class TestCore(unittest.TestCase):
         mapping.gfn_params = [[[0.1, 0.1], [0.2, 0.2]], [[0.3, 0.3]]]
         average_weight = True
 
-        get_field = leniax_core.build_get_field_fn(mapping.cin_growth_fns, average_weight)
+        get_field = leniax_helpers.build_get_field_fn(mapping.cin_growth_fns, average_weight)
 
         def apply_update(potential, gfn_params, kernels_weight_per_channel, target):
             out = get_field(potential, gfn_params, kernels_weight_per_channel)

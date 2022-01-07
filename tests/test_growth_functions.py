@@ -25,15 +25,16 @@ class TestGrowthFunctions(unittest.TestCase):
             [0., 1., 0., 0.],
             [0., 0., 0., 0.],
         ]])
-        m = .5
-        s = .1
+        params = jnp.array([.5, .1])
 
         t0 = time.time()
-        _ = jitted_poly_quad4(a, m, s)
+        _ = jitted_poly_quad4(params, a)
         delta_t = time.time() - t0
 
         t0 = time.time()
-        _ = jitted_poly_quad4(a, .1, .4)
+        _ = jitted_poly_quad4(params, a)
         delta_t_compiled = time.time() - t0
 
-        assert 0.01 * delta_t > delta_t_compiled
+        print(delta_t, delta_t_compiled)
+
+        assert 0.005 * delta_t > delta_t_compiled

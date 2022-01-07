@@ -9,6 +9,7 @@ from hydra import compose, initialize
 
 from leniax.helpers import get_container, get_mem_optimized_inputs
 from leniax import core as leniax_core
+from leniax import helpers as leniax_helpers
 from leniax import kernels as leniax_kernels
 from leniax import statistics as leniax_stat
 from leniax import utils as leniax_utils
@@ -58,7 +59,7 @@ class TestCore(unittest.TestCase):
         K, mapping = leniax_core.get_kernels_and_mapping(
             kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R']
         )
-        update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version, weighted_average)
+        update_fn = leniax_helpers.build_update_fn(K.shape, mapping, update_fn_version, weighted_average)
         compute_stats_fn = leniax_stat.build_compute_stats_fn(world_params, render_params)
 
         # jax.profiler.start_trace("/tmp/tensorboard")
@@ -102,7 +103,7 @@ class TestCore(unittest.TestCase):
         R = world_params['R']
         T = jnp.array(world_params['T'])
         update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
-        update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version)
+        update_fn = leniax_helpers.build_update_fn(K.shape, mapping, update_fn_version)
         compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
         cells1 = jnp.ones(cells.shape) * 0.2
@@ -141,7 +142,7 @@ class TestCore(unittest.TestCase):
         world_params = config['world_params']
         T = jnp.array(world_params['T'])
         update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
-        update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version)
+        update_fn = leniax_helpers.build_update_fn(K.shape, mapping, update_fn_version)
 
         cells1 = jnp.ones(cells.shape) * 0.2
         K1 = jnp.ones(K.shape) * 0.3
@@ -188,7 +189,7 @@ class TestCore(unittest.TestCase):
 
         true_channels = jnp.array([True, True, True, False])
 
-        get_potential = leniax_core.build_get_potential_fn(K.shape, true_channels, False)
+        get_potential = leniax_helpers.build_get_potential_fn(K.shape, true_channels, False)
         jit_fn = jax.jit(get_potential)
 
         t0 = time.time()
@@ -225,7 +226,7 @@ class TestCore(unittest.TestCase):
         mapping.gfn_params = [[[0.1, 0.1], [0.2, 0.2]], [[0.3, 0.3]]]
         average_weight = True
 
-        get_field = leniax_core.build_get_field_fn(mapping.cin_growth_fns, average_weight)
+        get_field = leniax_helpers.build_get_field_fn(mapping.cin_growth_fns, average_weight)
         jit_fn = jax.jit(get_field)
 
         potential1 = jnp.ones([1, nb_kernels, 25, 25]) * .5

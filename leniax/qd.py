@@ -133,7 +133,7 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness: bool 
         kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R'], fft
     )
 
-    update_fn_scale_1 = leniax_core.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
+    update_fn_scale_1 = leniax_helpers.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
     compute_stats_fn_scale_1 = leniax_stat.build_compute_stats_fn(world_params, render_params)
 
     def eval_lenia_config_mem_optimized(lenia_sols: List[LeniaIndividual]) -> List[LeniaIndividual]:

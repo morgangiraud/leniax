@@ -1,6 +1,7 @@
 # Leniax
-A [Lenia](https://chakazul.github.io/lenia.html) library powered by JAX.
-It also provides a set of tools to search, classify and organize creatures.
+Leniax is a [Lenia](https://chakazul.github.io/lenia.html) simulation library powered by JAX.
+It can efficiently simulate and render Lenia worlds and can also be used to search for creatures, initial conditions, kernels and growth functions.
+It is also fully differentiable!
 
 ## Install
 Install Leniax library with conda (make sure you have it before typing the following command): `make install`
@@ -11,7 +12,7 @@ Now, install the lib itself in the conda env: `pip install -e .`
 
 Finally, make sure, everything is fine by running the following command: `make ci`
 
-## About
+## About Lenia
 In Lenia we have multiple things interacting with each other:
 - the world
 - kernels
@@ -32,11 +33,10 @@ To give an idea of the current search capacity:
 - 500k element searched
 - 4k potential creatures (as defined by the heuristics)
 - ~1000 SLPs
-- ~200 unique creatures after classification
-
+- ~202 unique creatures after classification
 
 ### I want to know more
-Look into the TODO file to follow the research and check issues associated with this repository.
+I'm glad you do! Check the issues to see what we are working on and join our community: https://discord.gg/4TFNnCkJta
 
 ## Research
 
@@ -51,3 +51,21 @@ To create an experiments, explore the results and create a collection out of it,
 - Use the originals folder to create your collection
 - Call the script `python scripts/render_collection.py` to prepare all the data necessary for a collection
 - If needed, update the metadata manually to suit your needs
+
+## Tools
+### The classifier
+
+
+# Citing Leniax
+To cite this repository:
+```
+@software{leniax2022github,
+  author = {Morgan Giraud},
+  title = {{Leniax}: efficient and differentiable Lenia simulators},
+  url = {http://github.com/morgangiraud/leniax},
+  version = {1.0.0},
+  year = {2022},
+}
+```
+
+In the above bibtex entry, version number is intended to be that from leniax/setup.py, and the year corresponds to the project's open-source release.

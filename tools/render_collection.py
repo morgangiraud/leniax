@@ -10,6 +10,7 @@ import scipy
 import multiprocessing
 
 from leniax import core as leniax_core
+from leniax import runner as leniax_runner
 from leniax import statistics as leniax_stat
 from leniax import utils as leniax_utils
 from leniax import helpers as leniax_helpers
@@ -81,7 +82,7 @@ def run_at_scale(config, cropped_cells, scale, params_scale):
     cells = leniax_utils.merge_cells(zero_background, cropped_cells)
     params_scale['cells0'] = cells
 
-    all_cells, _, _, stats_dict = leniax_core.run_scan(**params_scale)
+    all_cells, _, _, stats_dict = leniax_runner.run_scan(**params_scale)
     all_cells = all_cells[:, 0]  # [nb_iter, C, world_dims...]
     stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
     N = stats_dict['N']
@@ -155,7 +156,7 @@ def run() -> None:
 
             # Here the goal is to make sure we reach the stable creature state from the initial conditions
             params_scale_init['max_run_iter'] = 2000
-            all_cells, _, _, stats_dict = leniax_core.run_scan(**params_scale_init)
+            all_cells, _, _, stats_dict = leniax_runner.run_scan(**params_scale_init)
             all_cells = all_cells[:, 0]  # [nb_iter, C, world_dims...]
             stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
             print(stats_dict['N'])

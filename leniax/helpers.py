@@ -13,9 +13,10 @@ import matplotlib.pyplot as plt
 from absl import logging as absl_logging
 
 from .lenia import LeniaIndividual
+from . import core as leniax_core
+from . import runner as leniax_runner
 from . import initializations as initializations
 from . import statistics as leniax_stat
-from . import core as leniax_core
 from . import utils as leniax_utils
 from . import kernels as leniax_kernels
 from . import growth_functions as leniax_gf
@@ -97,7 +98,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
     for i in range(nb_init_search):
         # t0 = time.time()
 
-        all_cells, _, _, all_stats = leniax_core.run_scan(
+        all_cells, _, _, all_stats = leniax_runner.run_scan(
             all_cells_0_jnp[i],
             K,
             gfn_params,
@@ -205,11 +206,11 @@ def init_and_run(config: Dict, with_jit: bool = False, fft: bool = True, use_ini
     compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     if with_jit is True:
-        all_cells, all_fields, all_potentials, stats_dict = leniax_core.run_scan(
+        all_cells, all_fields, all_potentials, stats_dict = leniax_runner.run_scan(
             cells, K, gfn_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
         )
     else:
-        all_cells, all_fields, all_potentials, stats_dict = leniax_core.run(
+        all_cells, all_fields, all_potentials, stats_dict = leniax_runner.run(
             cells, K, gfn_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
         )
     stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
@@ -498,7 +499,8 @@ def plot_kernels(save_dir, config):
     all_gs = []
     for k in config['kernels_params']['k']:
         all_ks.append(leniax_kernels.get_kernel(k, world_size, R, True))
-        all_gs.append(leniax_gf.growth_fns[k['gf_id']](x, k['m'], k['s']) * k['h'])
+        gfn_params = np.array([k['m'], k['s']])
+        all_gs.append(leniax_gf.growth_fns[k['gf_id']](gfn_params, x) * k['h'])
     Ks = leniax_utils.crop_zero(jnp.vstack(all_ks))
     nb_Ks = Ks.shape[0]
 

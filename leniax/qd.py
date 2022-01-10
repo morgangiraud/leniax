@@ -20,6 +20,7 @@ from ribs.visualize import grid_archive_heatmap, cvt_archive_heatmap, parallel_a
 from .lenia import LeniaIndividual
 from . import utils as leniax_utils
 from . import core as leniax_core
+from . import runner as leniax_runner
 from . import helpers as leniax_helpers
 from . import statistics as leniax_stat
 
@@ -140,7 +141,7 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness: bool 
         qd_config = lenia_sols[0].qd_config
         _, run_scan_mem_optimized_parameters = leniax_helpers.get_mem_optimized_inputs(qd_config, lenia_sols)
 
-        stats, all_final_cells = leniax_core.run_scan_mem_optimized(
+        stats, all_final_cells = leniax_runner.run_scan_mem_optimized(
             *run_scan_mem_optimized_parameters, max_run_iter, R, update_fn_scale_1, compute_stats_fn_scale_1
         )
         stats['N'].block_until_ready()
@@ -148,7 +149,7 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness: bool 
 
         # top 8
         # top8_compressible = leniax_utils.make_array_compressible(top8)
-        # stats, all_final_cells = leniax_core.run_scan_mem_optimized(
+        # stats, all_final_cells = leniax_runner.run_scan_mem_optimized(
         #     *run_scan_mem_optimized_parameters, max_run_iter, R, update_fn_scale_2, compute_stats_fn_scale_2
         # )
 

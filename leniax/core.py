@@ -118,7 +118,7 @@ def update(
         Args:
             - cells:                        jnp.ndarray[N, nb_channels, world_dims...]
             - K:                            jnp.ndarray[K_o=nb_channels * max_k_per_channel, K_i=1, kernel_dims...]
-            - gfn_params:                   jnp.ndarray[nb_kernels, 2]
+            - gfn_params:                   jnp.ndarray[nb_kernels, params_shape...]
             - kernels_weight_per_channel:   jnp.ndarray[nb_channels, nb_kernels]
             - T:                            jnp.ndarray[N]
 
@@ -199,7 +199,7 @@ def get_field(
             - fields: jnp.ndarray[N=1, nb_channels, world_dims]
     """
     fields = []
-    for i in range(gfn_params.shape[0]):
+    for i in range(len(growth_fn_t)):
         sub_potential = potential[:, i]
         current_gfn_params = gfn_params[i]
         growth_fn = growth_fn_t[i]

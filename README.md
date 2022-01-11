@@ -22,6 +22,30 @@ A world contains one or more channels (C), one or more dimensions (1D, 2D, 3D ->
 
 This library aims to be fully generic. For now, it can handle any number of channels and functions but is limited to 2d worlds. It also supports the *asymptotic update* variation.
 
+## APIs
+
+**Remarks**
+This library intend to provide an optimized way to search for creatures either by using quality-diveristy algorithm or gradient based algorithm.
+Those requires different tradeofs and that's why 2 APIs are built. Instead of craming everything into a single complicated API, I decided to make 2 simpler APIs. 
+This also means, it is not straightforward to mix the 2.
+
+### Search API
+The goal of the non-differentiable search API is to provide an optimized way to search among a lof of variations.
+Lenia is considered a blackbox in this settings and you want to query the simulation as fast as possible for as many as possible inputs.
+
+Currently one can search over a set of configurations (as big as memory allows) for which multiple initializations can be tested. Because Lenia is a chaotic system, given a fixed world, one can only sample some initial conditions to see if a stable pattern can emerge.
+
+This introduces limitations, all configurations mush share:
+- number of world dimensions (2d, 3d, etc...)
+- Size of each dimensions
+- Number of channels
+- Number of initializations tested
+- Number of kernels (and so, number of growth functions)
+- Shape of the growth functions parameters
+
+### Gradient API
+The gradient API does not allow one to explore multiple solutions nor multiple initialization at the same time.
+
 ### What search algorith mare you using
 I'm using the family of Quality-Diversity algorithm to search for species. More precisely, I'm mainly using the CMA-ME algorithm with multiple emitters.
 

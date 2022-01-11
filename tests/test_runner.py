@@ -6,13 +6,13 @@ import jax
 import jax.numpy as jnp
 from hydra import compose, initialize
 
-from leniax.helpers import get_container, get_mem_optimized_inputs
-from leniax import core as leniax_core
 from leniax import runner as leniax_runner
-from leniax import helpers as leniax_helpers
 from leniax import statistics as leniax_stat
 from leniax import utils as leniax_utils
+from leniax.utils import get_container
+from leniax.helpers import get_mem_optimized_inputs, build_update_fn, init
 from leniax.lenia import LeniaIndividual
+from leniax.kernels import get_kernels_and_mapping
 
 cfd = os.path.dirname(os.path.realpath(__file__))
 fixture_dir = os.path.join(cfd, 'fixtures')
@@ -55,10 +55,10 @@ class TestRunner(unittest.TestCase):
         weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
         render_params = qd_config['render_params']
         kernels_params = qd_config['kernels_params']['k']
-        K, mapping = leniax_core.get_kernels_and_mapping(
+        K, mapping = get_kernels_and_mapping(
             kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R']
         )
-        update_fn = leniax_helpers.build_update_fn(K.shape, mapping, update_fn_version, weighted_average)
+        update_fn = build_update_fn(K.shape, mapping, update_fn_version, weighted_average)
         compute_stats_fn = leniax_stat.build_compute_stats_fn(world_params, render_params)
 
         # jax.profiler.start_trace("/tmp/tensorboard")
@@ -97,12 +97,12 @@ class TestRunner(unittest.TestCase):
             config = get_container(omegaConf, fixture_dir)
 
         max_run_iter = 32
-        cells, K, mapping = leniax_core.init(config)
+        cells, K, mapping = init(config)
         world_params = config['world_params']
         R = world_params['R']
         T = jnp.array(world_params['T'])
         update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
-        update_fn = leniax_helpers.build_update_fn(K.shape, mapping, update_fn_version)
+        update_fn = build_update_fn(K.shape, mapping, update_fn_version)
         compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
         cells1 = jnp.ones(cells.shape) * 0.2

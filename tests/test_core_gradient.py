@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 from hydra import compose, initialize
 
-from leniax.helpers import get_container
+from leniax.utils import get_container
 from leniax import core as leniax_core
 from leniax import helpers as leniax_helpers
 from leniax import kernels as leniax_kernels
@@ -19,7 +19,7 @@ class TestCore(unittest.TestCase):
             omegaConf = compose(config_name="orbium-test")
             config = get_container(omegaConf, fixture_dir)
 
-        cells, K, mapping = leniax_core.init(config)
+        cells, K, mapping = leniax_helpers.init(config)
         gfn_params = mapping.get_gfn_params()
         kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
         target = jnp.ones_like(cells) * 0.5

@@ -5,6 +5,7 @@ from omegaconf import DictConfig
 import hydra
 
 import leniax.utils as leniax_utils
+import leniax.loader as leniax_loader
 import leniax.helpers as leniax_helpers
 
 logging.set_verbosity(logging.ERROR)
@@ -21,7 +22,7 @@ nb_scale_for_stability = 1
 
 @hydra.main(config_path=config_path, config_name=config_name)
 def launch(omegaConf: DictConfig) -> None:
-    config = leniax_helpers.get_container(omegaConf, config_path)
+    config = leniax_utils.get_container(omegaConf, config_path)
 
     config['render_params']['pixel_size_power2'] = 0
     config['render_params']['pixel_size'] = 1
@@ -35,10 +36,10 @@ def launch(omegaConf: DictConfig) -> None:
         init_cells = leniax_utils.decompress_array(
             config['run_params']['init_cells'], len(config['render_params']['world_size'])
         )
-        config['run_params']['init_cells'] = leniax_utils.make_array_compressible(init_cells)
+        config['run_params']['init_cells'] = leniax_loader.make_array_compressible(init_cells)
     else:
         cells = leniax_utils.decompress_array(config['run_params']['cells'], len(config['render_params']['world_size']))
-        config['run_params']['cells'] = leniax_utils.make_array_compressible(cells)
+        config['run_params']['cells'] = leniax_loader.make_array_compressible(cells)
 
     leniax_utils.print_config(config)
 
@@ -58,8 +59,8 @@ def launch(omegaConf: DictConfig) -> None:
     leniax_utils.check_dir(save_dir)
 
     config = best["config"]
-    config['run_params']['init_cells'] = leniax_utils.compress_array(all_cells[0])
-    config['run_params']['cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
+    config['run_params']['init_cells'] = leniax_loader.compress_array(all_cells[0])
+    config['run_params']['cells'] = leniax_loader.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
     leniax_utils.save_config(save_dir, config)
 
     # # Use the following with care, it overwrites the original configuration

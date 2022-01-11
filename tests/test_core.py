@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 from hydra import compose, initialize
 
-from leniax.helpers import get_container
+from leniax.utils import get_container
 from leniax import core as leniax_core
 from leniax import helpers as leniax_helpers
 from leniax import kernels as leniax_kernels
@@ -21,7 +21,7 @@ class TestCore(unittest.TestCase):
             omegaConf = compose(config_name="orbium-test")
             config = get_container(omegaConf, fixture_dir)
 
-        cells, K, mapping = leniax_core.init(config)
+        cells, K, mapping = leniax_helpers.init(config)
         world_params = config['world_params']
         T = jnp.array(world_params['T'])
         update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'

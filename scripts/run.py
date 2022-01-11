@@ -7,6 +7,7 @@ import hydra
 
 import leniax.utils as leniax_utils
 import leniax.helpers as leniax_helpers
+import leniax.loader as leniax_loader
 from leniax import colormaps as leniax_colormaps
 # from leniax.structured_config import LeniaxConfig
 
@@ -40,14 +41,14 @@ to_hd = False
 # cs.store(name=config_name, node=LeniaxConfig)
 @hydra.main(config_path=config_path, config_name=config_name)
 def run(omegaConf: DictConfig) -> None:
-    config = leniax_helpers.get_container(omegaConf, config_path)
+    config = leniax_utils.get_container(omegaConf, config_path)
 
-    config['world_params']['update_fn_version'] = 'v1'
-    config['kernels_params']['k'][0]['gf_id'] = 0
-    config['kernels_params']['k'][0]['k_id'] = 0
-    config['kernels_params']['k'][0]['q'] = 1.
-    config['kernels_params']['k'][0]['m'] = 0.1021566
-    config['kernels_params']['k'][0]['s'] = 0.00223693
+    # config['world_params']['update_fn_version'] = 'v1'
+    # config['kernels_params']['k'][0]['gf_id'] = 0
+    # config['kernels_params']['k'][0]['k_id'] = 0
+    # config['kernels_params']['k'][0]['q'] = 1.
+    # config['kernels_params']['k'][0]['m'] = 0.1021566
+    # config['kernels_params']['k'][0]['s'] = 0.00223693
 
     # config['render_params']['pixel_size_power2'] = 0
     # config['render_params']['pixel_size'] = 2
@@ -100,8 +101,8 @@ def run(omegaConf: DictConfig) -> None:
 
     print("Compressing")
     start_time = time.time()
-    config['run_params']['init_cells'] = leniax_utils.compress_array(all_cells[0])
-    config['run_params']['cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
+    config['run_params']['init_cells'] = leniax_loader.compress_array(all_cells[0])
+    config['run_params']['cells'] = leniax_loader.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
     leniax_utils.save_config(save_dir, config)
     total_time = time.time() - start_time
     print(f"Compressing in {total_time} seconds")

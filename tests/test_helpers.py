@@ -16,7 +16,7 @@ class TestHelpers(unittest.TestCase):
     def test_get_mem_optimized_inputs(self):
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="qd_config-test")
-            qd_config = leniax_helpers.get_container(omegaConf, fixture_dir)
+            qd_config = leniax_utils.get_container(omegaConf, fixture_dir)
         world_params = qd_config['world_params']
         nb_channels = world_params['nb_channels']
         R = world_params['R']
@@ -59,7 +59,7 @@ class TestHelpers(unittest.TestCase):
     def test_update_individuals(self):
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="qd_config-test")
-            qd_config = leniax_helpers.get_container(omegaConf, fixture_dir)
+            qd_config = leniax_utils.get_container(omegaConf, fixture_dir)
 
         seed = qd_config['run_params']['seed']
         rng_key = leniax_utils.seed_everything(seed)

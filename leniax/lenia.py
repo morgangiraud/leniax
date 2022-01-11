@@ -1,7 +1,7 @@
 import copy
 from typing import Dict, List, Tuple
 
-from leniax import utils as leniax_utils
+from . import utils as leniax_utils
 
 
 class LeniaIndividual(list):

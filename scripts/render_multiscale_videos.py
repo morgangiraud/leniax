@@ -101,7 +101,7 @@ scales = [
 
 @hydra.main(config_path=config_path, config_name=config_name)
 def run(omegaConf: DictConfig) -> None:
-    ori_config = leniax_helpers.get_container(omegaConf, config_path)
+    ori_config = leniax_utils.get_container(omegaConf, config_path)
 
     configs = [ori_config] * len(scales)
 

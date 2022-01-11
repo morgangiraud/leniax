@@ -9,7 +9,6 @@ import jax.numpy as jnp
 
 import leniax.utils as leniax_utils
 import leniax.helpers as leniax_helpers
-from leniax import core as leniax_core
 
 absl_logging.set_verbosity(absl_logging.ERROR)
 
@@ -21,7 +20,7 @@ config_name = "wanderer"
 
 @hydra.main(config_path=config_path, config_name=config_name)
 def run(omegaConf: DictConfig) -> None:
-    config = leniax_helpers.get_container(omegaConf, config_path)
+    config = leniax_utils.get_container(omegaConf, config_path)
     leniax_utils.print_config(config)
 
     config['run_params']['max_run_iter'] = 1024
@@ -45,7 +44,7 @@ def run(omegaConf: DictConfig) -> None:
     config_v1['kernels_params']['k'][0]['k_id'] = 0
     config_v1['kernels_params']['k'][0]['q'] = 1.
 
-    _, K, mapping = leniax_core.init(config, True, False)
+    _, K, mapping = leniax_helpers.init(config, True, False)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
     dt = 1. / config_v1['world_params']['T']

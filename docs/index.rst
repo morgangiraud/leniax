@@ -26,13 +26,6 @@ For a quick introduction and short example snippets, see our `README
 
 .. toctree::
    :maxdepth: 1
-   :caption: How do I ...?
-   :glob:
-   :titlesonly:
-
-
-.. toctree::
-   :maxdepth: 1
    :caption: Design Notes
    :glob:
    :titlesonly:
@@ -45,8 +38,10 @@ For a quick introduction and short example snippets, see our `README
    philosophy
    contributing
 
+
 .. toctree::
    :maxdepth: 2
    :caption: API reference
 
    leniax.core
+

@@ -132,8 +132,8 @@ class TestCore(unittest.TestCase):
 
         assert delta_t_compiled < 1 / 100 * delta_t
 
-    def test_weighted_select_average_jit_perf(self):
-        jit_fn = jax.jit(leniax_core.weighted_select_average)
+    def test_weighted_mean_jit_perf(self):
+        jit_fn = jax.jit(leniax_core.weighted_mean)
 
         nb_kernels = 3
         field1 = jnp.ones([1, nb_kernels, 25, 25]) * .5

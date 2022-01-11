@@ -98,15 +98,15 @@ class TestCore(unittest.TestCase):
         out_grad = get_field_kernelsweightgrad(potential, gfn_params, kernels_weight_per_channel, target)
         assert float(jnp.sum(out_grad)) != 0.
 
-    def test_weighted_select_average_grad(self):
+    def test_weighted_mean_grad(self):
         def apply_update(field, weights, target):
-            out = leniax_core.weighted_select_average(field, weights)
+            out = leniax_core.weighted_mean(field, weights)
             error = jnp.sum((out - target)**2)
 
             return error
 
-        weighted_select_average_fieldgrad = jax.grad(apply_update, argnums=0)
-        weighted_select_average_weightsgrad = jax.grad(apply_update, argnums=1)
+        weighted_mean_fieldgrad = jax.grad(apply_update, argnums=0)
+        weighted_mean_weightsgrad = jax.grad(apply_update, argnums=1)
 
         nb_channels = 2
         field = jnp.array([[[
@@ -122,11 +122,11 @@ class TestCore(unittest.TestCase):
         weights = jnp.array([[.5, .4, .0], [.5, .2, .0]])
         target = jnp.ones([1, nb_channels, 2, 2]) * .5
 
-        # out = leniax_core.weighted_select_average(field, weights)
-        out_grad = weighted_select_average_fieldgrad(field, weights, target)
+        # out = leniax_core.weighted_mean(field, weights)
+        out_grad = weighted_mean_fieldgrad(field, weights, target)
         assert float(jnp.sum(out_grad)) != 0.
 
-        out_grad = weighted_select_average_weightsgrad(field, weights, target)
+        out_grad = weighted_mean_weightsgrad(field, weights, target)
         assert float(jnp.sum(out_grad)) != 0.
 
     def test_update_cells_v1_grad(self):

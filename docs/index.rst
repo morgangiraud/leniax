@@ -16,19 +16,13 @@ For a quick introduction and short example snippets, see our `README
 
    overview
    installation
-   Examples <https://github.com/morgangiraud/leniax/tree/main/examples>
+   Experiments <https://github.com/morgangiraud/leniax/tree/main/experiments>
 
 .. toctree::
    :maxdepth: 1
    :caption: Guided Tour
 
    notebooks/qd_search
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Design Notes
-   :glob:
-   :titlesonly:
 
 
 .. toctree::

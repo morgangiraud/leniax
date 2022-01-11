@@ -56,7 +56,7 @@ autodoc_typehints = 'description'
 # a list of builtin themes.
 #
 html_theme = 'sphinx_rtd_theme'
-html_style = 'css/flax_theme.css'
+html_style = 'css/leniax_theme.css'
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.

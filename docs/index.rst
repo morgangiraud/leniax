@@ -1,7 +1,7 @@
 .. Leniax documentation main file
 
 Leniax documentation
-==================
+====================
 
 Leniax is a `Lenia<https://chakazul.github.io/lenia.html>` simulation library powered by JAX.
 It can efficiently simulate and render Lenia worlds and can also be used to search for creatures, initial conditions, kernels and growth functions.
@@ -48,3 +48,5 @@ For a quick introduction and short example snippets, see our `README
 .. toctree::
    :maxdepth: 2
    :caption: API reference
+
+   leniax.core

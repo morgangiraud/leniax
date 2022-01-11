@@ -1,5 +1,6 @@
 # Project
 Lenia-ori
+docs/_build
 scripts/save*
 outputs
 multirun

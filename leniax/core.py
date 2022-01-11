@@ -1,3 +1,6 @@
+"""Leniax core simulation functions
+"""
+
 import functools
 from jax import lax, jit
 import jax.numpy as jnp
@@ -15,18 +18,23 @@ def update(
     get_field_fn: Callable,
     update_fn: Callable,
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-    """
-        Args:
-            - cells:                        jnp.ndarray[N, nb_channels, world_dims...]
-            - K:                            jnp.ndarray[K_o=nb_channels * max_k_per_channel, K_i=1, kernel_dims...]
-            - gfn_params:                   jnp.ndarray[nb_kernels, params_shape...]
-            - kernels_weight_per_channel:   jnp.ndarray[nb_channels, nb_kernels]
-            - T:                            jnp.ndarray[N]
+    """Update the cells state
 
-        Outputs:
-            - cells:        jnp.ndarray[N, nb_channels, world_dims...]
-            - field:        jnp.ndarray[N, nb_channels, world_dims...]
-            - potential:    jnp.ndarray[N, nb_channels, world_dims...]
+    Args:
+        cells: cells state ``([N, nb_channels, world_dims...])``
+        K: Kernel ``[K_o=nb_channels * max_k_per_channel, K_i=1, kernel_dims...]``
+        gfn_params: Growth function parmaeters ``[nb_kernels, params_shape...]``
+        kernels_weight_per_channel: Kernels weight used in the averaginf function ``[nb_channels, nb_kernels]``
+        dt: Update rate ``[N]``
+        get_potential_fn: **(jit static arg)** Function used to compute the potential
+        get_field_fn: **(jit static arg)** Function used to compute the field
+        update_fn: **(jit static arg)** Function used to compute the new cell state
+
+    Returns:
+        A tuple of arrays representing the updated cells state, the used potential and used field.
+
+    Jitted function with static argnums. Use functools.partial to set the different function.
+    Avoid changing non-static argument shape for performance.
     """
 
     potential = get_potential_fn(cells, K)
@@ -37,18 +45,31 @@ def update(
 
 
 def get_potential_fft(
-    cells: jnp.ndarray, K: jnp.ndarray, true_channels: jnp.ndarray, max_k_per_channel: int, C: int, axes: Tuple[int]
+    cells: jnp.ndarray,
+    K: jnp.ndarray,
+    true_channels: jnp.ndarray,
+    max_k_per_channel: int,
+    C: int,
+    wdims_axes: Tuple[int]
 ) -> jnp.ndarray:
-    """
-        Args:
-            - cells: jnp.ndarray[N, nb_channels, world_dims...]
-            - K: jnp.ndarray[1, nb_channels, max_k_per_channel, world_dims...]
+    """Compute the potential using FFT
 
-        The first dimension of cells and K is the vmap dimension
+    Args:
+        cells: cells state ``[N, nb_channels, world_dims...]``
+        K: Kernels ``[1, nb_channels, max_k_per_channel, world_dims...]``
+        true_channels: ``1-dim`` array of boolean values ``[nb_channels]``
+        max_k_per_channel: Maximum number of kernels applied per channel
+        C: nb_channels
+        wdims_axes: Dimensions index representing the world dimensions (H, W, etc...)
+
+    Returns:
+        An array containing the potential
+
+    The first dimension of cells and K is the vmap dimension
     """
-    fft_cells = jnp.fft.fftn(cells, axes=axes)[:, :, jnp.newaxis, ...]  # [N, nb_channels, 1, world_dims...]
+    fft_cells = jnp.fft.fftn(cells, axes=wdims_axes)[:, :, jnp.newaxis, ...]  # [N, nb_channels, 1, world_dims...]
     fft_out = fft_cells * K
-    conv_out = jnp.real(jnp.fft.ifftn(fft_out, axes=axes))  # [N, nb_channels, max_k_per_channel, world_dims...]
+    conv_out = jnp.real(jnp.fft.ifftn(fft_out, axes=wdims_axes))  # [N, nb_channels, max_k_per_channel, world_dims...]
 
     world_shape = cells.shape[2:]
     final_shape = (-1, max_k_per_channel * C) + world_shape
@@ -60,13 +81,19 @@ def get_potential_fft(
 
 
 def get_potential(cells: jnp.ndarray, K: jnp.ndarray, padding: jnp.ndarray, true_channels: jnp.ndarray) -> jnp.ndarray:
-    """
-            Args:
-                - cells: jnp.ndarray[N, nb_channels, world_dims...]
-                - K: jnp.ndarray[K_o=nb_channels * max_k_per_channel, K_i=1, kernel_dims...]
+    """Compute the potential using lax.conv_general_dilated
 
-            The first dimension of cells and K is the vmap dimension
-        """
+    Args:
+        cells: cells state ``[N, nb_channels, world_dims...]``
+        K: Kernels ``[K_o=nb_channels * max_k_per_channel, K_i=1, kernel_dims...]``
+        padding: array with padding informations, ``[nb_world_dims, 2]``
+        true_channels: ``1-dim`` array of boolean values ``[nb_channels]``
+
+    Returns:
+        An array containing the potential
+
+    The first dimension of cells and K is the vmap dimension
+    """
     padded_cells = jnp.pad(cells, padding, mode='wrap')
     nb_channels = cells.shape[1]
     # the beauty of feature_group_count for depthwise convolution
@@ -85,19 +112,20 @@ def get_field(
     growth_fn_t: Tuple[Callable],
     weighted_fn: Callable
 ) -> jnp.ndarray:
-    """
-        Args:
-            - potential: jnp.ndarray[N, nb_kernels, world_dims...] shape must be kept constant to avoid recompiling
-            - gfn_params: jnp.ndarray[nb_kernels, 2] shape must be kept constant to avoid recompiling
-            - kernels_weight_per_channel: jnp.ndarray[nb_channels, nb_kernels]
-            - growth_fn_t: Tuple of growth functions
-            - weighted_fn: Apply weight function
-        Implicit closure args:
-            - nb_kernels must be kept contant to avoid recompiling
-            - cout_kernels must be of shape [nb_channels]
+    """Compute the field
 
-        Outputs:
-            - fields: jnp.ndarray[N=1, nb_channels, world_dims]
+    Args:
+        potential: ``[N, nb_kernels, world_dims...]``
+        gfn_params: ``[nb_kernels, 2]``
+        kernels_weight_per_channel: Kernels weight used in the averaginf function ``[nb_channels, nb_kernels]``
+        growth_fn_t: **(jit static arg)** Tuple of growth functions. ``length: nb_kernels``
+        weighted_fn: **(jit static arg)** Function used to merge fields linked to the same channel
+
+    Returns:
+        An array containing the field
+
+    Jitted function with static argnums. Use functools.partial to set the different function.
+    Avoid changing non-static argument shape for performance.
     """
     fields = []
     for i in range(len(growth_fn_t)):
@@ -115,15 +143,16 @@ def get_field(
     return fields_jnp
 
 
-def weighted_select(fields: jnp.ndarray, weights: jnp.ndarray) -> jnp.ndarray:
-    """
-        Args:
-            - fields: jnp.ndarray[N, nb_kernels, world_dims...] shape must be kept constant to avoid recompiling
-            - weights: jnp.ndarray[nb_channels, nb_kernels] shape must be kept constant to avoid recompiling
-                0. values are used to indicate that a given channels does not receive inputs from this kernel
+def weighted_sum(fields: jnp.ndarray, weights: jnp.ndarray) -> jnp.ndarray:
+    """Compute the weighted sum of sub fields
 
-        Outputs:
-            - fields: jnp.ndarray[nb_channels, world_dims...]
+    Args:
+        fields: Raw sub fields ``[N, nb_kernels, world_dims...]``
+        weights: Weights used to compute the sum ``[nb_channels, nb_kernels]`` 0.
+            values are used to indicate that a given channels does not receive inputs from this kernel
+
+    Returns:
+        The unnormalized field
     """
     N = fields.shape[0]
     nb_kernels = fields.shape[1]
@@ -140,28 +169,36 @@ def weighted_select(fields: jnp.ndarray, weights: jnp.ndarray) -> jnp.ndarray:
     return fields_out
 
 
-def weighted_select_average(fields: jnp.ndarray, weights: jnp.ndarray) -> jnp.ndarray:
-    """
-        Args:
-            - fields: jnp.ndarray[N, nb_kernels, world_dims...] shape must be kept constant to avoid recompiling
-            - weights: jnp.ndarray[nb_channels, nb_kernels] shape must be kept constant to avoid recompiling
-                0. values are used to indicate that a given channels does not receive inputs from this kernel
+def weighted_mean(fields: jnp.ndarray, weights: jnp.ndarray) -> jnp.ndarray:
+    """Compute the weighted mean of sub fields
 
-        Outputs:
-            - fields: jnp.ndarray[nb_channels, world_dims...]
+    Args:
+        fields: Raw sub fields ``[N, nb_kernels, world_dims...]``
+        weights: Weights used to compute the sum ``[nb_channels, nb_kernels]`` 0.
+            values are used to indicate that a given channels does not receive inputs from this kernel
+
+    Returns:
+        The normalized field
     """
-    fields_out = weighted_select(fields, weights)
+    fields_out = weighted_sum(fields, weights)
     fields_normalized = fields_out / weights.sum(axis=1)[jnp.newaxis, :, jnp.newaxis, jnp.newaxis]
 
     return fields_normalized
 
 
 def update_cells(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp.ndarray:
-    """
-        Args:
-            - cells: jnp.ndarray[N, nb_channels, world_dims...], shape must be kept constant to avoid recompiling
-            - field: jnp.ndarray[N, nb_channels, world_dims...], shape must be kept constant to avoid recompiling
-            - dt:     jnp.ndarray[N], shape must be kept constant to avoid recompiling
+    """Compute the new cells state using the original Lenia formula
+
+    Args:
+        cells: Current cells state ``[N, nb_channels, world_dims...]``
+        field: Current field``[N, nb_channels, world_dims...]``
+        dt: Update rate ``[N]``
+
+    Returns:
+        The new cells state
+
+    Reference:
+        https://arxiv.org/abs/1812.05433
     """
     cells_new = cells + dt * field
     clipped_cells = jnp.clip(cells_new, 0., 1.)
@@ -174,11 +211,18 @@ def update_cells(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp
 
 
 def update_cells_v2(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp.ndarray:
-    """
-        Args:
-            - cells: jnp.ndarray[N, nb_channels, world_dims...], shape must be kept constant to avoid recompiling
-            - field: jnp.ndarray[N, nb_channels, world_dims...], shape must be kept constant to avoid recompiling
-            - dt:     jnp.ndarray[N], shape must be kept constant to avoid recompiling
+    """Compute the new cells state using the asymptotic Lenia formula
+
+    Args:
+        cells: Current cells state ``[N, nb_channels, world_dims...]``
+        field: Current field``[N, nb_channels, world_dims...]``
+        dt: Update rate ``[N]``
+
+    Returns:
+        The new cells state
+
+    Reference:
+        https://direct.mit.edu/isal/proceedings/isal/91/102916
     """
     cells_new = jnp.array(cells * (1 - dt) + dt * field)
 

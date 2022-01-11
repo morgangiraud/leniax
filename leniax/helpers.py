@@ -426,14 +426,14 @@ def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: jnp.nda
         max_k_per_channel = kernel_shape[1]
         C = kernel_shape[2]
         nb_dims = len(kernel_shape) - 3
-        axes = tuple(range(-1, -nb_dims - 1, -1))
+        wdims_axes = tuple(range(-1, -nb_dims - 1, -1))
 
         return functools.partial(
             leniax_core.get_potential_fft,
             true_channels=true_channels,
             max_k_per_channel=max_k_per_channel,
             C=C,
-            axes=axes
+            wdims_axes=wdims_axes
         )
     else:
         padding = jnp.array([[0, 0]] * 2 + [[dim // 2, dim // 2] for dim in kernel_shape[2:]])
@@ -451,9 +451,9 @@ def build_get_field_fn(cin_growth_fns: List[List[int]], average: bool = True) ->
     growth_fn_t = tuple(growth_fn_l)
 
     if average:
-        weighted_fn = leniax_core.weighted_select_average
+        weighted_fn = leniax_core.weighted_mean
     else:
-        weighted_fn = leniax_core.weighted_select
+        weighted_fn = leniax_core.weighted_sum
 
     return functools.partial(leniax_core.get_field, growth_fn_t=growth_fn_t, weighted_fn=weighted_fn)
 

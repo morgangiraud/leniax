@@ -10,7 +10,7 @@ from ribs.archives import GridArchive, CVTArchive
 from ribs.emitters import GaussianEmitter, ImprovementEmitter, OptimizingEmitter, RandomDirectionEmitter
 from ribs.optimizers import Optimizer
 
-from leniax.helpers import get_container
+from leniax.utils import get_container
 from leniax import qd as leniax_qd
 from leniax import utils as leniax_utils
 from leniax import video as leniax_video

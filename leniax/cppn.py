@@ -10,7 +10,7 @@ from jax.nn.initializers import glorot_normal
 from jax.experimental import stax, optimizers
 from jax._src.nn.initializers import _compute_fans
 
-from . import utils as leniax_utils
+from .utils import get_image
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 tmp_dir = os.path.join(cdir, '..', 'tmp')
@@ -225,11 +225,11 @@ if __name__ == '__main__':
 
     out = out.reshape(1, height, width)
     pixel_size = 1
-    img = leniax_utils.get_image(out, pixel_size, colormap)
+    img = get_image(out, pixel_size, colormap)
     with open(os.path.join(tmp_dir, "cppn.png"), 'wb') as f:
         img.save(f, format='png')
 
     target_out = target_cell.reshape(1, height, width)
-    target_img = leniax_utils.get_image(target_out, pixel_size, colormap)
+    target_img = get_image(target_out, pixel_size, colormap)
     with open(os.path.join(tmp_dir, "cppn_target.png"), 'wb') as f:
         target_img.save(f, format='png')

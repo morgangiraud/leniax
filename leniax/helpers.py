@@ -3,50 +3,93 @@ import os
 import copy
 import json
 import pickle
-import uuid
+import functools
 import numpy as np
+import scipy
 import jax.numpy as jnp
-from typing import Dict, Tuple, List
-from omegaconf import DictConfig, OmegaConf
+from typing import Callable, Dict, Tuple, List
 import matplotlib.pyplot as plt
 from absl import logging as absl_logging
 
 from .lenia import LeniaIndividual
+from . import core as leniax_core
+from . import runner as leniax_runner
 from . import initializations as initializations
 from . import statistics as leniax_stat
-from . import core as leniax_core
+from . import loader as leniax_loader
 from . import utils as leniax_utils
-from . import kernels as leniax_kernels
 from . import growth_functions as leniax_gf
 from . import video as leniax_video
+from . import colormaps as leniax_colormaps
+from .growth_functions import growth_fns
+from .kernels import KernelMapping, get_kernels_and_mapping, get_kernel
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 
 
-def get_container(omegaConf: DictConfig, main_path: str) -> Dict:
-    # TODO: Need to check if missing first
-    omegaConf.run_params.code = str(uuid.uuid4())
+def init(config: Dict, fft: bool = True, use_init_cells: bool = True) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
+    nb_dims = config['world_params']['nb_dims']
+    nb_channels = config['world_params']['nb_channels']
+    world_size = config['render_params']['world_size']
+    kernels_params = config['kernels_params']['k']
+    assert len(world_size) == nb_dims
+    assert nb_channels > 0
 
-    world_params = omegaConf.world_params
-    render_params = omegaConf.render_params
-    if omegaConf.render_params.pixel_size == 'MISSING':
-        pixel_size = 2**render_params.pixel_size_power2
-        omegaConf.render_params.pixel_size = pixel_size
-    if omegaConf.render_params.world_size == 'MISSING':
-        world_size = [2**render_params['size_power2']] * world_params['nb_dims']
-        omegaConf.render_params.world_size = world_size
+    cells = leniax_loader.load_raw_cells(config, use_init_cells)
 
-    # When we are here, the omegaConf has already been checked by OmegaConf
-    # so we can extract primitives to use with other libs
-    config = OmegaConf.to_container(omegaConf)
-    assert isinstance(config, dict)
+    scale = config['world_params']['scale']
+    if scale != 1.:
+        cells = jnp.array([scipy.ndimage.zoom(cells[i], scale, order=0) for i in range(nb_channels)], dtype=jnp.float32)
+        config['world_params']['R'] *= scale
 
-    config['main_path'] = main_path
+    # assert cells.shape[1] * 2.2 < config['render_params']['world_size'][0]
+    # assert cells.shape[2] * 2.2 < config['render_params']['world_size'][1]
+    # on = round(max(cells.shape[1] * 1.25, cells.shape[2] * 1.25) / 2.)
+    # init_cells = create_init_cells(world_size, nb_channels, [
+    #     jnp.rot90(cells, k=2, axes=(1, 2)),
+    #     jnp.rot90(cells, k=1, axes=(1, 2)),
+    #     jnp.rot90(cells, k=0, axes=(1, 2)),
+    #     jnp.rot90(cells, k=-1, axes=(1, 2)),
+    # ], [
+    #     [0, -on, -on],
+    #     [0, -on, on],
+    #     [0, on, on],
+    #     [0, on, -on],
+    # ])
+    init_cells = create_init_cells(world_size, nb_channels, [cells])
+    R = config['world_params']['R']
+    K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)
 
-    if 'scale' not in config['world_params']:
-        config['world_params']['scale'] = 1.
+    return init_cells, K, mapping
 
-    return config
+
+def create_init_cells(
+    world_size: List[int],
+    nb_channels: int,
+    other_cells: List[jnp.ndarray] = [],
+    offsets: List[List[int]] = [],
+) -> jnp.ndarray:
+    """
+        Outputs:
+            - cells: jnp.ndarray[N=1, C, world_dims...]
+    """
+    world_shape = [nb_channels] + world_size  # [C, world_dims...]
+    cells = jnp.zeros(world_shape)
+    if isinstance(other_cells, list):
+        if len(offsets) == len(other_cells):
+            for c, offset in zip(other_cells, offsets):
+                if len(c) != 0:
+                    cells = leniax_utils.merge_cells(cells, c, offset)
+        else:
+            for c in other_cells:
+                if len(c) != 0:
+                    cells = leniax_utils.merge_cells(cells, c)
+    else:
+        raise ValueError(f'Don\'t know how to handle {type(other_cells)}')
+
+    cells = cells[jnp.newaxis, ...]
+
+    return cells
 
 
 def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tuple[jnp.ndarray, Dict, int]:
@@ -66,10 +109,10 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
     nb_init_search = run_params['nb_init_search']
     max_run_iter = run_params['max_run_iter']
 
-    K, mapping = leniax_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)
+    K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
-    update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
+    update_fn = build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
     compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     if update_fn_version == 'v1':
@@ -84,7 +127,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
 
     all_cells_0 = []
     for i in range(nb_init_search):
-        cells_0 = leniax_core.create_init_cells(world_size, nb_channels, [noises[i]])
+        cells_0 = create_init_cells(world_size, nb_channels, [noises[i]])
         all_cells_0.append(cells_0)
     all_cells_0_jnp = jnp.array(all_cells_0)
 
@@ -93,7 +136,7 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
     for i in range(nb_init_search):
         # t0 = time.time()
 
-        all_cells, _, _, all_stats = leniax_core.run_scan(
+        all_cells, _, _, all_stats = leniax_runner.run_scan(
             all_cells_0_jnp[i],
             K,
             gfn_params,
@@ -185,7 +228,7 @@ def search_for_mutation(
 def init_and_run(config: Dict, with_jit: bool = False, fft: bool = True, use_init_cells: bool = True) -> Tuple:
     config = copy.deepcopy(config)
 
-    cells, K, mapping = leniax_core.init(config, fft, use_init_cells)
+    cells, K, mapping = init(config, fft, use_init_cells)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 
@@ -197,15 +240,15 @@ def init_and_run(config: Dict, with_jit: bool = False, fft: bool = True, use_ini
 
     max_run_iter = config['run_params']['max_run_iter']
 
-    update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
+    update_fn = build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
     compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     if with_jit is True:
-        all_cells, all_fields, all_potentials, stats_dict = leniax_core.run_scan(
+        all_cells, all_fields, all_potentials, stats_dict = leniax_runner.run_scan(
             cells, K, gfn_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
         )
     else:
-        all_cells, all_fields, all_potentials, stats_dict = leniax_core.run(
+        all_cells, all_fields, all_potentials, stats_dict = leniax_runner.run(
             cells, K, gfn_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
         )
     stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
@@ -238,7 +281,7 @@ def get_mem_optimized_inputs(qd_config: Dict, lenia_sols: List[LeniaIndividual],
         config = ind.get_config()
         kernels_params = config['kernels_params']['k']
 
-        K, mapping = leniax_core.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)
+        K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)
         gfn_params = mapping.get_gfn_params()
         kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 
@@ -301,8 +344,8 @@ def update_individuals(
         final_cells = ind_final_cells[best_init_idx]
         # print(i, ind_Ns, max_idx)
 
-        ind.set_init_cells(leniax_utils.compress_array(cells0))
-        ind.set_cells(leniax_utils.compress_array(leniax_utils.center_and_crop_cells(final_cells)))
+        ind.set_init_cells(leniax_loader.compress_array(cells0))
+        ind.set_cells(leniax_loader.compress_array(leniax_utils.center_and_crop_cells(final_cells)))
 
         if neg_fitness is True:
             fitness = -nb_steps
@@ -349,11 +392,70 @@ def process_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
     nb_iter_done = len(all_cells)
     print(f"[{padded_id}] - {nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
 
-    config['run_params']['init_cells'] = leniax_utils.compress_array(all_cells[0])
-    config['run_params']['cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
+    config['run_params']['init_cells'] = leniax_loader.compress_array(all_cells[0])
+    config['run_params']['cells'] = leniax_loader.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
     leniax_utils.save_config(save_dir, config)
 
     dump_assets(save_dir, config, all_cells, stats_dict)
+
+
+def build_update_fn(
+    K_shape: Tuple[int, ...],
+    mapping: KernelMapping,
+    update_fn_version: str = 'v1',
+    average_weight: bool = True,
+    fft: bool = True,
+) -> Callable:
+    get_potential_fn = build_get_potential_fn(K_shape, mapping.true_channels, fft)
+    get_field_fn = build_get_field_fn(mapping.cin_growth_fns, average_weight)
+    if update_fn_version == 'v1':
+        update_fn = leniax_core.update_cells
+    elif update_fn_version == 'v2':
+        update_fn = leniax_core.update_cells_v2
+    else:
+        raise ValueError(f"version {update_fn_version} does not exist")
+
+    return functools.partial(
+        leniax_core.update, get_potential_fn=get_potential_fn, get_field_fn=get_field_fn, update_fn=update_fn
+    )
+
+
+def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: jnp.ndarray, fft: bool = True) -> Callable:
+    # First 2 dimensions are for fake batch dim and nb_channels
+    if fft is True:
+        max_k_per_channel = kernel_shape[1]
+        C = kernel_shape[2]
+        nb_dims = len(kernel_shape) - 3
+        axes = tuple(range(-1, -nb_dims - 1, -1))
+
+        return functools.partial(
+            leniax_core.get_potential_fft,
+            true_channels=true_channels,
+            max_k_per_channel=max_k_per_channel,
+            C=C,
+            axes=axes
+        )
+    else:
+        padding = jnp.array([[0, 0]] * 2 + [[dim // 2, dim // 2] for dim in kernel_shape[2:]])
+
+        return functools.partial(leniax_core.get_potential, padding=padding, true_channels=true_channels)
+
+
+def build_get_field_fn(cin_growth_fns: List[List[int]], average: bool = True) -> Callable:
+    growth_fn_l = []
+    for growth_fns_per_channel in cin_growth_fns:
+        for gf_id in growth_fns_per_channel:
+            growth_fn = growth_fns[gf_id]
+            growth_fn_l.append(growth_fn)
+
+    growth_fn_t = tuple(growth_fn_l)
+
+    if average:
+        weighted_fn = leniax_core.weighted_select_average
+    else:
+        weighted_fn = leniax_core.weighted_select
+
+    return functools.partial(leniax_core.get_field, growth_fn_t=growth_fn_t, weighted_fn=weighted_fn)
 
 
 ###
@@ -361,7 +463,9 @@ def process_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
 ###
 def dump_assets(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict: Dict, colormaps=None):
     if colormaps is None:
-        colormaps = [plt.get_cmap('plasma')]  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
+        colormaps = [
+            leniax_colormaps.ExtendedColormap('extended')
+        ]  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
 
     leniax_utils.plot_stats(save_dir, stats_dict)
 
@@ -432,8 +536,9 @@ def plot_kernels(save_dir, config):
     all_ks = []
     all_gs = []
     for k in config['kernels_params']['k']:
-        all_ks.append(leniax_kernels.get_kernel(k, world_size, R, True))
-        all_gs.append(leniax_gf.growth_fns[k['gf_id']](x, k['m'], k['s']) * k['h'])
+        all_ks.append(get_kernel(k, world_size, R, True))
+        gfn_params = np.array([k['m'], k['s']])
+        all_gs.append(leniax_gf.growth_fns[k['gf_id']](gfn_params, x) * k['h'])
     Ks = leniax_utils.crop_zero(jnp.vstack(all_ks))
     nb_Ks = Ks.shape[0]
 

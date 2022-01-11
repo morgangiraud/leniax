@@ -5,7 +5,7 @@ from jax import jit
 from typing import List, Dict, Callable
 
 from .constant import EPSILON
-from . import utils as leniax_utils
+from .utils import center_world
 
 
 def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
@@ -37,9 +37,7 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
         # https://en.wikipedia.org/wiki/Image_moment
         # To avoid weird behaviours when species are crossing the frontiers, we need to compute stats
         # from a centered world
-        centered_cells, centered_field, _ = leniax_utils.center_world(
-            cells, field, potential, previous_total_shift_idx, axes
-        )
+        centered_cells, centered_field, _ = center_world(cells, field, potential, previous_total_shift_idx, axes)
         positive_field = jnp.maximum(centered_field, 0)
 
         m_00 = centered_cells.sum(axis=non_batch_dims)

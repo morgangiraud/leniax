@@ -4,7 +4,8 @@ import numpy as np
 from hydra import compose, initialize
 import pickle
 
-import leniax.helpers as leniax_helpers
+import leniax.utils as leniax_utils
+from leniax.helpers import init_and_run
 
 cfd = os.path.dirname(os.path.realpath(__file__))
 fixture_dir = os.path.join(cfd, 'fixtures')
@@ -18,12 +19,12 @@ class TestPipeline(unittest.TestCase):
         last_frame_fullpath = f"{fixture_dir}/orbium-test_last_frame.p"
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="orbium-test")
-            config = leniax_helpers.get_container(omegaConf, fixture_dir)
+            config = leniax_utils.get_container(omegaConf, fixture_dir)
 
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        all_cells, _, _, _ = leniax_helpers.init_and_run(config, with_jit=False)
+        all_cells, _, _, _ = init_and_run(config, with_jit=False)
         last_frame = all_cells[-1, 0]
 
         assert len(all_cells) == 128
@@ -33,12 +34,12 @@ class TestPipeline(unittest.TestCase):
         last_frame_fullpath = f"{fixture_dir}/orbium-test_last_frame.p"
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="orbium-test")
-            config = leniax_helpers.get_container(omegaConf, fixture_dir)
+            config = leniax_utils.get_container(omegaConf, fixture_dir)
 
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        all_cells, _, _, _ = leniax_helpers.init_and_run(config, with_jit=True)
+        all_cells, _, _, _ = init_and_run(config, with_jit=True)
         last_frame = all_cells[-1, 0]
 
         assert len(all_cells) == 128
@@ -48,12 +49,12 @@ class TestPipeline(unittest.TestCase):
         last_frame_fullpath = f"{fixture_dir}/orbium-scutium-test_last_frame2.p"
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="orbium-scutium-test")
-            config = leniax_helpers.get_container(omegaConf, fixture_dir)
+            config = leniax_utils.get_container(omegaConf, fixture_dir)
 
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        all_cells, _, _, _ = leniax_helpers.init_and_run(config, with_jit=True)
+        all_cells, _, _, _ = init_and_run(config, with_jit=True)
         last_frame = all_cells[-1, 0]
 
         assert len(all_cells) == 128
@@ -63,12 +64,12 @@ class TestPipeline(unittest.TestCase):
         last_frame_fullpath = f"{fixture_dir}/orbium-scutium-test_last_frame2.p"
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="orbium-scutium-test")
-            config = leniax_helpers.get_container(omegaConf, fixture_dir)
+            config = leniax_utils.get_container(omegaConf, fixture_dir)
 
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        all_cells, _, _, _ = leniax_helpers.init_and_run(config, with_jit=True, fft=True)
+        all_cells, _, _, _ = init_and_run(config, with_jit=True, fft=True)
         last_frame = all_cells[-1, 0]
 
         assert len(all_cells) == 128
@@ -78,12 +79,12 @@ class TestPipeline(unittest.TestCase):
         last_frame_fullpath = f"{fixture_dir}/aquarium-test_last_frame.p"
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="aquarium-test")
-            config = leniax_helpers.get_container(omegaConf, fixture_dir)
+            config = leniax_utils.get_container(omegaConf, fixture_dir)
 
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        all_cells, _, _, _ = leniax_helpers.init_and_run(config, with_jit=True)
+        all_cells, _, _, _ = init_and_run(config, with_jit=True)
         last_frame = all_cells[-1, 0]
 
         assert len(all_cells) == 32
@@ -93,12 +94,12 @@ class TestPipeline(unittest.TestCase):
         last_frame_fullpath = f"{fixture_dir}/aquarium-test_last_frame.p"
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="aquarium-test")
-            config = leniax_helpers.get_container(omegaConf, fixture_dir)
+            config = leniax_utils.get_container(omegaConf, fixture_dir)
 
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        all_cells, _, _, _ = leniax_helpers.init_and_run(config, with_jit=True, fft=True)
+        all_cells, _, _, _ = init_and_run(config, with_jit=True, fft=True)
         last_frame = all_cells[-1, 0]
 
         assert len(all_cells) == 32

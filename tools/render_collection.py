@@ -9,9 +9,10 @@ from hydra import compose, initialize
 import scipy
 import multiprocessing
 
-from leniax import core as leniax_core
+from leniax import runner as leniax_runner
 from leniax import statistics as leniax_stat
 from leniax import utils as leniax_utils
+from leniax import loader as leniax_loader
 from leniax import helpers as leniax_helpers
 from leniax import video as leniax_video
 from leniax import colormaps as leniax_colormaps
@@ -52,11 +53,11 @@ def get_parameters_for_scale(scale: float, world_size: List[int], config: Dict, 
 
     use_init_cells = True
     render_params = tmp_config['render_params']
-    cells, K, mapping = leniax_core.init(tmp_config, fft, use_init_cells)
+    cells, K, mapping = leniax_helpers.init(tmp_config, fft, use_init_cells)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
     R = config['world_params']['R']
-    update_fn = leniax_core.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
+    update_fn = leniax_helpers.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
     compute_stats_fn = leniax_stat.build_compute_stats_fn(tmp_config['world_params'], render_params)
 
     return {
@@ -81,7 +82,7 @@ def run_at_scale(config, cropped_cells, scale, params_scale):
     cells = leniax_utils.merge_cells(zero_background, cropped_cells)
     params_scale['cells0'] = cells
 
-    all_cells, _, _, stats_dict = leniax_core.run_scan(**params_scale)
+    all_cells, _, _, stats_dict = leniax_runner.run_scan(**params_scale)
     all_cells = all_cells[:, 0]  # [nb_iter, C, world_dims...]
     stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
     N = stats_dict['N']
@@ -136,7 +137,7 @@ def run() -> None:
         config_path = os.path.join(collection_dir_relative, family_dir_name, subdir.split('/')[-1])
         with initialize(config_path=config_path):
             omegaConf = compose(config_name=config_filename.split('.')[0])
-            config = leniax_helpers.get_container(omegaConf, config_path)
+            config = leniax_utils.get_container(omegaConf, config_path)
             config['render_params']['pixel_size_power2'] = 0
             config['render_params']['pixel_size'] = 1
             config['render_params']['size_power2'] = 7
@@ -155,7 +156,7 @@ def run() -> None:
 
             # Here the goal is to make sure we reach the stable creature state from the initial conditions
             params_scale_init['max_run_iter'] = 2000
-            all_cells, _, _, stats_dict = leniax_core.run_scan(**params_scale_init)
+            all_cells, _, _, stats_dict = leniax_runner.run_scan(**params_scale_init)
             all_cells = all_cells[:, 0]  # [nb_iter, C, world_dims...]
             stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
             print(stats_dict['N'])
@@ -188,7 +189,7 @@ def run() -> None:
             for frame_idx in range(31, -1, -1):
                 print(f'testing frame_idx: {-32 + frame_idx}')
 
-                cropped_compressible_cells_1 = leniax_utils.make_array_compressible(
+                cropped_compressible_cells_1 = leniax_loader.make_array_compressible(
                     leniax_utils.center_and_crop_cells(all_cells[-32 + frame_idx])
                 )[jnp.newaxis]
 
@@ -240,7 +241,7 @@ def run() -> None:
                 'config': {
                     'kernels_params': config['kernels_params']['k'],
                     'world_params': config['world_params'],
-                    'cells': leniax_utils.compress_array(cropped_compressible_cells_1[0])
+                    'cells': leniax_loader.compress_array(cropped_compressible_cells_1[0])
                 }
             }
             with open(metadata_fullpath, 'w') as f:

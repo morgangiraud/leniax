@@ -1,9 +1,9 @@
-from leniax.utils import make_array_compressible
 import math
 import jax
 import jax.numpy as jnp
 from typing import List, Dict
 
+from .loader import make_array_compressible
 from .perlin import generate_perlin_noise_2d
 
 

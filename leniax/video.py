@@ -5,7 +5,7 @@ import numpy as np
 import jax.numpy as jnp
 from typing import Dict, List, Union, Any
 
-from . import utils as leniax_utils
+from .utils import get_image
 
 
 def dump_video(
@@ -59,7 +59,7 @@ def dump_video(
         for i in range(nb_iter_done):
             start_time = time.time()
 
-            img = leniax_utils.get_image(np_all_cells[i], render_params['pixel_size'], colormap)
+            img = get_image(np_all_cells[i], render_params['pixel_size'], colormap)
             process.stdin.write(img.tobytes())
 
             all_times.append(time.time() - start_time)

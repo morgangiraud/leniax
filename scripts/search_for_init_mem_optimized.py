@@ -7,6 +7,7 @@ import hydra
 
 from leniax.lenia import LeniaIndividual
 import leniax.utils as leniax_utils
+import leniax.loader as leniax_loader
 import leniax.helpers as leniax_helpers
 import leniax.qd as leniax_qd
 
@@ -20,7 +21,7 @@ config_name = "config_init_search"
 
 @hydra.main(config_path=config_path, config_name=config_name)
 def launch(omegaConf: DictConfig) -> None:
-    config = leniax_helpers.get_container(omegaConf, config_path)
+    config = leniax_utils.get_container(omegaConf, config_path)
     # config['run_params']['nb_init_search'] = 16
     # config['run_params']['max_run_iter'] = 512
 
@@ -48,10 +49,10 @@ def launch(omegaConf: DictConfig) -> None:
         save_dir = os.path.join(os.getcwd(), f"{str(id_best).zfill(4)}")  # changed by hydra
         leniax_utils.check_dir(save_dir)
 
-        config['run_params']['init_cells'] = leniax_utils.compress_array(
+        config['run_params']['init_cells'] = leniax_loader.compress_array(
             leniax_utils.center_and_crop_cells(all_cells[0])
         )
-        config['run_params']['cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
+        config['run_params']['cells'] = leniax_loader.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
         leniax_utils.save_config(save_dir, config)
 
         print("Dumping assets")

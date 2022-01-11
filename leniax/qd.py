@@ -19,9 +19,11 @@ from ribs.visualize import grid_archive_heatmap, cvt_archive_heatmap, parallel_a
 
 from .lenia import LeniaIndividual
 from . import utils as leniax_utils
-from . import core as leniax_core
+from . import loader as leniax_loader
+from . import runner as leniax_runner
 from . import helpers as leniax_helpers
-from . import statistics as leniax_stat
+from .statistics import build_compute_stats_fn
+from .kernels import get_kernels_and_mapping
 
 QDMetrics = Dict[str, Dict[str, list]]
 
@@ -105,8 +107,8 @@ def eval_lenia_config(ind: LeniaIndividual, neg_fitness: bool = False, fft: bool
     init_cells = best['all_cells'][0][:, 0, 0, ...]
     final_cells = best['all_cells'][-1][:, 0, 0, ...]
 
-    ind.set_cells(leniax_utils.compress_array(leniax_utils.crop_zero(final_cells)))
-    ind.set_init_cells(leniax_utils.compress_array(init_cells))
+    ind.set_cells(leniax_loader.compress_array(leniax_utils.crop_zero(final_cells)))
+    ind.set_init_cells(leniax_loader.compress_array(init_cells))
 
     if neg_fitness is True:
         fitness = -nb_steps
@@ -129,26 +131,26 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness: bool 
     update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
     weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
     kernels_params = qd_config['kernels_params']['k']
-    K, mapping = leniax_core.get_kernels_and_mapping(
+    K, mapping = get_kernels_and_mapping(
         kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R'], fft
     )
 
-    update_fn_scale_1 = leniax_core.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
-    compute_stats_fn_scale_1 = leniax_stat.build_compute_stats_fn(world_params, render_params)
+    update_fn_scale_1 = leniax_helpers.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
+    compute_stats_fn_scale_1 = build_compute_stats_fn(world_params, render_params)
 
     def eval_lenia_config_mem_optimized(lenia_sols: List[LeniaIndividual]) -> List[LeniaIndividual]:
         qd_config = lenia_sols[0].qd_config
         _, run_scan_mem_optimized_parameters = leniax_helpers.get_mem_optimized_inputs(qd_config, lenia_sols)
 
-        stats, all_final_cells = leniax_core.run_scan_mem_optimized(
+        stats, all_final_cells = leniax_runner.run_scan_mem_optimized(
             *run_scan_mem_optimized_parameters, max_run_iter, R, update_fn_scale_1, compute_stats_fn_scale_1
         )
         stats['N'].block_until_ready()
         all_final_cells.block_until_ready()
 
         # top 8
-        # top8_compressible = leniax_utils.make_array_compressible(top8)
-        # stats, all_final_cells = leniax_core.run_scan_mem_optimized(
+        # top8_compressible = leniax_loader.make_array_compressible(top8)
+        # stats, all_final_cells = leniax_runner.run_scan_mem_optimized(
         #     *run_scan_mem_optimized_parameters, max_run_iter, R, update_fn_scale_2, compute_stats_fn_scale_2
         # )
 

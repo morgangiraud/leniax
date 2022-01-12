@@ -9,7 +9,7 @@ from hilbertcurve.hilbertcurve import HilbertCurve
 
 
 class LeniaColormap():
-    def __init__(self, name, hex_bg_color, hex_colors) -> None:
+    def __init__(self, name: str, hex_bg_color: str, hex_colors: List[str]) -> None:
         self.name = name
         self.hex_bg_color = hex_bg_color
         self.hex_colors = hex_colors
@@ -18,7 +18,7 @@ class LeniaColormap():
     def __call__(self, data):
         return self.cmap(data)
 
-    def save(self):
+    def save(self) -> str:
         return json.dumps({
             'name': self.name,
             'hex_bg_color': self.hex_bg_color,

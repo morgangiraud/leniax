@@ -5,6 +5,7 @@ import itertools
 import os
 import codecs
 import pickle
+import gzip
 import jax.numpy as jnp
 import numpy as np
 from typing import List, Any, Dict
@@ -69,37 +70,65 @@ def make_array_compressible(cells: jnp.ndarray) -> jnp.ndarray:
 def compress_array(cells: jnp.ndarray) -> str:
     max_val = NB_CHARS**2 - 1
     cells_int32 = cells_int32 = jnp.array(jnp.round(cells * max_val), dtype=jnp.int32)
+
     cells_shape = cells_int32.shape
+    cells_shape_bytes = bytes(0)
+    for i in cells_shape:
+        cells_shape_bytes += int.to_bytes(i, length=4, byteorder='little')
 
-    cells_char_l = [val2ch(item) for item in cells_int32.flatten()]
-    string_cells = "".join(cells_char_l)
-    string_cells += '::' + ';'.join([str(c) for c in cells_shape])
+    cells_int32_flatten = cells_int32.flatten()
+    nb_int32_bytes = int.to_bytes(len(cells_int32_flatten), length=4, byteorder='little')
 
-    return string_cells
+    gzip_bytes = gzip.compress(nb_int32_bytes + cells_int32_flatten.tobytes() + cells_shape_bytes)
+    b64_str = str(codecs.encode(gzip_bytes, 'base64'), 'utf-8')
+
+    return b64_str
 
 
-def decompress_array(string_cells: str, nb_dims: int) -> jnp.ndarray:
+def decompress_array(string_cells: str, nb_dims: int = 0) -> jnp.ndarray:
     try:
-        string_array = string_cells.split('::')
-        if len(string_array) != 2 and len(string_array[0]) % 2 == 0:
-            raise Exception()
-        max_val = NB_CHARS**2 - 1
-        cells_shape = [int(c) for c in string_array[-1].split(";")]
-        cells_val_l = [ch2val(string_array[0][i:i + 2]) for i in range(0, len(string_array[0]), 2)]
-        cells_int32 = jnp.array(cells_val_l, dtype=jnp.int32).reshape(cells_shape)
-        cells = jnp.array(cells_int32 / max_val, dtype=jnp.float32)
+        cells = decompress_array_gzip(string_cells)
     except Exception:
         try:
-            string_bytes = io.BytesIO(string_cells.encode('latin1'))
-            cells_uint8 = np.load(string_bytes)['x']  # type: ignore
-            cells = cells_uint8 / 255.
+            string_array = string_cells.split('::')
+            if len(string_array) != 2 and len(string_array[0]) % 2 == 0:
+                raise Exception()
+            max_val = NB_CHARS**2 - 1
+            cells_shape = [int(c) for c in string_array[-1].split(";")]
+            cells_val_l = [ch2val(string_array[0][i:i + 2]) for i in range(0, len(string_array[0]), 2)]
+            cells_int32 = jnp.array(cells_val_l, dtype=jnp.int32).reshape(cells_shape)
+            cells = jnp.array(cells_int32 / max_val, dtype=jnp.float32)
         except Exception:
             try:
-                cells = decompress_array_base64(string_cells)
-            except binascii.Error:
-                cells = deprecated_decompress_array(string_cells, nb_dims)
+                string_bytes = io.BytesIO(string_cells.encode('latin1'))
+                cells_uint8 = np.load(string_bytes)['x']  # type: ignore
+                cells = cells_uint8 / 255.
+            except Exception:
+                try:
+                    cells = decompress_array_base64(string_cells)
+                except binascii.Error:
+                    cells = deprecated_decompress_array(string_cells, nb_dims)
 
     return jnp.array(cells, dtype=jnp.float32)
+
+
+def decompress_array_gzip(b64_str: str) -> jnp.ndarray:
+    gzip_bytes = codecs.decode(bytes(b64_str, 'utf-8'), 'base64')
+
+    cells_int32_bytes = gzip.decompress(gzip_bytes)
+    max_val = NB_CHARS**2 - 1
+
+    int_list = []
+    nb_int32 = int.from_bytes(cells_int32_bytes[0:4], 'little')
+    for i in range(1 * 4, (1 + nb_int32) * 4, 4):
+        int_list.append(int.from_bytes(cells_int32_bytes[i:i + 4], 'little'))
+    shape = []
+    for i in range((1 + nb_int32) * 4, len(cells_int32_bytes), 4):
+        shape.append(int.from_bytes(cells_int32_bytes[i:i + 4], 'little'))
+    cells_int32 = jnp.array(int_list, dtype=jnp.int32).reshape(shape)
+    cells = jnp.array(cells_int32 / max_val, dtype=jnp.float32)
+
+    return cells
 
 
 def decompress_array_base64(string_cells: str) -> jnp.ndarray:

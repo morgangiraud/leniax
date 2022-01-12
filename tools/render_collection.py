@@ -2,7 +2,6 @@ import os
 import json
 import copy
 import matplotlib.pyplot as plt
-import numpy as np
 import jax.numpy as jnp
 from typing import Dict, List
 from hydra import compose, initialize

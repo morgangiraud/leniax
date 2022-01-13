@@ -100,7 +100,7 @@ def create_categories_folder(exp_dir: str):
 def make_collection(exp_dir, collection_name):
     exp_viz_dir = os.path.join(exp_dir, 'viz_data')
     originals_dir = os.path.join(exp_viz_dir, 'originals')
-    collection_dir = os.path.join(cdir, '..', 'outputs', collection_name)
+    collection_dir = os.path.join(cdir, '..', '..', 'outputs', collection_name)
 
     if os.path.exists(collection_dir):
         raise Exception(f"Collection directory {collection_dir} already exist")

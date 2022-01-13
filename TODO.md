@@ -1,8 +1,5 @@
 # Todos
-
-## Focus
-- Look for better heuristics to choose potential candidate creature
-    - apply heuristics per channel
+See Github issues
 
 ## Maybe next?
 - Add heuristic for static species (no speed & no inertia change)

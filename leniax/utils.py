@@ -291,7 +291,11 @@ def plot_stats(save_dir: str, stats_dict: Dict):
     fig.set_size_inches(10, 10)
     for i, k in enumerate(all_keys):
         axs[i].set_title(k.capitalize())
-        axs[i].plot(stats_dict[k][:nb_steps])
+        if k == 'channel_mass' and len(stats_dict['channel_mass'].shape) > 1:
+            for j in range(stats_dict['channel_mass'].shape[1]):
+                axs[i].plot(stats_dict['channel_mass'][:nb_steps, j])
+        else:
+            axs[i].plot(stats_dict[k][:nb_steps])
     plt.tight_layout()
     plt.xticks(np.arange(0, nb_steps, ticks))
     fig.savefig(os.path.join(save_dir, 'stats.png'))
@@ -303,7 +307,14 @@ def plot_stats(save_dir: str, stats_dict: Dict):
     fig.set_size_inches(10, 10)
     for i, k in enumerate(all_keys):
         axs[i].set_title(k.capitalize())
-        axs[i].plot(jnp.convolve(stats_dict[k][conv_len:nb_steps], jnp.ones(conv_len) / conv_len, mode='valid'))
+        if k == 'channel_mass' and len(stats_dict['channel_mass'].shape) > 1:
+            for j in range(stats_dict['channel_mass'].shape[1]):
+                conv_stat = jnp.convolve(
+                    stats_dict['channel_mass'][conv_len:nb_steps, j], jnp.ones(conv_len) / conv_len, mode='valid'
+                )
+                axs[i].plot(conv_stat)
+        else:
+            axs[i].plot(jnp.convolve(stats_dict[k][conv_len:nb_steps], jnp.ones(conv_len) / conv_len, mode='valid'))
     plt.tight_layout()
     plt.xticks(np.arange(0, nb_steps - 2 * conv_len, ticks))
     fig.savefig(os.path.join(save_dir, f"stats_trunc_running_means_{conv_len}.png"))
@@ -314,8 +325,13 @@ def plot_stats(save_dir: str, stats_dict: Dict):
     fig.set_size_inches(10, 10)
     for i, k in enumerate(all_keys):
         axs[i].set_title(k.capitalize())
-        tmp_stat = stats_dict[k][:nb_steps]
-        axs[i].plot(tmp_stat[-NB_STATS_STEPS:])
+        if k == 'channel_mass' and len(stats_dict['channel_mass'].shape) > 1:
+            for j in range(stats_dict['channel_mass'].shape[1]):
+                axs[i].plot(stats_dict['channel_mass'][:nb_steps][-NB_STATS_STEPS:, j])
+        else:
+            tmp_stat = stats_dict[k][:nb_steps]
+            axs[i].plot(tmp_stat[-NB_STATS_STEPS:])
+
     plt.tight_layout()
     truncated_nb_steps = min(nb_steps, NB_STATS_STEPS)
     plt.xticks(np.arange(0, truncated_nb_steps, 8))

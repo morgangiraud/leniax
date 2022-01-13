@@ -18,24 +18,10 @@ from leniax import colormaps as leniax_colormaps
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 
-collection_name = 'collection-01'
+collection_name = 'collection-test'
 collection_dir_relative = os.path.join('..', 'outputs', collection_name)
 collection_dir = os.path.join(cdir, collection_dir_relative)
 config_filename = 'config.yaml'
-
-
-def scale_cells(cells: jnp.ndarray, scale: float) -> jnp.ndarray:
-    if len(cells.shape) == 4:
-        # We remove the batch dimension
-        cells = cells[0]
-
-    new_cells = jnp.array(
-        [scipy.ndimage.zoom(cells[i], scale, order=0) for i in range(1)],
-        dtype=jnp.float32,
-    )
-    new_cells = new_cells[jnp.newaxis]
-
-    return new_cells
 
 
 def get_parameters_for_scale(scale: float, world_size: List[int], config: Dict, fft: bool = True) -> Dict:
@@ -84,9 +70,22 @@ def run_at_scale(config, cropped_cells, scale, params_scale):
     all_cells, _, _, stats_dict = leniax_runner.run_scan(**params_scale)
     all_cells = all_cells[:, 0]  # [nb_iter, C, world_dims...]
     stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
-    N = stats_dict['N']
 
-    return all_cells, N
+    return all_cells, stats_dict
+
+
+def scale_cells(cells: jnp.ndarray, scale: float) -> jnp.ndarray:
+    if len(cells.shape) == 4:
+        # We remove the batch dimension
+        cells = cells[0]
+
+    new_cells = jnp.array(
+        [scipy.ndimage.zoom(cells[i], scale, order=0) for i in range(cells.shape[0])],
+        dtype=jnp.float32,
+    )
+    new_cells = new_cells[jnp.newaxis]
+
+    return new_cells
 
 
 def dump_assets(inputData):
@@ -129,124 +128,148 @@ def run() -> None:
         # if family_dir_name != args.family:
         #     continue
 
-        if os.path.isfile(os.path.join(subdir, 'world_scale6.png')):
-            continue
+        metadata_fullpath = os.path.join(subdir, 'metadata.json')
+        if os.path.isfile(metadata_fullpath):
+            print(f'{subdir} already rendered')
+        else:
+            print(f'Rendering {subdir}')
+            config_path = os.path.join(collection_dir_relative, family_dir_name, subdir.split('/')[-1])
+            with initialize(config_path=config_path):
+                omegaConf = compose(config_name=config_filename.split('.')[0])
+                config = leniax_utils.get_container(omegaConf, config_path)
+                config['render_params']['pixel_size_power2'] = 0
+                config['render_params']['pixel_size'] = 1
+                config['render_params']['size_power2'] = 7
+                config['render_params']['world_size'] = [128, 128]
+                config['world_params']['scale'] = 1.
+                config['run_params']['max_run_iter'] = 600
 
-        print(f'Rendering {subdir}')
-        config_path = os.path.join(collection_dir_relative, family_dir_name, subdir.split('/')[-1])
-        with initialize(config_path=config_path):
-            omegaConf = compose(config_name=config_filename.split('.')[0])
-            config = leniax_utils.get_container(omegaConf, config_path)
-            config['render_params']['pixel_size_power2'] = 0
-            config['render_params']['pixel_size'] = 1
-            config['render_params']['size_power2'] = 7
-            config['render_params']['world_size'] = [128, 128]
-            config['world_params']['scale'] = 1.
-            config['run_params']['max_run_iter'] = 600
+                leniax_utils.print_config(config)
 
-            leniax_utils.print_config(config)
+                params_scale_init, tmp_config_init = get_parameters_for_scale(1., [128, 128], config, fft)
+                params_scale_1, tmp_config_1 = get_parameters_for_scale(1., [128, 128], config, fft)
+                params_scale_2, tmp_config_2 = get_parameters_for_scale(2., [256, 256], config, fft)
+                params_scale_4, tmp_config_4 = get_parameters_for_scale(4., [512, 512], config, fft)
+                params_scale_6, tmp_config_6 = get_parameters_for_scale(6., [768, 768], config, fft)
+                params_scale_8, tmp_config_8 = get_parameters_for_scale(8., [1024, 1024], config, fft)
 
-            params_scale_init, tmp_config_init = get_parameters_for_scale(1., [128, 128], config, fft)
-            params_scale_1, tmp_config_1 = get_parameters_for_scale(1., [128, 128], config, fft)
-            params_scale_2, tmp_config_2 = get_parameters_for_scale(2., [256, 256], config, fft)
-            params_scale_4, tmp_config_4 = get_parameters_for_scale(4., [512, 512], config, fft)
-            params_scale_6, tmp_config_6 = get_parameters_for_scale(6., [768, 768], config, fft)
-            params_scale_8, tmp_config_8 = get_parameters_for_scale(8., [1024, 1024], config, fft)
-
-            # Here the goal is to make sure we reach the stable creature state from the initial conditions
-            params_scale_init['max_run_iter'] = 2000
-            all_cells, _, _, stats_dict = leniax_runner.run_scan(**params_scale_init)
-            all_cells = all_cells[:, 0]  # [nb_iter, C, world_dims...]
-            stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
-            print(stats_dict['N'])
-            if stats_dict['N'] < tmp_config_init['run_params']['max_run_iter'] and stats_dict['mass'][-1] == 0:
-                print('/////////////////////////////////////////////')
-                print('Current run finished with no mass, continuing')
-                print('/////////////////////////////////////////////')
-                continue
-            if stats_dict['N'] < tmp_config_init['run_params']['max_run_iter'] and stats_dict['mass_volume'][-1] > 30:
-                print('/////////////////////////////////////////////')
-                print('Current run finished with mass explosion, continuing')
-                print('/////////////////////////////////////////////')
-                continue
-
-            leniax_helpers.dump_viz_data(subdir, stats_dict, config)
-
-            colormap_names = list(leniax_colormaps.colormaps.keys())
-            colormap_names.remove('rainbow_transparent')
-            color_proba = np.array([12, 3, 12, 8, 4, 8, 8, 4, 6, 2, 12, 12, 6, 3]) / 100
-            assert (len(colormap_names) == len(color_proba))
-            colormap_idx = np.random.multinomial(1, color_proba, size=1)[0].argmax()
-            # colormap_idx = colormap_names.index('msdos')
-            colormap = leniax_colormaps.colormaps[colormap_names[colormap_idx]]
-
-            leniax_helpers.dump_frame(subdir, 'init', all_cells[-1], False, colormap)
-            leniax_video.dump_video(subdir, all_cells[:1200], tmp_config_1['render_params'], [colormap], 'init')
-
-            # I didn't find a solution to discover which frames are stable to scale
-            # so I check a few frames
-            for frame_idx in range(31, -1, -1):
-                print(f'testing frame_idx: {-32 + frame_idx}')
-
-                cropped_compressible_cells_1 = leniax_loader.make_array_compressible(
-                    leniax_utils.center_and_crop_cells(all_cells[-32 + frame_idx])
-                )[jnp.newaxis]
-
-                # It's much more stable to scale by factor less than 4, to reach higher factor one should run the loop a bit and then scale again
-                all_cells_1, N_1 = run_at_scale(tmp_config_1, cropped_compressible_cells_1, 1., params_scale_1)
-                if N_1 != config['run_params']['max_run_iter']:
+                # Here the goal is to make sure we reach the stable creature state from the initial conditions
+                params_scale_init['max_run_iter'] = 600
+                all_cells, _, _, stats_dict = leniax_runner.run_scan(**params_scale_init)
+                all_cells = all_cells[:, 0]  # [nb_iter, C, world_dims...]
+                stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
+                print("init N", stats_dict['N'])
+                if stats_dict['N'] < tmp_config_init['run_params']['max_run_iter'] and stats_dict['mass'][-1] == 0:
+                    print('/////////////////////////////////////////////')
+                    print('Current run finished with no mass, continuing')
+                    print('/////////////////////////////////////////////')
                     continue
-                all_cells_2, N_2 = run_at_scale(tmp_config_2, cropped_compressible_cells_1, 2., params_scale_2)
-                if N_2 != config['run_params']['max_run_iter']:
+                if stats_dict['N'] < tmp_config_init['run_params']['max_run_iter'] and stats_dict['mass_volume'][-1
+                                                                                                                 ] > 30:
+                    print('/////////////////////////////////////////////')
+                    print('Current run finished with mass explosion, continuing')
+                    print('/////////////////////////////////////////////')
                     continue
-                all_cells_4, N_4 = run_at_scale(tmp_config_4, leniax_utils.center_and_crop_cells(all_cells_2[20]), 2., params_scale_4)
-                if N_4 != config['run_params']['max_run_iter']:
-                    continue
-                all_cells_6, N_6 = run_at_scale(tmp_config_6, leniax_utils.center_and_crop_cells(all_cells_2[20]), 3., params_scale_6)
-                if N_6 != config['run_params']['max_run_iter']:
-                    continue
-                all_cells_8, N_8 = run_at_scale(tmp_config_8, leniax_utils.center_and_crop_cells(all_cells_4[20]), 2., params_scale_8)
-                if N_8 == config['run_params']['max_run_iter']:
-                    print(N_1, N_2, N_4, N_6, N_8)
+
+                leniax_helpers.dump_viz_data(subdir, stats_dict, config)
+
+                # colormap_names = list(leniax_colormaps.colormaps.keys())
+                # colormap_names.remove('rainbow_transparent')
+                # color_proba = np.array([12, 3, 12, 8, 4, 8, 8, 4, 6, 2, 12, 12, 6, 3]) / 100
+                # assert (len(colormap_names) == len(color_proba))
+                # colormap_idx = np.random.multinomial(1, color_proba, size=1)[0].argmax()
+                # # colormap_idx = colormap_names.index('msdos')
+                # colormap = leniax_colormaps.colormaps[colormap_names[colormap_idx]]
+                colormap = leniax_colormaps.ExtendedColormap('extended')
+
+                leniax_helpers.dump_frame(subdir, 'init', all_cells[-1], False, colormap)
+                leniax_video.dump_video(subdir, all_cells, tmp_config_1['render_params'], [colormap], 'init')
+
+                # I didn't find a solution to discover which frames are stable to scale
+                # so I check a few frames
+                for frame_idx in range(31, -1, -1):
+                    print(f'testing frame_idx: {-32 + frame_idx}')
+
+                    zip_scales = []
+                    zip_cells = []
+                    zip_render_params = []
+
+                    cropped_compressible_cells_1 = leniax_loader.make_array_compressible(
+                        leniax_utils.center_and_crop_cells(all_cells[-32 + frame_idx])
+                    )[jnp.newaxis]
+
+                    # It's much more stable to scale by factor less than 4, to reach higher factor one should run the loop a bit and then scale again
+                    all_cells_1, stats_dict_1 = run_at_scale(tmp_config_1, cropped_compressible_cells_1, 1., params_scale_1)
+                    print("N_1", stats_dict_1["N"])
+                    if stats_dict_1["N"] != config['run_params']['max_run_iter']:
+                        continue
+                    zip_scales.append(1)
+                    zip_cells.append(all_cells_1)
+                    zip_render_params.append(tmp_config_1['render_params'])
+
+                    all_cells_2, stats_dict_2 = run_at_scale(tmp_config_2, cropped_compressible_cells_1, 2., params_scale_2)
+                    print("N_2", stats_dict_2["N"])
+                    if stats_dict_2["N"] != config['run_params']['max_run_iter']:
+                        continue
+                    zip_scales.append(2)
+                    zip_cells.append(all_cells_2)
+                    zip_render_params.append(tmp_config_2['render_params'])
+
+                    all_cells_4, stats_dict_4 = run_at_scale(tmp_config_4, leniax_utils.center_and_crop_cells(all_cells_2[20]), 2., params_scale_4)
+                    print("N_4", stats_dict_4["N"])
+                    if stats_dict_4["N"] != config['run_params']['max_run_iter']:
+                        continue
+                    zip_scales.append(4)
+                    zip_cells.append(all_cells_4)
+                    zip_render_params.append(tmp_config_4['render_params'])
+
+                    # all_cells_6, stats_dict_6 = run_at_scale(tmp_config_6, leniax_utils.center_and_crop_cells(all_cells_2[20]), 3., params_scale_6)
+                    # print("N_6", stats_dict_6["N"])
+                    # if stats_dict_6["N"] != config['run_params']['max_run_iter']:
+                    #     continue
+                    # zip_scales.append(6)
+                    # zip_cells.append(all_cells_6)
+                    # zip_render_params.append(tmp_config_6['render_params'])
+
+                    # all_cells_8, stats_dict_8 = run_at_scale(tmp_config_8, leniax_utils.center_and_crop_cells(all_cells_4[20]), 2., params_scale_8)
+                    # print("N_8", stats_dict_8["N"])
+                    # if stats_dict_8["N"] == config['run_params']['max_run_iter']:
+                    #     continue
+                    # zip_scales.append(8)
+                    # zip_cells.append(all_cells_8)
+                    # zip_render_params.append(tmp_config_8['render_params'])
                     break
 
-            zip_scales = [1, 2, 4, 6, 8]
-            zip_subdirs = [subdir] * 5
-            zip_cells = [all_cells_1, all_cells_2, all_cells_4, all_cells_6, all_cells_8]
-            zip_render_params = [
-                tmp_config_1['render_params'],
-                tmp_config_2['render_params'],
-                tmp_config_4['render_params'],
-                tmp_config_6['render_params'],
-                tmp_config_8['render_params'],
-            ]
-            zip_colormap = [colormap] * 5
-            zip_dump_gif = [False, False, True, False, False]
-            input_data = zip(zip_scales, zip_subdirs, zip_cells, zip_render_params, zip_colormap, zip_dump_gif)
-            with multiprocessing.Pool(processes=5) as pool:
-                pool_results = pool.map(dump_assets, input_data)
-            all_outputs_fullpath = pool_results[2][0]
+                nb_media = len(zip_scales)
+                gif_idx = 2
+                assert gif_idx < nb_media
+                zip_subdirs = [subdir] * nb_media
+                zip_colormap = [colormap] * nb_media
+                zip_dump_gif = [False] * nb_media
+                zip_dump_gif[gif_idx] = True
+                input_data = zip(zip_scales, zip_subdirs, zip_cells, zip_render_params, zip_colormap, zip_dump_gif)
+                with multiprocessing.Pool(processes=nb_media) as pool:
+                    pool_results = pool.map(dump_assets, input_data)
+                all_outputs_fullpath = pool_results[gif_idx][0]
 
-            metadata_fullpath = os.path.join(subdir, 'metadata.json')
-            metadata = {
-                'name': "Lenia #",
-                'description': 'A beautiful mathematical life-form',
-                'external_link': 'https://lenia.world',
-                'image': all_outputs_fullpath[0].split('/')[-1].split('.')[0] + '.gif',
-                'animation_url': all_outputs_fullpath[0].split('/')[-1],
-                'attributes': [{
-                    "value": colormap.name, "trait_type": "Colormap"
-                }],
-                'config': {
-                    'kernels_params': config['kernels_params']['k'],
-                    'world_params': config['world_params'],
-                    'cells': leniax_loader.compress_array(cropped_compressible_cells_1[0])
+                metadata = {
+                    'name': "Lenia #",
+                    'description': 'A beautiful mathematical life-form',
+                    'external_link': 'https://lenia.world',
+                    'image': all_outputs_fullpath[0].split('/')[-1].split('.')[0] + '.gif',
+                    'animation_url': all_outputs_fullpath[0].split('/')[-1],
+                    'attributes': [{
+                        "value": colormap.name, "trait_type": "Colormap"
+                    }],
+                    'config': {
+                        'kernels_params': config['kernels_params']['k'],
+                        'world_params': config['world_params'],
+                        'cells': leniax_loader.compress_array(cropped_compressible_cells_1[0])
+                    }
                 }
-            }
-            with open(metadata_fullpath, 'w') as f:
-                json.dump(metadata, f)
-
-        # Prepare metadata
+                with open(metadata_fullpath, 'w') as f:
+                    json.dump(metadata, f)
+        # Store all stats
         viz_data_fullpath = os.path.join(subdir, 'viz_data.json')
         with open(viz_data_fullpath, 'r') as f:
             viz_data = json.load(f)

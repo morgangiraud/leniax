@@ -17,7 +17,8 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
     midpoint = jnp.expand_dims(jnp.asarray([size // 2 for size in world_size]), axis=axes)
     coords = jnp.indices(world_size)
     centered_coords = coords - midpoint  # [nb_dims, H, W, ...]
-    non_batch_dims = tuple(range(1, 1 + 1 + len(world_size), 1))
+    non_batch_dims_idx = tuple(range(1, 1 + 1 + len(world_size), 1))
+    world_dims_idx = tuple(range(2, 1 + 1 + len(world_size), 1))
 
     @jit
     def compute_stats(cells, field, potential, previous_total_shift_idx, previous_mass_centroid, previous_mass_angle):
@@ -40,21 +41,22 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
         centered_cells, centered_field, _ = center_world(cells, field, potential, previous_total_shift_idx, axes)
         positive_field = jnp.maximum(centered_field, 0)
 
-        m_00 = centered_cells.sum(axis=non_batch_dims)
-        g_00 = positive_field.sum(axis=non_batch_dims)
+        m_00 = centered_cells.sum(axis=non_batch_dims_idx)
+        g_00 = positive_field.sum(axis=non_batch_dims_idx)
 
-        potential_volume = (potential > EPSILON).sum(axis=non_batch_dims) / R**2
+        potential_volume = (potential > EPSILON).sum(axis=non_batch_dims_idx) / R**2
 
+        channel_mass = centered_cells.sum(axis=world_dims_idx) / R**2
         mass = m_00 / R**2
-        mass_volume = (centered_cells > EPSILON).sum(axis=non_batch_dims) / R**2
+        mass_volume = (centered_cells > EPSILON).sum(axis=non_batch_dims_idx) / R**2
         mass_density = mass / (mass_volume + EPSILON)
 
         growth = g_00 / R**2
-        growth_volume = (positive_field > EPSILON).sum(axis=non_batch_dims) / R**2
+        growth_volume = (positive_field > EPSILON).sum(axis=non_batch_dims_idx) / R**2
         growth_density = growth / (growth_volume + EPSILON)
 
         AX = [centered_cells * coord for coord in centered_coords]  # [nb_world_dims, N, C, world_dims...]
-        MX = [ax.sum(axis=non_batch_dims) for ax in AX]  # [nb_world_dims, N]
+        MX = [ax.sum(axis=non_batch_dims_idx) for ax in AX]  # [nb_world_dims, N]
         mass_centroid = jnp.array(MX) / (m_00 + EPSILON)
 
         delta_mass = mass_centroid - previous_mass_centroid  # [nb_world_dims, N]
@@ -65,16 +67,17 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
 
         mass_angle_speed = ((mass_angle - previous_mass_angle + 540) % 360 - 180) / dt  # [N]
 
-        GX = [(positive_field * coord).sum(axis=non_batch_dims) for coord in centered_coords]
+        GX = [(positive_field * coord).sum(axis=non_batch_dims_idx) for coord in centered_coords]
         growth_centroid = jnp.array(GX) / (g_00 + EPSILON)
         mass_growth_dist = jnp.linalg.norm(growth_centroid - mass_centroid, axis=0) / R
 
-        MX2 = [(ax * coord).sum(axis=non_batch_dims) for ax, coord in zip(AX, centered_coords)]
+        MX2 = [(ax * coord).sum(axis=non_batch_dims_idx) for ax, coord in zip(AX, centered_coords)]
         MuX2 = [mx2 - mc * mx for mc, mx, mx2 in zip(mass_centroid, MX, MX2)]
         mass2_centroid = jnp.array(MuX2) / (m_00**2 + EPSILON)
         inertia = mass2_centroid.sum(axis=0)
 
         stats = {
+            'channel_mass': channel_mass,
             'mass': mass,
             'mass_volume': mass_volume,
             'mass_density': mass_density,
@@ -107,17 +110,26 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
 ###
 @functools.partial(jit, static_argnums=(1, ))
 def check_heuristics(stats: Dict[str, jnp.ndarray], R: float, dt: jnp.ndarray):
+    """Check heuristics on statistic data
+    
+    """
     def fn(carry, stat_t):
         should_continue = carry['should_continue']
+        init_channel_mass = carry['init_channel_mass']
         init_mass = carry['init_mass']
         previous_mass = carry['previous_mass']
         previous_sign = carry['previous_sign']
         counters = carry['counters']
 
         mass = stat_t['mass']
-        cond = min_mass_heuristic(EPSILON, mass)
+        channel_mass = stat_t['channel_mass']
+        # cond = min_mass_heuristic(EPSILON, mass)
+        # should_continue_cond = cond
+        # cond = max_mass_heuristic(init_mass, mass)
+        # should_continue_cond *= cond
+        cond = min_channel_mass_heuristic(EPSILON, channel_mass)
         should_continue_cond = cond
-        cond = max_mass_heuristic(init_mass, mass)
+        cond = max_channel_mass_heuristic(init_channel_mass, channel_mass)
         should_continue_cond *= cond
 
         sign = jnp.sign(mass - previous_mass)
@@ -134,6 +146,7 @@ def check_heuristics(stats: Dict[str, jnp.ndarray], R: float, dt: jnp.ndarray):
 
         new_carry = {
             'should_continue': should_continue,
+            'init_channel_mass': init_channel_mass,
             'init_mass': init_mass,
             'previous_mass': mass,
             'previous_sign': sign,
@@ -145,12 +158,21 @@ def check_heuristics(stats: Dict[str, jnp.ndarray], R: float, dt: jnp.ndarray):
     N = stats['mass'].shape[1]
     init_carry = {
         'should_continue': jnp.ones(N),
+        'init_channel_mass': stats['channel_mass'][0],
         'init_mass': stats['mass'][0],
         'previous_mass': stats['mass'][0],
         'previous_sign': jnp.zeros(N),
         'counters': init_counters(N),
     }
     _, continue_stat = jax.lax.scan(fn, init_carry, stats, unroll=1)
+
+    # Used for debugging (lax.scan is a jitted function)
+    # continue_stat = []
+    # all_keys = stats.keys()
+    # for i in range(stats['mass'].shape[0]):
+    #     stat_t = {key: stats[key][i] for key in all_keys}
+    #     init_carry, should_continue = fn(init_carry, stat_t)
+    #     continue_stat.append(should_continue)
 
     return continue_stat
 
@@ -161,6 +183,18 @@ def init_counters(N: int) -> Dict[str, jnp.ndarray]:
         'nb_slow_mass_step': jnp.zeros(N),
         'nb_max_volume_step': jnp.zeros(N),
     }
+
+
+def min_channel_mass_heuristic(epsilon: float, channel_mass: jnp.ndarray):
+    should_continue_cond = (channel_mass >= epsilon).all(axis=1)
+
+    return should_continue_cond
+
+
+def max_channel_mass_heuristic(init_channel_mass: jnp.ndarray, channel_mass: jnp.ndarray):
+    should_continue_cond = (channel_mass <= 3 * init_channel_mass).all(axis=1)
+
+    return should_continue_cond
 
 
 def min_mass_heuristic(epsilon: float, mass: jnp.ndarray):
@@ -175,7 +209,7 @@ def max_mass_heuristic(init_mass: jnp.ndarray, mass: jnp.ndarray):
     return should_continue_cond
 
 
-MONOTONIC_STOP_STEP = 64
+MONOTONIC_STOP_STEP = 128
 
 
 def monotonic_heuristic(sign: jnp.ndarray, previous_sign: jnp.ndarray, monotone_counter: jnp.ndarray):

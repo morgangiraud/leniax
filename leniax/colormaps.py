@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import numpy as np
 import jax.numpy as jnp
@@ -8,17 +10,52 @@ from hilbertcurve.hilbertcurve import HilbertCurve
 # This might be cool? https://bottosson.github.io/misc/colorpicker/#ce7d96
 
 
-class LeniaColormap():
+class PerceptualGradientColormap():
+    """The perceptual gradient colormap class
+
+    Attributes:
+        name: Name of the colormap
+        hex_bg_color: The bacground color (in hexadecimal)
+        hex_colors: the list of colors used to create the perceptual gradient
+        cmap: Matplotlib ListedColormap
+    """
+
+    name: str
+    hex_bg_color: str
+    hex_colors: List[str]
+    cmap: ListedColormap
+
     def __init__(self, name: str, hex_bg_color: str, hex_colors: List[str]) -> None:
+        """initialize the RNN cell carry.
+
+        Args:
+            name: Name of the colormap
+            hex_bg_color: The bacground color (in hexadecimal)
+            hex_colors: the list of colors used to create the perceptual gradient
+        Returns:
+            Nothing
+        """
         self.name = name
         self.hex_bg_color = hex_bg_color
         self.hex_colors = hex_colors
         self.cmap = ListedColormap(hex_to_palette_rgba(hex_bg_color, hex_colors))
 
-    def __call__(self, data):
+    def __call__(self, data: np.ndarray) -> np.ndarray:
+        """Apply the colormap
+
+        Args:
+            data: 1-channel data
+        Returns:
+            RGBA data
+        """
         return self.cmap(data)
 
     def save(self) -> str:
+        """Serialize the colormap
+
+        Returns:
+            A JSON string representing the colormap
+        """
         return json.dumps({
             'name': self.name,
             'hex_bg_color': self.hex_bg_color,
@@ -26,12 +63,21 @@ class LeniaColormap():
         })
 
     @staticmethod
-    def load(self, json_string: str):
+    def load(self, json_string: str) -> PerceptualGradientColormap:
+        """Load a colormap
+
+        Args:
+            json_string: A JSON string representing the colormap
+
+        Returns:
+            The corresponding PerceptualGradientColormap
+        """
         raw_obj = json.loads(json_string)
 
-        return LeniaColormap(raw_obj['name'], raw_obj['hex_bg_color'], raw_obj['hex_colors'])
+        return PerceptualGradientColormap(raw_obj['name'], raw_obj['hex_bg_color'], raw_obj['hex_colors'])
 
     def print_uint8_rgb_colors(self):
+        """Print the list of colors contained in the colormap"""
         print(jnp.array(jnp.array(self.cmap.colors) * 255, dtype=jnp.int32)[:, :3].tolist())
 
 
@@ -240,49 +286,51 @@ def hex_to_palette_rgba(hex_bg_color: str, hex_colors: List[str]) -> jnp.ndarray
 
 colormaps = {
     'alizarin':
-    LeniaColormap(
+    PerceptualGradientColormap(
         'alizarin', "d6c3c9", ['f9c784', 'e7e7e7', '485696', '19180a', '3f220f', '772014', 'af4319', 'e71d36']
     ),
     'black-white':
-    LeniaColormap(
+    PerceptualGradientColormap(
         'black-white', '000000', ['ffffff', 'd9dbe1', 'b6b9c1', '9497a1', '737780', '555860', '393b41', '1f2123'][::-1]
     ),
     'carmine-blue':
-    LeniaColormap('carmine-blue', '#006eb8', ['#006eb8', '#fff200', '#cc1236']),
+    PerceptualGradientColormap('carmine-blue', '#006eb8', ['#006eb8', '#fff200', '#cc1236']),
     'cinnamon':
-    LeniaColormap('cinnamon', '#a7d4e4', ['#a7d4e4', '#71502f', '#fdc57e']),
+    PerceptualGradientColormap('cinnamon', '#a7d4e4', ['#a7d4e4', '#71502f', '#fdc57e']),
     'city':
-    LeniaColormap(
+    PerceptualGradientColormap(
         'city', 'F93943', ['ffa600', 'fff6e6', 'ffca66', '004b63', 'e6f9ff', '66daff', '3a0099', '23005c'][::-1]
     ),
     'golden':
-    LeniaColormap('golden', '#b6bfc1', ['#b6bfc1', '#253122', '#f3a257']),
+    PerceptualGradientColormap('golden', '#b6bfc1', ['#b6bfc1', '#253122', '#f3a257']),
     'laurel':
-    LeniaColormap(
+    PerceptualGradientColormap(
         'laurel', '381d2a', ['ffbfd7', 'ffe6ef', 'ff80b0', '71bf60', 'eaffe6', '96ff80', 'bffbff', '60b9bf'][::-1]
     ),
     'msdos':
-    LeniaColormap('msdos', '#0c0786', ['#0c0786', '#7500a8', '#c03b80', '#f79241', '#fcfea4']),
+    PerceptualGradientColormap('msdos', '#0c0786', ['#0c0786', '#7500a8', '#c03b80', '#f79241', '#fcfea4']),
     'pink-beach':
-    LeniaColormap(
+    PerceptualGradientColormap(
         'pink-beach', 'f4777f', ['00429d', '4771b2', '73a2c6', 'a5d5d8', 'ffffe0', 'ffbcaf', 'cf3759', '93003a'][::-1]
     ),
     'rainbow':
-    LeniaColormap('rainbow', '#000000', ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF']),
+    PerceptualGradientColormap(
+        'rainbow', '#000000', ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF']
+    ),
     'rainbow_transparent':
-    LeniaColormap(
+    PerceptualGradientColormap(
         'rainbow_transparent', '', ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF']
     ),
     'river-Leaf':
-    LeniaColormap(
+    PerceptualGradientColormap(
         'river-Leaf', "80ab82", ["4c5b5c", "ff715b", "f9cb40", "bced09", "2f52e0", "99f7ab", "c5d6d8", "7dcd85"][::-1]
     ),
     'salvia':
-    LeniaColormap('salvia', '#b6bfc1', ['#b6bfc1', '#051230', '#97acc8']),
+    PerceptualGradientColormap('salvia', '#b6bfc1', ['#b6bfc1', '#051230', '#97acc8']),
     'summer':
-    LeniaColormap(
+    PerceptualGradientColormap(
         'summer', 'ffe000', ['003dc7', '002577', 'e6edff', '6695ff', 'ff9400', '995900', 'fff4e6', 'ffbf66'][::-1]
     ),
     'white-black':
-    LeniaColormap('white-black', '#ffffff', ['#ffffff', '#000000'])
+    PerceptualGradientColormap('white-black', '#ffffff', ['#ffffff', '#000000'])
 }

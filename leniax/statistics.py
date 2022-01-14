@@ -110,10 +110,9 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
 ###
 @functools.partial(jit, static_argnums=(1, ))
 def check_heuristics(stats: Dict[str, jnp.ndarray], R: float, dt: jnp.ndarray):
-    """Check heuristics on statistic data
-    
-    """
-    def fn(carry, stat_t):
+    """Check heuristics on statistic data"""
+
+    def fn(carry: Dict, stat_t: Dict[str, jnp.ndarray]):
         should_continue = carry['should_continue']
         init_channel_mass = carry['init_channel_mass']
         init_mass = carry['init_mass']

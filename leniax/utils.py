@@ -3,7 +3,6 @@ import functools
 import copy
 import random
 import os
-import pickle
 import yaml
 import matplotlib.pyplot as plt
 import jax
@@ -15,7 +14,6 @@ import uuid
 from omegaconf import DictConfig, OmegaConf
 
 from .constant import NB_STATS_STEPS, EPSILON
-from .loader import decompress_array
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 save_dir = os.path.join(cdir, 'save')
@@ -88,32 +86,6 @@ def set_param(dic: Dict, key_string: str, value: Any):
                 dic = dic.setdefault(key, {})
 
     dic[keys[-1]] = value
-
-
-def update_config_to_hd(ori_config: Dict) -> Dict:
-    config = copy.deepcopy(ori_config)
-
-    config['render_params']['pixel_size_power2'] = 0
-    config['render_params']['pixel_size'] = 1
-    config['render_params']['size_power2'] = 10
-    config['render_params']['world_size'] = [1024, 1024]
-
-    if 'cells' in config['run_params']:
-        nb_dims = config['world_params']['nb_dims']
-        cells = config['run_params']['cells']
-        if type(cells) is str:
-            if cells == 'last_frame.p':
-                with open(os.path.join(config['main_path'], 'last_frame.p'), 'rb') as f:
-                    cells = jnp.array(pickle.load(f))
-            else:
-                # Backward compatibility
-                cells = decompress_array(cells, nb_dims + 1)  # we add the channel dim
-
-        max_scaling = min(512 / cells.shape[1], 512 / cells.shape[2])
-
-    config['world_params']['scale'] = min(10, round(max_scaling))
-
-    return config
 
 
 ###

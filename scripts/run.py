@@ -16,25 +16,17 @@ absl_logging.set_verbosity(absl_logging.ERROR)
 cdir = os.path.dirname(os.path.realpath(__file__))
 
 config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '1c-1k')
-# config_name = "orbium"
-config_name = "wanderer"
-# config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '3c-15k')
-# config_name = "aquarium"
+config_name = "orbium"
+# config_name = "wanderer"
+# config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '2c-4k')
+# config_name = "orbium-0"
+config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '3c-9k')
+config_name = "orbium-0-1"
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '3d', '1c-1k')
 # config_name = "prototype"
 
-# config_path = os.path.join(cdir, '..', 'experiments', '014_2channels', 'run-b[1.0]', 'c-0013')
-# config_path = os.path.join(cdir, '..', 'experiments', '014_2channels', 'run-b[1.0]', 'c-0078')
-# config_path = os.path.join(cdir, '..', 'experiments', '014_2channels', 'run-b[1.0]', 'c-0058')
-# config_path = os.path.join(cdir, '..', 'experiments', '014_2channels', 'run-orbium-b[1.0]', 'c-0019')
-# config_path = os.path.join(cdir, '..', 'experiments', '015_3channels', 'c-0004')
-# config_name = "config"
-
 # config_path = os.path.join(cdir, '..', 'outputs', 'tmp')
 # config_name = "config"
-
-stat_trunc = True
-to_hd = False
 
 
 # cs = ConfigStore.instance()
@@ -43,56 +35,25 @@ to_hd = False
 def run(omegaConf: DictConfig) -> None:
     config = leniax_utils.get_container(omegaConf, config_path)
 
-    # config['world_params']['update_fn_version'] = 'v1'
-    # config['kernels_params']['k'][0]['gf_id'] = 0
-    # config['kernels_params']['k'][0]['k_id'] = 0
-    # config['kernels_params']['k'][0]['q'] = 1.
-    # config['kernels_params']['k'][0]['m'] = 0.1021566
-    # config['kernels_params']['k'][0]['s'] = 0.00223693
-
     # config['render_params']['pixel_size_power2'] = 0
-    # config['render_params']['pixel_size'] = 2
+    # config['render_params']['pixel_size'] = 1
     # config['render_params']['size_power2'] = 7
     # config['render_params']['world_size'] = [256, 256]
     # config['world_params']['scale'] = 2.
-    # config['run_params']['max_run_iter'] = 2048
-    use_init_cells = False
-
-    if to_hd is True:
-        config = leniax_utils.update_config_to_hd(config)
-        use_init_cells = False
+    config['run_params']['max_run_iter'] = 512
 
     leniax_utils.print_config(config)
 
     print("Rendering: start")
     start_time = time.time()
     all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
-        config, with_jit=False, fft=True, use_init_cells=use_init_cells
+        config,
+        with_jit=False,
+        fft=True,
+        use_init_cells=False,
+        stat_trunc=True
     )  # [nb_max_iter, N=1, C, world_dims...]
-    if stat_trunc is True:
-        all_cells = all_cells[:int(stats_dict['N']), 0]  # [nb_iter, C, world_dims...]
-    else:
-        all_cells = all_cells[:, 0]  # [nb_iter, C, world_dims...]
     total_time = time.time() - start_time
-
-    # config['render_params']['world_size'] = [1024, 1024]
-    # config['world_params']['scale'] = 1.
-    # config['run_params']['max_run_iter'] = 1024
-    # config['world_params']['R'] *= 8
-    # config['run_params']['cells'] = leniax_utils.make_array_compressible(
-    #     leniax_utils.center_and_crop_cells(all_cells[-1])
-    # )
-
-    # start_time = time.time()
-    # all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
-    #     config, with_jit=True, fft=True, use_init_cells=use_init_cells
-    # )  # [nb_max_iter, N=1, C, world_dims...]
-    # if stat_trunc is True:
-    #     all_cells = all_cells[:int(stats_dict['N']), 0]  # [nb_iter, C, world_dims...]
-    # else:
-    #     all_cells = all_cells[:, 0]  # [nb_iter, C, world_dims...]
-    # total_time = time.time() - start_time
-
     nb_iter_done = len(all_cells)
     print(f"Rendering: {nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
 

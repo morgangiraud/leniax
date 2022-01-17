@@ -27,13 +27,9 @@ def render(tuple_input):
 
     print('Initialiazing and running', config)
     start_time = time.time()
-    all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
-        config, with_jit=False, fft=True, use_init_cells=False
+    all_cells, _, _, _ = leniax_helpers.init_and_run(
+        config, with_jit=False, fft=True, use_init_cells=False, stat_trunc=stat_trunc
     )  # [nb_max_iter, N=1, C, world_dims...]
-    if stat_trunc is True:
-        all_cells = all_cells[:int(stats_dict['N']), 0]  # [nb_iter, C, world_dims...]
-    else:
-        all_cells = all_cells[:, 0]  # [nb_iter, C, world_dims...]
     total_time = time.time() - start_time
 
     nb_iter_done = len(all_cells)

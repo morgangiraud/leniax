@@ -225,7 +225,26 @@ def search_for_mutation(
     return rng_key, best_run, i
 
 
-def init_and_run(config: Dict, with_jit: bool = False, fft: bool = True, use_init_cells: bool = True) -> Tuple:
+def init_and_run(
+    config: Dict,
+    with_jit: bool = False,
+    fft: bool = True,
+    use_init_cells: bool = True,
+    stat_trunc: bool = False
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
+    """Initialize and simulate a Lenia configuration
+
+    Args:
+        config: The Lenia configuration
+        with_jit: Boolean to choose if the jitted function will be used
+        fft: Boolean to choose if the fft implementation will be used
+        use_init_cells: Boolean to choose if the `init_cells` field in the configuraiton will be used
+        stat_trunc: Boolean to choose if the outputs will be truncated using the simulation statistics
+
+    Returns:
+        A tuple containing cells, fields, potentials and statistics of the simulation
+        Dimensions: ``([N, nb_channels, world_dims...])``
+    """
     config = copy.deepcopy(config)
 
     cells, K, mapping = init(config, fft, use_init_cells)
@@ -252,6 +271,15 @@ def init_and_run(config: Dict, with_jit: bool = False, fft: bool = True, use_ini
             cells, K, gfn_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
         )
     stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
+
+    if stat_trunc is True:
+        all_cells = all_cells[:int(stats_dict['N']), 0]  # [nb_iter, C, world_dims...]
+        all_fields = all_fields[:int(stats_dict['N']), 0]
+        all_potentials = all_potentials[:int(stats_dict['N']), 0]
+    else:
+        all_cells = all_cells[:, 0]  # [nb_max_iter, C, world_dims...]
+        all_fields = all_fields[:, 0]  # [nb_max_iter, C, world_dims...]
+        all_potentials = all_potentials[:, 0]  # [nb_max_iter, C, world_dims...]
 
     return all_cells, all_fields, all_potentials, stats_dict
 

@@ -49,37 +49,6 @@ class genBaseIndividual(object):
             yield self.__next__()
 
 
-def rastrigin(pos: jnp.ndarray, A: float = 10.):
-    """Valu are expected to be between [0, 1]"""
-    assert len(pos.shape) == 3
-    assert pos.shape[-1] == 2
-
-    pi2 = 2 * math.pi
-
-    scaled_pos = 8 * pos - 4
-    z = jnp.sum(scaled_pos**2 - A * np.cos(pi2 * scaled_pos), axis=-1)
-
-    return 2 * A + z
-
-
-def eval_debug(ind: LeniaIndividual, neg_fitness=False):
-    # This function is usually called in forked processes, before launching any JAX code
-    # We silent it
-    # Disable JAX logging https://abseil.io/docs/python/guides/logging
-    absl_logging.set_verbosity(absl_logging.ERROR)
-
-    if neg_fitness is True:
-        fitness = -rastrigin(jnp.array(ind)[jnp.newaxis, jnp.newaxis, :]).squeeze()
-    else:
-        fitness = rastrigin(jnp.array(ind)[jnp.newaxis, jnp.newaxis, :]).squeeze()
-    features = [ind[0] * 8 - 4, ind[1] * 8 - 4]
-
-    ind.fitness = fitness
-    ind.features = features
-
-    return ind
-
-
 def eval_lenia_config(ind: LeniaIndividual, neg_fitness: bool = False, fft: bool = True) -> LeniaIndividual:
     # This function is usually called in forked processes, before launching any JAX code
     # We silent it
@@ -265,7 +234,33 @@ def run_qd_search(
     return metrics
 
 
+###
 # QD Utils
+###
+
+
+def load_qd_grid_and_config(grid_fullpath):
+    with open(grid_fullpath, "rb") as f:
+        data = pickle.load(f)
+        if isinstance(data, ArchiveBase):
+            grid = data
+            try:
+                qd_config = grid.qd_config
+            except Exception:
+                # backward compatibility
+                qd_config = grid.base_config
+        else:
+            if 'container' in data:
+                grid = data['container']
+            elif 'algorithms' in data:
+                grid = data['algorithms'][0].container
+            else:
+                raise ValueError('Unknown data')
+            qd_config = grid[0].qd_config
+
+    return grid, qd_config
+
+
 def save_ccdf(archive, fullpath):
     """Saves a CCDF showing the distribution of the archive's objective values.
 
@@ -411,3 +406,37 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
         pool.map(leniax_helpers.process_lenia, enumerate(real_bests))
     # for lenia_tuple in enumerate(real_bests):
     #     leniax_helpers.process_lenia(lenia_tuple)
+
+
+###
+# Debug
+###
+def rastrigin(pos: jnp.ndarray, A: float = 10.):
+    """Valu are expected to be between [0, 1]"""
+    assert len(pos.shape) == 3
+    assert pos.shape[-1] == 2
+
+    pi2 = 2 * math.pi
+
+    scaled_pos = 8 * pos - 4
+    z = jnp.sum(scaled_pos**2 - A * np.cos(pi2 * scaled_pos), axis=-1)
+
+    return 2 * A + z
+
+
+def eval_debug(ind: LeniaIndividual, neg_fitness=False):
+    # This function is usually called in forked processes, before launching any JAX code
+    # We silent it
+    # Disable JAX logging https://abseil.io/docs/python/guides/logging
+    absl_logging.set_verbosity(absl_logging.ERROR)
+
+    if neg_fitness is True:
+        fitness = -rastrigin(jnp.array(ind)[jnp.newaxis, jnp.newaxis, :]).squeeze()
+    else:
+        fitness = rastrigin(jnp.array(ind)[jnp.newaxis, jnp.newaxis, :]).squeeze()
+    features = [ind[0] * 8 - 4, ind[1] * 8 - 4]
+
+    ind.fitness = fitness
+    ind.features = features
+
+    return ind

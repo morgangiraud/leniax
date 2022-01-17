@@ -43,8 +43,7 @@ def launch(omegaConf: DictConfig) -> None:
         print(f"best run length: {best.fitness}")
         config = best.get_config()
 
-        all_cells, _, _, stats_dict = leniax_helpers.init_and_run(config, with_jit=True)
-        all_cells = all_cells[:int(stats_dict['N']), 0]
+        all_cells, _, _, stats_dict = leniax_helpers.init_and_run(config, with_jit=True, stat_trunc=True)
 
         save_dir = os.path.join(os.getcwd(), f"{str(id_best).zfill(4)}")  # changed by hydra
         leniax_utils.check_dir(save_dir)

@@ -33,12 +33,12 @@ def launch(omegaConf: DictConfig) -> None:
     config['run_params']['nb_mut_search'] = 128
     use_init_cells = True
     if 'init_cells' in config['run_params']:
-        init_cells = leniax_utils.decompress_array(
+        init_cells = leniax_loader.decompress_array(
             config['run_params']['init_cells'], len(config['render_params']['world_size'])
         )
         config['run_params']['init_cells'] = leniax_loader.make_array_compressible(init_cells)
     else:
-        cells = leniax_utils.decompress_array(config['run_params']['cells'], len(config['render_params']['world_size']))
+        cells = leniax_loader.decompress_array(config['run_params']['cells'], len(config['render_params']['world_size']))
         config['run_params']['cells'] = leniax_loader.make_array_compressible(cells)
 
     leniax_utils.print_config(config)
@@ -50,7 +50,7 @@ def launch(omegaConf: DictConfig) -> None:
         rng_key, config, nb_scale_for_stability, fft=True, use_init_cells=use_init_cells)
     print(f"Init search done in {time.time() - t0} (nb_muts done: {nb_mut_done})")
 
-    all_cells = best['all_cells'][:int(best['N']), 0]
+    all_cells = best['all_cells'][:int(best['N'])]
     stats_dict = {k: v.squeeze() for k, v in best['all_stats'].items()}
 
     print(f"best run length: {best['N']}")

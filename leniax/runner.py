@@ -123,8 +123,6 @@ def run_scan(
             cells, field, potential, total_shift_idx, mass_centroid, mass_angle
         )
 
-        y = {'cells': cells, 'field': field, 'potential': potential, 'stats': stats}
-
         new_carry = {
             'fn_params': (new_cells, K, gfn_params, kernels_weight_per_channel, T),
             'stats_properties': {
@@ -133,6 +131,8 @@ def run_scan(
                 'mass_angle': mass_angle,
             }
         }
+
+        y = {'cells': cells, 'field': field, 'potential': potential, 'stats': stats}
 
         return new_carry, y
 

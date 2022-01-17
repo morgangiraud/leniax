@@ -30,10 +30,9 @@ def run(omegaConf: DictConfig) -> None:
 
     print("Rendering v2: start")
     start_time = time.time()
-    all_cells_v2, _, _, stats_dict = leniax_helpers.init_and_run(
-        config_v2, with_jit=False, fft=True, use_init_cells=False
+    all_cells_v2, _, _, _ = leniax_helpers.init_and_run(
+        config_v2, with_jit=False, fft=True, use_init_cells=False, stat_trunc=True
     )  # [nb_max_iter, N=1, C, world_dims...]
-    all_cells_v2 = all_cells_v2[:int(stats_dict['N']), 0]  # [nb_iter, C, world_dims...]
     total_time = time.time() - start_time
     nb_iter_done = len(all_cells_v2)
     print(f"Rendering v2: {nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")

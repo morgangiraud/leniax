@@ -1,3 +1,4 @@
+import functools
 import time
 import os
 import copy
@@ -6,9 +7,13 @@ from omegaconf import DictConfig
 import hydra
 import jax
 import jax.numpy as jnp
+from jax.experimental import optimizers as jax_opt
+import matplotlib.pyplot as plt
 
 import leniax.utils as leniax_utils
 import leniax.helpers as leniax_helpers
+import leniax.runner as leniax_runner
+from leniax.kernels import get_kernels_and_mapping
 
 absl_logging.set_verbosity(absl_logging.ERROR)
 
@@ -43,31 +48,84 @@ def run(omegaConf: DictConfig) -> None:
     config_v1['kernels_params']['k'][0]['k_id'] = 0
     config_v1['kernels_params']['k'][0]['q'] = 1.
 
-    _, K, mapping = leniax_helpers.init(config, True, False)
+    K, mapping = get_kernels_and_mapping(
+        config_v1['kernels_params']['k'],
+        config_v1['render_params']['world_size'],
+        1,
+        R=config['world_params']['R'],
+        fft=False
+    )
+    # kernel_shape = [
+    #     1,
+    #     config_v1['world_params']['nb_channels'],
+    #     K.shape[0] // config_v1['world_params']['nb_channels'],
+    # ] + config_v1['render_params']['world_size']
+    kernel_shape = K.shape
+    update_fn = leniax_helpers.build_update_fn(kernel_shape, mapping, 'v1', True, fft=False)
+
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
-    dt = 1. / config_v1['world_params']['T']
-    update_fn = leniax_helpers.build_update_fn(K.shape, mapping, 'v1', True, True)
+    T = jnp.array(config_v1['world_params']['T'], dtype=jnp.float32)
+    max_run_iter = 1
 
-    def apply_3_updates(cells, K, gfn_params, kernels_weight_per_channel, dt, target):
-        cells, _, _ = update_fn(cells, K, gfn_params, kernels_weight_per_channel, dt)
-        cells, _, _ = update_fn(cells, K, gfn_params, kernels_weight_per_channel, dt)
-        cells_out, _, _ = update_fn(cells, K, gfn_params, kernels_weight_per_channel, dt)
-        error = jnp.mean((cells_out - target)**2) / 2.
+    inputs = all_cells_v2[:-max_run_iter]
+    target = (all_cells_v2[max_run_iter:], None, None)
 
-        return error
+    K_params = K
 
-    update_fn_gfngrad = jax.value_and_grad(apply_3_updates, argnums=(1, 2))
-    inputs = all_cells_v2[:-3]
-    target = all_cells_v2[3:]
-    lr = 5e-2
-    for i in range(200):
-        error, (K_grad,
-                gfnparams_grad) = update_fn_gfngrad(inputs, K, gfn_params, kernels_weight_per_channel, dt, target)
-        gfn_params = gfn_params - lr * gfnparams_grad
-        K = K - K_grad
-        if i % 10 == 0:
-            print(error, gfn_params)
+    # def K_fn(K_params):
+    #     padding = jnp.array([[0, 0]] * 2 + [[(128 - dim) // 2, (128 - dim) // 2 + 1] for dim in K_params.shape[2:]])
+    #     K = jnp.pad(K_params, padding, mode='constant')[jnp.newaxis, ...]
+    #     K = jnp.fft.fftshift(K, axes=[-2, -1])
+    #     K = jnp.fft.fftn(K, axes=[-2, -1])
+    #     return K
+    def K_fn(K_params):
+        return K_params
+
+    def error_fn(inputs, target):
+        all_cells = inputs[0]
+        all_cells_target = target[0]
+
+        diffs = 0.5 * jnp.square(all_cells - all_cells_target)
+        errors = jnp.sum(diffs, axis=(1, 2, 3))
+        batch_error = jnp.mean(errors)
+
+        return batch_error
+
+    run_fn = functools.partial(
+        leniax_runner.run_diff, max_run_iter=max_run_iter, K_fn=K_fn, update_fn=update_fn, error_fn=error_fn
+    )
+    run_fn_grads = jax.value_and_grad(run_fn, argnums=(1, 2, 4))
+
+    save_dir = os.getcwd()  # changed by hydra
+    leniax_utils.check_dir(save_dir)
+
+    lr = 1e-4
+    opt_init, opt_update, get_params = jax_opt.adam(lr)
+    opt_state = opt_init((K_params, gfn_params, T))
+    for i in range(5000):
+        error, grads = run_fn_grads(inputs, K_params, gfn_params, kernels_weight_per_channel, T, target=target)
+        opt_state = opt_update(i, grads, opt_state)
+
+        if i % 5 == 0:
+            K_params, gfn_params, T_params = get_params(opt_state)
+            print(error, K_params.mean(), K_params.std(), gfn_params, T_params)
+
+            fig = plt.figure(figsize=(6, 6))
+            axes = []
+            axes.append(fig.add_subplot(1, 2, 1))
+            axes[-1].title.set_text("kernel K1")
+            plt.imshow(K_params[0, 0], cmap='viridis', interpolation="nearest", vmin=0, vmax=K_params.max())
+            axes.append(fig.add_subplot(1, 2, 2))
+            axes[-1].title.set_text("kernel K1 grad")
+            neg_grad = -grads[0]
+            plt.imshow(neg_grad[0, 0], cmap='hot', interpolation="nearest", vmin=neg_grad.min(), vmax=neg_grad.max())
+
+            plt.colorbar()
+            plt.tight_layout()
+            fullpath = f"{save_dir}/Ks{str(i).zfill(4)}.png"
+            fig.savefig(fullpath)
+            plt.close(fig)
 
 
 if __name__ == '__main__':

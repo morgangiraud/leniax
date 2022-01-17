@@ -1,7 +1,7 @@
 import functools
 from jax import vmap, pmap, lax, jit
 import jax.numpy as jnp
-from typing import Callable, Dict, Tuple
+from typing import Callable, Dict, Tuple, Optional
 
 from . import statistics as leniax_stat
 from .constant import EPSILON, START_CHECK_STOP
@@ -298,3 +298,31 @@ def run_scan_mem_optimized_pmap(
     stats['N'] = continue_stat.sum(axis=0)
 
     return stats, final_cells
+
+
+###
+# Differentiable functions
+###
+def run_diff(
+    cells: jnp.ndarray,
+    K_params: jnp.ndarray,
+    gfn_params: jnp.ndarray,
+    kernels_weight_per_channel: jnp.ndarray,
+    T: jnp.ndarray,
+    target: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray], Optional[jnp.ndarray]],
+    max_run_iter: int,
+    K_fn: Callable,
+    update_fn: Callable,
+    error_fn: Callable
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
+    K = K_fn(K_params)
+    dt = jnp.array(1. / T, dtype=jnp.float32)
+
+    for _ in range(max_run_iter):
+        new_cells, field, potential = update_fn(cells, K, gfn_params, kernels_weight_per_channel, dt)
+
+    preds = (new_cells, field, potential)
+
+    error = error_fn(preds, target)
+
+    return error

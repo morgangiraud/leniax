@@ -38,7 +38,9 @@ def launch(omegaConf: DictConfig) -> None:
         )
         config['run_params']['init_cells'] = leniax_loader.make_array_compressible(init_cells)
     else:
-        cells = leniax_loader.decompress_array(config['run_params']['cells'], len(config['render_params']['world_size']))
+        cells = leniax_loader.decompress_array(
+            config['run_params']['cells'], len(config['render_params']['world_size'])
+        )
         config['run_params']['cells'] = leniax_loader.make_array_compressible(cells)
 
     leniax_utils.print_config(config)

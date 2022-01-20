@@ -38,7 +38,7 @@ def get_parameters_for_scale(scale: float, world_size: List[int], config: Dict, 
 
     use_init_cells = True
     render_params = tmp_config['render_params']
-    cells, K, mapping = leniax_helpers.init(tmp_config, fft, use_init_cells)
+    cells, K, mapping = leniax_helpers.init(tmp_config, use_init_cells, fft)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
     R = config['world_params']['R']

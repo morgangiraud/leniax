@@ -18,6 +18,8 @@ def run(
     update_fn: Callable,
     compute_stats_fn: Callable
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
+    """Run a single simulation using a python for loop"""
+
     assert max_run_iter > 0, f"max_run_iter must be positive, value given: {max_run_iter}"
     assert cells.shape[0] == 1
     # cells shape: [N=1, C, dims...]
@@ -97,6 +99,7 @@ def run_scan(
     update_fn: Callable,
     compute_stats_fn: Callable
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict[str, jnp.ndarray]]:
+    """Run a single simulation using lax scan function (jitted function)"""
     """
         Args:
             - cells0:                       jnp.ndarray[N_init, nb_channels, world_dims...]

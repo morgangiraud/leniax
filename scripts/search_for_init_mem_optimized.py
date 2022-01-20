@@ -24,19 +24,15 @@ def launch(omegaConf: DictConfig) -> None:
     config = leniax_utils.get_container(omegaConf, config_path)
     # config['run_params']['nb_init_search'] = 16
     # config['run_params']['max_run_iter'] = 512
-
     leniax_utils.print_config(config)
 
     rng_key = leniax_utils.seed_everything(config['run_params']['seed'])
-    lenia_sols = []
-    for _ in range(1):
-        rng_key, subkey = jax.random.split(rng_key)
-        lenia_sols.append(LeniaIndividual(config, subkey))
-
-    eval_fn = leniax_qd.build_eval_lenia_config_mem_optimized_fn(config)
+    # We are looking at multiple inits for one configuration
+    rng_key, *subkeys = jax.random.split(rng_key, 1)
+    lenia_sols = [LeniaIndividual(config, subkey) for subkey in subkeys]
 
     t0 = time.time()
-    results = eval_fn(lenia_sols)
+    results = leniax_qd.build_eval_lenia_config_mem_optimized_fn(config)(lenia_sols)
     print(f"Init search done in {time.time() - t0}")
 
     for id_best, best in enumerate(results):
@@ -44,6 +40,7 @@ def launch(omegaConf: DictConfig) -> None:
         config = best.get_config()
 
         all_cells, _, _, stats_dict = leniax_helpers.init_and_run(config, with_jit=True, stat_trunc=True)
+        all_cells = all_cells[:, 0]
 
         save_dir = os.path.join(os.getcwd(), f"{str(id_best).zfill(4)}")  # changed by hydra
         leniax_utils.check_dir(save_dir)

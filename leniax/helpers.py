@@ -7,7 +7,7 @@ import functools
 import numpy as np
 import scipy
 import jax.numpy as jnp
-from typing import Callable, Dict, Tuple, List
+from typing import Callable, Dict, Tuple, List, Union
 import matplotlib.pyplot as plt
 from absl import logging as absl_logging
 
@@ -27,19 +27,21 @@ from .kernels import KernelMapping, get_kernels_and_mapping, get_kernel
 cdir = os.path.dirname(os.path.realpath(__file__))
 
 
-def init(config: Dict, fft: bool = True, use_init_cells: bool = True) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
+def init(config: Dict, use_init_cells: bool = True, fft: bool = True) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
     nb_dims = config['world_params']['nb_dims']
     nb_channels = config['world_params']['nb_channels']
     world_size = config['render_params']['world_size']
     kernels_params = config['kernels_params']['k']
+    R = config['world_params']['R']
     assert len(world_size) == nb_dims
     assert nb_channels > 0
 
-    cells = leniax_loader.load_raw_cells(config, use_init_cells)
+    raw_cells = leniax_loader.load_raw_cells(config, use_init_cells)
 
     scale = config['world_params']['scale']
     if scale != 1.:
-        cells = jnp.array([scipy.ndimage.zoom(cells[i], scale, order=0) for i in range(nb_channels)], dtype=jnp.float32)
+        raw_cells = jnp.array([scipy.ndimage.zoom(raw_cells[i], scale, order=0) for i in range(nb_channels)],
+                              dtype=jnp.float32)
         config['world_params']['R'] *= scale
 
     # assert cells.shape[1] * 2.2 < config['render_params']['world_size'][0]
@@ -56,8 +58,10 @@ def init(config: Dict, fft: bool = True, use_init_cells: bool = True) -> Tuple[j
     #     [0, on, on],
     #     [0, on, -on],
     # ])
-    init_cells = create_init_cells(world_size, nb_channels, [cells])
-    R = config['world_params']['R']
+    if len(raw_cells.shape) > 1 + nb_dims:
+        init_cells = create_init_cells(world_size, nb_channels, raw_cells)
+    else:
+        init_cells = create_init_cells(world_size, nb_channels, [raw_cells])
     K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)
 
     return init_cells, K, mapping
@@ -66,7 +70,7 @@ def init(config: Dict, fft: bool = True, use_init_cells: bool = True) -> Tuple[j
 def create_init_cells(
     world_size: List[int],
     nb_channels: int,
-    other_cells: List[jnp.ndarray] = [],
+    other_cells: Union[jnp.ndarray, List[jnp.ndarray]] = [],
     offsets: List[List[int]] = [],
 ) -> jnp.ndarray:
     """
@@ -84,10 +88,14 @@ def create_init_cells(
             for c in other_cells:
                 if len(c) != 0:
                     cells = leniax_utils.merge_cells(cells, c)
+
+        cells = cells[jnp.newaxis, ...]
+    elif isinstance(other_cells, jnp.ndarray) or isinstance(other_cells, np.ndarray):
+        if isinstance(other_cells, np.ndarray):
+            other_cells = jnp.array(other_cells, dtype=jnp.float32)
+        cells = other_cells
     else:
         raise ValueError(f'Don\'t know how to handle {type(other_cells)}')
-
-    cells = cells[jnp.newaxis, ...]
 
     return cells
 
@@ -115,21 +123,18 @@ def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tup
     update_fn = build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
     compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
+    nb_channels_to_init = nb_channels * nb_init_search
     if update_fn_version == 'v1':
-        rng_key, noises = initializations.perlin(rng_key, nb_init_search, world_size, R, kernels_params[0])
+        rng_key, noises = initializations.perlin(rng_key, nb_channels_to_init, world_size, R, kernels_params[0])
     elif update_fn_version == 'v2':
-        rng_key, noises = initializations.perlin_local(rng_key, nb_init_search, world_size, R, kernels_params[0])
+        rng_key, noises = initializations.perlin_local(rng_key, nb_channels_to_init, world_size, R, kernels_params[0])
     else:
         raise ValueError('update_fn_version {update_fn_version} does not exist')
+    init_noises = noises.reshape([nb_init_search, nb_channels] + world_size)
 
-    if nb_channels > 1:
-        noises = jnp.repeat(noises, nb_channels, axis=1)
-
-    all_cells_0 = []
-    for i in range(nb_init_search):
-        cells_0 = create_init_cells(world_size, nb_channels, [noises[i]])
-        all_cells_0.append(cells_0)
-    all_cells_0_jnp = jnp.array(all_cells_0)
+    all_cells_0_jnp = jnp.array([
+        create_init_cells(world_size, nb_channels, [init_noises[i]]) for i in range(nb_init_search)
+    ])
 
     best_run = {}
     current_max = 0
@@ -199,8 +204,9 @@ def search_for_mutation(
             scaled_config['world_params']['scale'] = 2**scale_power
 
             all_cells, _, _, stats_dict = init_and_run(
-                scaled_config, with_jit=True, fft=fft, use_init_cells=use_init_cells
+                scaled_config, use_init_cells=use_init_cells, with_jit=True, fft=fft
             )
+            all_cells = all_cells[:, 0]
             stats_dict['N'].block_until_ready()
 
             nb_iter_done = max(nb_iter_done, stats_dict['N'])
@@ -227,27 +233,32 @@ def search_for_mutation(
 
 def init_and_run(
     config: Dict,
-    with_jit: bool = False,
-    fft: bool = True,
     use_init_cells: bool = True,
+    with_jit: bool = True,
+    fft: bool = True,
     stat_trunc: bool = False
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
     """Initialize and simulate a Lenia configuration
 
+    To simulate a configuration with multiple initializations you must set
+    ``with_jit`` to ``True`` so the function use the scan implementaton.
+    Tou must also set ``stat_trunc`` to ``False``: multiple initializartions
+    means different simulation length measured by the statistics.
+
     Args:
         config: The Lenia configuration
+        use_init_cells: Boolean to choose if the `init_cells` field in the configuraiton will be used
         with_jit: Boolean to choose if the jitted function will be used
         fft: Boolean to choose if the fft implementation will be used
-        use_init_cells: Boolean to choose if the `init_cells` field in the configuraiton will be used
         stat_trunc: Boolean to choose if the outputs will be truncated using the simulation statistics
 
     Returns:
         A tuple containing cells, fields, potentials and statistics of the simulation
-        Dimensions: ``([N, nb_channels, world_dims...])``
+        Dimensions: ``([nb_iter, nb_init, nb_channels, world_dims...])``
     """
     config = copy.deepcopy(config)
 
-    cells, K, mapping = init(config, fft, use_init_cells)
+    cells, K, mapping = init(config, use_init_cells, fft)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 
@@ -269,17 +280,13 @@ def init_and_run(
     else:
         all_cells, all_fields, all_potentials, stats_dict = leniax_runner.run(
             cells, K, gfn_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
-        )
+        )  # [nb_iter, nb_init, C, world_dims...]
     stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
 
     if stat_trunc is True:
-        all_cells = all_cells[:int(stats_dict['N']), 0]  # [nb_iter, C, world_dims...]
-        all_fields = all_fields[:int(stats_dict['N']), 0]
-        all_potentials = all_potentials[:int(stats_dict['N']), 0]
-    else:
-        all_cells = all_cells[:, 0]  # [nb_max_iter, C, world_dims...]
-        all_fields = all_fields[:, 0]  # [nb_max_iter, C, world_dims...]
-        all_potentials = all_potentials[:, 0]  # [nb_max_iter, C, world_dims...]
+        all_cells = all_cells[:int(stats_dict['N'])]  # [nb_iter, C, world_dims...]
+        all_fields = all_fields[:int(stats_dict['N'])]
+        all_potentials = all_potentials[:int(stats_dict['N'])]
 
     return all_cells, all_fields, all_potentials, stats_dict
 
@@ -322,8 +329,9 @@ def get_mem_optimized_inputs(qd_config: Dict, lenia_sols: List[LeniaIndividual],
             )
         else:
             raise ValueError('update_fn_version {update_fn_version} does not exist')
+        cells_0 = noises.reshape([nb_init_search, nb_channels] + world_size)
 
-        all_cells_0.append(noises.reshape([nb_init_search, nb_channels] + world_size))
+        all_cells_0.append(cells_0)
         all_Ks.append(K)
         all_gfn_params.append(gfn_params)
         all_kernels_weight_per_channel.append(kernels_weight_per_channel)
@@ -413,7 +421,7 @@ def process_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
     leniax_utils.check_dir(save_dir)
 
     start_time = time.time()
-    all_cells, _, _, stats_dict = init_and_run(config, with_jit=True, fft=True, use_init_cells=True)
+    all_cells, _, _, stats_dict = init_and_run(config, use_init_cells=True, with_jit=True, fft=True)
     all_cells = all_cells[:int(stats_dict['N']), 0]
     total_time = time.time() - start_time
 

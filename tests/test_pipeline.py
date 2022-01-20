@@ -25,6 +25,7 @@ class TestPipeline(unittest.TestCase):
             true_last_frame = pickle.load(f)
 
         all_cells, _, _, _ = init_and_run(config, with_jit=False)
+        all_cells = all_cells[:, 0]
         last_frame = all_cells[-1]
 
         assert len(all_cells) == 128
@@ -40,6 +41,7 @@ class TestPipeline(unittest.TestCase):
             true_last_frame = pickle.load(f)
 
         all_cells, _, _, _ = init_and_run(config, with_jit=True)
+        all_cells = all_cells[:, 0]
         last_frame = all_cells[-1]
 
         assert len(all_cells) == 128
@@ -55,6 +57,7 @@ class TestPipeline(unittest.TestCase):
             true_last_frame = pickle.load(f)
 
         all_cells, _, _, _ = init_and_run(config, with_jit=True)
+        all_cells = all_cells[:, 0]
         last_frame = all_cells[-1]
 
         assert len(all_cells) == 128
@@ -70,6 +73,7 @@ class TestPipeline(unittest.TestCase):
             true_last_frame = pickle.load(f)
 
         all_cells, _, _, _ = init_and_run(config, with_jit=True, fft=True)
+        all_cells = all_cells[:, 0]
         last_frame = all_cells[-1]
 
         assert len(all_cells) == 128
@@ -85,6 +89,7 @@ class TestPipeline(unittest.TestCase):
             true_last_frame = pickle.load(f)
 
         all_cells, _, _, _ = init_and_run(config, with_jit=True)
+        all_cells = all_cells[:, 0]
         last_frame = all_cells[-1]
 
         assert len(all_cells) == 32
@@ -100,6 +105,7 @@ class TestPipeline(unittest.TestCase):
             true_last_frame = pickle.load(f)
 
         all_cells, _, _, _ = init_and_run(config, with_jit=True, fft=True)
+        all_cells = all_cells[:, 0]
         last_frame = all_cells[-1]
 
         assert len(all_cells) == 32

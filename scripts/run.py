@@ -3,6 +3,7 @@ import os
 from absl import logging as absl_logging
 from omegaconf import DictConfig
 import hydra
+import numpy as np
 # from hydra.core.config_store import ConfigStore
 
 import leniax.utils as leniax_utils
@@ -20,8 +21,8 @@ config_name = "orbium"
 # config_name = "wanderer"
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '2c-4k')
 # config_name = "orbium-0"
-config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '3c-9k')
-config_name = "orbium-0-1"
+# config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '3c-9k')
+# config_name = "orbium-0-0"
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '3d', '1c-1k')
 # config_name = "prototype"
 
@@ -51,7 +52,8 @@ def run(omegaConf: DictConfig) -> None:
         use_init_cells=False,
         with_jit=False,
         fft=True,
-        stat_trunc=True
+        stat_trunc=True,
+        # override=override
     )  # [nb_max_iter, N=1, C, world_dims...]
     all_cells = all_cells[:, 0]
     total_time = time.time() - start_time

@@ -7,7 +7,7 @@ import functools
 import numpy as np
 import scipy
 import jax.numpy as jnp
-from typing import Callable, Dict, Tuple, List, Union
+from typing import Callable, Dict, Tuple, List, Union, Any
 import matplotlib.pyplot as plt
 from absl import logging as absl_logging
 
@@ -236,7 +236,8 @@ def init_and_run(
     use_init_cells: bool = True,
     with_jit: bool = True,
     fft: bool = True,
-    stat_trunc: bool = False
+    stat_trunc: bool = False,
+    override: Dict[str, Any] = {}
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
     """Initialize and simulate a Lenia configuration
 
@@ -259,6 +260,10 @@ def init_and_run(
     config = copy.deepcopy(config)
 
     cells, K, mapping = init(config, use_init_cells, fft)
+    if 'cells' in override:
+        cells = override['cells']
+    if 'K' in override:
+        K = override['K']
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 

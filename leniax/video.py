@@ -9,14 +9,18 @@ from .utils import get_image
 
 
 def dump_video(
-    save_dir: str, all_cells: jnp.ndarray, render_params: Dict, colormaps: Union[List, Any], prefix: str = ''
+    save_dir: str,
+    all_cells: jnp.ndarray, 
+    render_params: Dict, 
+    colormaps: Union[List, Any], 
+    prefix: str = '',
+    transparent_bg: bool = False
 ):
     assert len(all_cells.shape) == 4  # [nb_iter, C, H, W]
     if type(colormaps) != list:
         colormaps = [colormaps]
     if prefix == '':
         prefix = 'beast'
-    is_transparent = False
 
     np_all_cells = np.array(all_cells)
     nb_iter_done = len(np_all_cells)
@@ -33,7 +37,7 @@ def dump_video(
             framerate=30,
         )
 
-        if is_transparent:
+        if transparent_bg:
             output_fullpath = os.path.join(save_dir, f"{prefix}_{colormap.name}_{width}_{height}.mkv")  # type: ignore
             process = process.output(
                 output_fullpath, vcodec="ffv1"

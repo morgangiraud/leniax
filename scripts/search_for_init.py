@@ -13,6 +13,8 @@ logging.set_verbosity(logging.ERROR)
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '2c-3k')
 config_name = "config"
+config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '3c-9k')
+config_name = "orbium-0-0"
 
 
 @hydra.main(config_path=config_path, config_name=config_name)
@@ -22,9 +24,9 @@ def launch(omegaConf: DictConfig) -> None:
     # config['render_params']['pixel_size_power2'] = 0
     # config['render_params']['pixel_size'] = 1
     # config['render_params']['size_power2'] = 7
-    # config['render_params']['world_size'] = [128, 128]
-    # config['world_params']['scale'] = 1.
-    config['run_params']['max_run_iter'] = 4096
+    config['render_params']['world_size'] = [128, 128]
+    config['world_params']['scale'] = 2.
+    config['run_params']['max_run_iter'] = 512
     config['run_params']['nb_init_search'] = 256
 
     leniax_utils.print_config(config)

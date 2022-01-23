@@ -508,7 +508,7 @@ def build_get_field_fn(cin_growth_fns: List[List[int]], average: bool = True) ->
 ###
 # Viz
 ###
-def dump_assets(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict: Dict, colormaps=None):
+def dump_assets(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict: Dict, colormaps=None, transparent_bg=False):
     if colormaps is None:
         colormaps = [
             leniax_colormaps.ExtendedColormap('extended')
@@ -528,9 +528,9 @@ def dump_assets(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict:
 
     dump_viz_data(save_dir, stats_dict, config)
 
-    render_params = config['render_params']
-    all_outputs_fullpath = leniax_video.dump_video(save_dir, all_cells, render_params, colormaps)
-
+    all_outputs_fullpath = leniax_video.dump_video(
+        save_dir, all_cells, config['render_params'], colormaps, '', transparent_bg
+    )
     for output_fullpath in all_outputs_fullpath:
         leniax_video.dump_gif(output_fullpath)
 

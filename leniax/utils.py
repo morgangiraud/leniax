@@ -217,14 +217,14 @@ def center_and_crop_cells(cells):
 ###
 def get_image(cells_buffer: np.ndarray, pixel_size: int, colormap) -> Image:
     nb_dims = len(cells_buffer.shape) - 1
-
+    
     if pixel_size != 1:
         for i in range(nb_dims):
             cells_buffer = np.repeat(cells_buffer, pixel_size, axis=i + 1)
 
     if nb_dims == 2:
         cells_buffer = np.transpose(cells_buffer, (1, 2, 0))
-        img = colormap(cells_buffer)[:, :, 0]  # the colormap is applied to each channel, we just merge them
+        img = colormap(cells_buffer)[:, :, 0]
         rgba_uint8 = np.uint8(img * 255)
         final_img = Image.fromarray(rgba_uint8, 'RGBA')
     elif nb_dims == 3:

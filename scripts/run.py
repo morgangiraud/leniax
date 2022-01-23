@@ -15,13 +15,13 @@ absl_logging.set_verbosity(absl_logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 
-config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '1c-1k')
-config_name = "orbium"
+# config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '1c-1k')
+# config_name = "orbium"
 # config_name = "wanderer"
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '2c-4k')
 # config_name = "orbium-0"
-# config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '3c-9k')
-# config_name = "orbium-0-0"
+config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '3c-9k')
+config_name = "orbium-0-0"
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '3d', '1c-1k')
 # config_name = "prototype"
 
@@ -36,7 +36,7 @@ def run(omegaConf: DictConfig) -> None:
     config = leniax_utils.get_container(omegaConf, config_path)
 
     # config['render_params']['pixel_size_power2'] = 0
-    # config['render_params']['pixel_size'] = 1
+    config['render_params']['pixel_size'] = 1
     # config['render_params']['size_power2'] = 7
     # config['render_params']['world_size'] = [256, 256]
     # config['world_params']['scale'] = 2.
@@ -71,6 +71,7 @@ def run(omegaConf: DictConfig) -> None:
     print(f"Compressing in {total_time} seconds")
 
     print("Dumping assets")
+    transparent_bg = False
     colormaps = [
         # leniax_colormaps.colormaps['alizarin'],
         # leniax_colormaps.colormaps['black-white'],
@@ -88,9 +89,9 @@ def run(omegaConf: DictConfig) -> None:
         # leniax_colormaps.colormaps['summer'],
         # leniax_colormaps.colormaps['white-black'],
         # leniax_colormaps.Hilbert2d3dColormap('hilbert-2d3d'),
-        leniax_colormaps.ExtendedColormap('extended'),
+        leniax_colormaps.ExtendedColormap('extended', transparent_bg=transparent_bg),
     ]
-    leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict, colormaps)
+    leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict, colormaps, transparent_bg)
     for colormap in colormaps:
         leniax_helpers.dump_frame(save_dir, f'last_frame_cropped_{colormap.name}', all_cells[-1], False, colormap)
         leniax_helpers.dump_frame(save_dir, f'last_frame_{colormap.name}', all_cells[-1], True, colormap)

@@ -124,25 +124,29 @@ class Hilbert2d3dColormap():
 
 
 class ExtendedColormap():
-    def __init__(self, name: str):
+    def __init__(self, name: str, transparent_bg: bool = False):
         self.name = name
+        self.transparent_bg = transparent_bg
 
     def __call__(self, data):
         c = data.shape[-1]
+
+        if self.transparent_bg is True:
+            a_layer = data.sum(axis=-1, keepdims=True)
+            a_layer[a_layer > 0.25] = 1
+        else:
+            a_layer = np.ones(list(data.shape[:-1]) + [1])
+
         if c == 1:
             g_layer = np.zeros(list(data.shape[:-1]) + [1])
             b_layer = np.zeros(list(data.shape[:-1]) + [1])
-            a_layer = np.ones(list(data.shape[:-1]) + [1])
 
             data = np.concatenate([data, g_layer, b_layer, a_layer], axis=-1)
         elif c == 2:
             b_layer = np.zeros(list(data.shape[:-1]) + [1])
-            a_layer = np.ones(list(data.shape[:-1]) + [1])
 
             data = np.concatenate([data, b_layer, a_layer], axis=-1)
         elif c == 3:
-            a_layer = np.ones(list(data.shape[:-1]) + [1])
-
             data = np.concatenate([data, a_layer], axis=-1)
         else:
             raise ValueError(f"This colormap can't handle more than 3 channels. Current value {c}")

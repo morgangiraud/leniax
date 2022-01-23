@@ -29,7 +29,8 @@ extensions = [
     'sphinx.ext.viewcode',
     'nbsphinx',
     'recommonmark',
-    'sphinx_markdown_tables'
+    'sphinx_markdown_tables',
+    'matplotlib.sphinxext.plot_directive'
 ]
 
 # Add any paths that contain templates here, relative to this directory.

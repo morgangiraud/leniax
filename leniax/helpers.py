@@ -254,8 +254,8 @@ def init_and_run(
         stat_trunc: Boolean to choose if the outputs will be truncated using the simulation statistics
 
     Returns:
-        A tuple containing cells, fields, potentials and statistics of the simulation
-        Dimensions: ``([nb_iter, nb_init, nb_channels, world_dims...])``
+        A tuple of `[nb_iter, nb_init, nb_channels, world_dims...]` shaped
+        cells, fields, potentials and statistics of the simulation
     """
     config = copy.deepcopy(config)
 

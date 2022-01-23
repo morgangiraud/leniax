@@ -38,4 +38,5 @@ For a quick introduction and short example snippets, see our `README
    :caption: API reference
 
    leniax.core
+   leniax.growth_functions
 

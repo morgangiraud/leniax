@@ -20,6 +20,9 @@ def update(
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Update the cells state
 
+    Jitted function with static argnums. Use functools.partial to set the different function.
+    Avoid changing non-static argument shape for performance.
+
     Args:
         cells: cells state ``([N, nb_channels, world_dims...])``
         K: Kernel ``[K_o=nb_channels * max_k_per_channel, K_i=1, kernel_dims...]``
@@ -32,9 +35,6 @@ def update(
 
     Returns:
         A tuple of arrays representing the updated cells state, the used potential and used field.
-
-    Jitted function with static argnums. Use functools.partial to set the different function.
-    Avoid changing non-static argument shape for performance.
     """
 
     potential = get_potential_fn(cells, K)
@@ -54,6 +54,8 @@ def get_potential_fft(
 ) -> jnp.ndarray:
     """Compute the potential using FFT
 
+    The first dimension of cells and K is the vmap dimension
+
     Args:
         cells: cells state ``[N, nb_channels, world_dims...]``
         K: Kernels ``[1, nb_channels, max_k_per_channel, world_dims...]``
@@ -64,8 +66,6 @@ def get_potential_fft(
 
     Returns:
         An array containing the potential
-
-    The first dimension of cells and K is the vmap dimension
     """
     fft_cells = jnp.fft.fftn(cells, axes=wdims_axes)[:, :, jnp.newaxis, ...]  # [N, nb_channels, 1, world_dims...]
     fft_out = fft_cells * K
@@ -83,6 +83,8 @@ def get_potential_fft(
 def get_potential(cells: jnp.ndarray, K: jnp.ndarray, padding: jnp.ndarray, true_channels: jnp.ndarray) -> jnp.ndarray:
     """Compute the potential using lax.conv_general_dilated
 
+    The first dimension of cells and K is the vmap dimension
+
     Args:
         cells: cells state ``[N, nb_channels, world_dims...]``
         K: Kernels ``[K_o=nb_channels * max_k_per_channel, K_i=1, kernel_dims...]``
@@ -91,8 +93,6 @@ def get_potential(cells: jnp.ndarray, K: jnp.ndarray, padding: jnp.ndarray, true
 
     Returns:
         An array containing the potential
-
-    The first dimension of cells and K is the vmap dimension
     """
     padded_cells = jnp.pad(cells, padding, mode='wrap')
     nb_channels = cells.shape[1]
@@ -114,6 +114,9 @@ def get_field(
 ) -> jnp.ndarray:
     """Compute the field
 
+    Jitted function with static argnums. Use functools.partial to set the different function.
+    Avoid changing non-static argument shape for performance.
+
     Args:
         potential: ``[N, nb_kernels, world_dims...]``
         gfn_params: ``[nb_kernels, 2]``
@@ -123,9 +126,6 @@ def get_field(
 
     Returns:
         An array containing the field
-
-    Jitted function with static argnums. Use functools.partial to set the different function.
-    Avoid changing non-static argument shape for performance.
     """
     fields = []
     for i in range(len(growth_fn_t)):

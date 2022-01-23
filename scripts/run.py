@@ -3,7 +3,6 @@ import os
 from absl import logging as absl_logging
 from omegaconf import DictConfig
 import hydra
-import numpy as np
 # from hydra.core.config_store import ConfigStore
 
 import leniax.utils as leniax_utils

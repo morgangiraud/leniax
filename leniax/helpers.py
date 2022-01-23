@@ -27,7 +27,12 @@ from .kernels import KernelMapping, get_kernels_and_mapping, get_kernel
 cdir = os.path.dirname(os.path.realpath(__file__))
 
 
-def init(config: Dict, use_init_cells: bool = True, fft: bool = True) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
+def init(
+    config: Dict, 
+    use_init_cells: bool = True, 
+    fft: bool = True,
+    override: Dict[str, Any] = {}
+) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
     nb_dims = config['world_params']['nb_dims']
     nb_channels = config['world_params']['nb_channels']
     world_size = config['render_params']['world_size']
@@ -63,6 +68,11 @@ def init(config: Dict, use_init_cells: bool = True, fft: bool = True) -> Tuple[j
     else:
         init_cells = create_init_cells(world_size, nb_channels, [raw_cells])
     K, mapping = get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)
+
+    if 'cells' in override:
+        init_cells = override['cells']
+    if 'K' in override:
+        K = override['K']
 
     return init_cells, K, mapping
 
@@ -259,11 +269,7 @@ def init_and_run(
     """
     config = copy.deepcopy(config)
 
-    cells, K, mapping = init(config, use_init_cells, fft)
-    if 'cells' in override:
-        cells = override['cells']
-    if 'K' in override:
-        K = override['K']
+    cells, K, mapping = init(config, use_init_cells, fft, override)
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 

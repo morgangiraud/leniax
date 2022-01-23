@@ -5,8 +5,10 @@ import copy
 from absl import logging as absl_logging
 from omegaconf import DictConfig
 import hydra
+import tensorflow as tf
 import jax
 import jax.numpy as jnp
+import numpy as np
 from jax.experimental import optimizers as jax_opt
 import matplotlib.pyplot as plt
 
@@ -112,12 +114,16 @@ def run(omegaConf: DictConfig) -> None:
 
     nb_steps_to_train = 1
     training_data_shape = [-1, nb_channels] + world_size
+    tf.config.experimental.set_visible_devices([], "GPU")
     training_data = {
         'input_cells': all_cells_target[:-nb_steps_to_train].reshape(training_data_shape),
         'target_cells': all_cells_target[nb_steps_to_train:].reshape(training_data_shape),
         'target_fields': all_fields_target[nb_steps_to_train:].reshape(training_data_shape),
         'target_potentials': all_potentials_target[nb_steps_to_train:].reshape(training_data_shape),
     }
+    dataset = tf.data.Dataset.from_tensor_slices(training_data)
+    bs = 1024
+    dataset = dataset.repeat(300).shuffle(bs * 2).batch(bs).as_numpy_iterator()
 
     ###
     # Preparing the training pipeline
@@ -152,28 +158,33 @@ def run(omegaConf: DictConfig) -> None:
     )
     run_fn_value_and_grads = jax.value_and_grad(run_fn, argnums=(1))
 
-    lr = 1e-5
-    opt_init, opt_update, get_params = jax_opt.adam(lr)
-    opt_state = opt_init((K_params, ))
-
     gfn_params = mapping.get_gfn_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
     T = jnp.array(config_train['world_params']['T'], dtype=jnp.float32)
-    # for i in range(50000):
-    for i in range(50000):
+
+    K_lr = 1e-4
+    K_opt_init, K_opt_update, K_get_params = jax_opt.adam(K_lr)
+    K_opt_state = K_opt_init(K_params)
+    gfn_lr = 1e-2
+    gfn_opt_init, gfn_opt_update, gfn_get_params = jax_opt.adam(gfn_lr)
+    gfn_opt_state = gfn_opt_init(gfn_params)
+    for i, training_data in enumerate(dataset):
         x = training_data['input_cells']
         y = (training_data['target_cells'], training_data['target_fields'], training_data['target_potentials'])
+        K_params = K_get_params(K_opt_state)
+        gfn_params = gfn_get_params(gfn_opt_state)
         error, grads = run_fn_value_and_grads(x, K_params, gfn_params, kernels_weight_per_channel, T, target=y)
-        if type(grads) != tuple:
-            grads = (grads, )
-        opt_state = opt_update(i, grads, opt_state)
 
-        if i % 100 == 0:
-            opt_params = get_params(opt_state)
+        K_opt_state = K_opt_update(i, grads[0], K_opt_state)
+        gfn_opt_state = gfn_opt_update(i, grads[1], gfn_opt_state)
 
-            K_params = opt_params[0]
+        if i % 50 == 0:
             K_params_neg_grad = -grads[0]
-            print(i, error)
+            gfn_params_neg_grad = -grads[1]
+
+            print(i, error, gfn_params, gfn_params_neg_grad)
+
+            np.save(f"{save_dir}/K.npy", K_params, allow_pickle=True, fix_imports=True)
 
             fig = plt.figure(figsize=(6, 6))
             axes = []

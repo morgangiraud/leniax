@@ -28,7 +28,8 @@ def launch(omegaConf: DictConfig) -> None:
 
     rng_key = leniax_utils.seed_everything(config['run_params']['seed'])
     # We are looking at multiple inits for one configuration
-    rng_key, *subkeys = jax.random.split(rng_key, 1)
+    nb_sols = 1
+    rng_key, *subkeys = jax.random.split(rng_key, 1 + nb_sols)
     lenia_sols = [LeniaIndividual(config, subkey) for subkey in subkeys]
 
     t0 = time.time()

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import numpy as np
-import jax.numpy as jnp
 from matplotlib.colors import ListedColormap
 from typing import List, Callable
 from hilbertcurve.hilbertcurve import HilbertCurve
@@ -78,7 +77,7 @@ class PerceptualGradientColormap():
 
     def print_uint8_rgb_colors(self):
         """Print the list of colors contained in the colormap"""
-        print(jnp.array(jnp.array(self.cmap.colors) * 255, dtype=jnp.int32)[:, :3].tolist())
+        print(np.array(np.array(self.cmap.colors) * 255, dtype=np.int32)[:, :3].tolist())
 
 
 class Hilbert2d3dColormap():
@@ -266,7 +265,7 @@ def hex_to_rgba_uint8(hex: str) -> List[int]:
     return [int(hex[i:i + 2], 16) for i in (0, 2, 4)] + [255]
 
 
-def hex_to_palette_rgba(hex_bg_color: str, hex_colors: List[str]) -> jnp.ndarray:
+def hex_to_palette_rgba(hex_bg_color: str, hex_colors: List[str]) -> np.ndarray:
     steps = 254 // (len(hex_colors) - 1)
     palette_rgb_uint8 = []
     for i in range(0, len(hex_colors) - 1):
@@ -281,60 +280,83 @@ def hex_to_palette_rgba(hex_bg_color: str, hex_colors: List[str]) -> jnp.ndarray
     else:
         bg_rgba_uint8 = hex_to_rgba_uint8(hex_bg_color)
 
-    bg_rgba = jnp.array([bg_rgba_uint8]) / 255.
-    fg_palette_rgba = jnp.array(fg_palette_rgba_uint8) / 255.
-    palette_rgba = jnp.vstack([bg_rgba, fg_palette_rgba])
+    bg_rgba = np.array([bg_rgba_uint8]) / 255.
+    fg_palette_rgba = np.array(fg_palette_rgba_uint8) / 255.
+    palette_rgba = np.vstack([bg_rgba, fg_palette_rgba])
 
     return palette_rgba
 
 
 colormaps = {
-    'alizarin':
-    PerceptualGradientColormap(
-        'alizarin', "d6c3c9", ['f9c784', 'e7e7e7', '485696', '19180a', '3f220f', '772014', 'af4319', 'e71d36']
-    ),
-    'black-white':
-    PerceptualGradientColormap(
-        'black-white', '000000', ['ffffff', 'd9dbe1', 'b6b9c1', '9497a1', '737780', '555860', '393b41', '1f2123'][::-1]
-    ),
-    'carmine-blue':
-    PerceptualGradientColormap('carmine-blue', '#006eb8', ['#006eb8', '#fff200', '#cc1236']),
-    'cinnamon':
-    PerceptualGradientColormap('cinnamon', '#a7d4e4', ['#a7d4e4', '#71502f', '#fdc57e']),
-    'city':
-    PerceptualGradientColormap(
-        'city', 'F93943', ['ffa600', 'fff6e6', 'ffca66', '004b63', 'e6f9ff', '66daff', '3a0099', '23005c'][::-1]
-    ),
-    'golden':
-    PerceptualGradientColormap('golden', '#b6bfc1', ['#b6bfc1', '#253122', '#f3a257']),
-    'laurel':
-    PerceptualGradientColormap(
-        'laurel', '381d2a', ['ffbfd7', 'ffe6ef', 'ff80b0', '71bf60', 'eaffe6', '96ff80', 'bffbff', '60b9bf'][::-1]
-    ),
-    'msdos':
-    PerceptualGradientColormap('msdos', '#0c0786', ['#0c0786', '#7500a8', '#c03b80', '#f79241', '#fcfea4']),
-    'pink-beach':
-    PerceptualGradientColormap(
-        'pink-beach', 'f4777f', ['00429d', '4771b2', '73a2c6', 'a5d5d8', 'ffffe0', 'ffbcaf', 'cf3759', '93003a'][::-1]
-    ),
-    'rainbow':
-    PerceptualGradientColormap(
-        'rainbow', '#000000', ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF']
-    ),
-    'rainbow_transparent':
-    PerceptualGradientColormap(
-        'rainbow_transparent', '', ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF']
-    ),
-    'river-Leaf':
-    PerceptualGradientColormap(
-        'river-Leaf', "80ab82", ["4c5b5c", "ff715b", "f9cb40", "bced09", "2f52e0", "99f7ab", "c5d6d8", "7dcd85"][::-1]
-    ),
-    'salvia':
-    PerceptualGradientColormap('salvia', '#b6bfc1', ['#b6bfc1', '#051230', '#97acc8']),
-    'summer':
-    PerceptualGradientColormap(
-        'summer', 'ffe000', ['003dc7', '002577', 'e6edff', '6695ff', 'ff9400', '995900', 'fff4e6', 'ffbf66'][::-1]
-    ),
-    'white-black':
-    PerceptualGradientColormap('white-black', '#ffffff', ['#ffffff', '#000000'])
+    'alizarin': {
+        'name': 'alizarin',
+        'hex_bg_color': "#d6c3c9",
+        'hex_colors': ['f9c784', 'e7e7e7', '485696', '19180a', '3f220f', '772014', 'af4319', 'e71d36']
+    },
+    'black-white': {
+        'name': 'black-white',
+        'hex_bg_color': '#000000',
+        'hex_colors': ['ffffff', 'd9dbe1', 'b6b9c1', '9497a1', '737780', '555860', '393b41', '1f2123'][::-1]
+    },
+    'carmine-blue': {
+        'name': 'carmine-blue', 'hex_bg_color': '#006eb8', 'hex_colors': ['#006eb8', '#fff200', '#cc1236']
+    },
+    'cinnamon': {
+        'name': 'cinnamon', 'hex_bg_color': '#a7d4e4', 'hex_colors': ['#a7d4e4', '#71502f', '#fdc57e']
+    },
+    'city': {
+        'name': 'city',
+        'hex_bg_color': '#F93943',
+        'hex_colors': ['ffa600', 'fff6e6', 'ffca66', '004b63', 'e6f9ff', '66daff', '3a0099', '23005c'][::-1]
+    },
+    'golden': {
+        'name': 'golden', 'hex_bg_color': '#b6bfc1', 'hex_colors': ['#b6bfc1', '#253122', '#f3a257']
+    },
+    'laurel': {
+        'name': 'laurel',
+        'hex_bg_color': '#381d2a',
+        'hex_colors': ['ffbfd7', 'ffe6ef', 'ff80b0', '71bf60', 'eaffe6', '96ff80', 'bffbff', '60b9bf'][::-1]
+    },
+    'msdos': {
+        'name': 'msdos',
+        'hex_bg_color': '#0c0786',
+        'hex_colors': ['#0c0786', '#7500a8', '#c03b80', '#f79241', '#fcfea4']
+    },
+    'pink-beach': {
+        'name': 'pink-beach',
+        'hex_bg_color': '#f4777f',
+        'hex_colors': ['00429d', '4771b2', '73a2c6', 'a5d5d8', 'ffffe0', 'ffbcaf', 'cf3759', '93003a'][::-1]
+    },
+    'rainbow': {
+        'name': 'rainbow',
+        'hex_bg_color': '#000000',
+        'hex_colors': ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF']
+    },
+    'rainbow_transparent': {
+        'name': 'rainbow_transparent#',
+        'hex_bg_color': '#000000',
+        'hex_colors': ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF']
+    },
+    'river-Leaf': {
+        'name': 'river-Leaf',
+        'hex_bg_color': "#80ab82",
+        'hex_colors': ['4c5b5c', "ff715b", "f9cb40", "bced09", "2f52e0", "99f7ab", "c5d6d8", "7dcd85"][::-1]
+    },
+    'salvia': {
+        'name': 'salvia', 'hex_bg_color': '#b6bfc1', 'hex_colors': ['#b6bfc1', '#051230', '#97acc8']
+    },
+    'summer': {
+        'name': 'summer',
+        'hex_bg_color': '#ffe000',
+        'hex_colors': ['003dc7', '002577', 'e6edff', '6695ff', 'ff9400', '995900', 'fff4e6', 'ffbf66'][::-1]
+    },
+    'white-black': {
+        'name': 'white-black', 'hex_bg_color': '#ffffff', 'hex_colors': ['#ffffff', '#000000']
+    }
 }
+
+
+def get(name: str) -> PerceptualGradientColormap:
+    assert name in colormaps, f"Colormap {name} does not exist"
+
+    return PerceptualGradientColormap(**colormaps[name])  # type: ignore

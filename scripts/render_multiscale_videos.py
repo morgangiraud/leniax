@@ -45,21 +45,21 @@ def render(tuple_input):
 
     print("Dumping assets")
     colormaps = [
-        # leniax_colormaps.colormaps['alizarin'],
-        # leniax_colormaps.colormaps['black-white'],
-        # leniax_colormaps.colormaps['carmine-blue'],
-        # leniax_colormaps.colormaps['cinnamon'],
-        # leniax_colormaps.colormaps['city'],
-        # leniax_colormaps.colormaps['golden'],
-        # leniax_colormaps.colormaps['laurel'],
-        leniax_colormaps.colormaps['msdos'],
-        # leniax_colormaps.colormaps['pink-beach'],
-        # leniax_colormaps.colormaps['rainbow'],
-        # leniax_colormaps.colormaps['rainbow_transparent'],
-        # leniax_colormaps.colormaps['river-Leaf'],
-        # leniax_colormaps.colormaps['salvia'],
-        # leniax_colormaps.colormaps['summer'],
-        # leniax_colormaps.colormaps['white-black'],
+        # leniax_colormaps.get('alizarin'),
+        # leniax_colormaps.get('black-white'),
+        # leniax_colormaps.get('carmine-blue'),
+        # leniax_colormaps.get('cinnamon'),
+        # leniax_colormaps.get('city'),
+        # leniax_colormaps.get('golden'),
+        # leniax_colormaps.get('laurel'),
+        leniax_colormaps.get('msdos'),
+        # leniax_colormaps.get('pink-beach'),
+        # leniax_colormaps.get('rainbow'),
+        # leniax_colormaps.get('rainbow_transparent'),
+        # leniax_colormaps.get('river-Leaf'),
+        # leniax_colormaps.get('salvia'),
+        # leniax_colormaps.get('summer'),
+        # leniax_colormaps.get('white-black'),
     ]
     leniax_video.dump_video(save_dir, all_cells, config["render_params"], colormaps, 'birth')
     # leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict, colormaps)

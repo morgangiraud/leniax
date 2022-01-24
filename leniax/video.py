@@ -10,9 +10,9 @@ from .utils import get_image
 
 def dump_video(
     save_dir: str,
-    all_cells: jnp.ndarray, 
-    render_params: Dict, 
-    colormaps: Union[List, Any], 
+    all_cells: jnp.ndarray,
+    render_params: Dict,
+    colormaps: Union[List, Any],
     prefix: str = '',
     transparent_bg: bool = False
 ):

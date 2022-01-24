@@ -15,13 +15,13 @@ absl_logging.set_verbosity(absl_logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 
-# config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '1c-1k')
-# config_name = "orbium"
+config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '1c-1k')
+config_name = "orbium"
 # config_name = "wanderer"
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '2c-4k')
 # config_name = "orbium-0"
-config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '3c-9k')
-config_name = "orbium-0-0"
+# config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '3c-9k')
+# config_name = "orbium-0-0"
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '3d', '1c-1k')
 # config_name = "prototype"
 
@@ -73,23 +73,23 @@ def run(omegaConf: DictConfig) -> None:
     print("Dumping assets")
     transparent_bg = False
     colormaps = [
-        # leniax_colormaps.colormaps['alizarin'],
-        # leniax_colormaps.colormaps['black-white'],
-        # leniax_colormaps.colormaps['carmine-blue'],
-        # leniax_colormaps.colormaps['cinnamon'],
-        # leniax_colormaps.colormaps['city'],
-        # leniax_colormaps.colormaps['golden'],
-        # leniax_colormaps.colormaps['laurel'],
-        # leniax_colormaps.colormaps['msdos'],
-        # leniax_colormaps.colormaps['pink-beach'],
-        # leniax_colormaps.colormaps['rainbow'],
-        # leniax_colormaps.colormaps['rainbow_transparent'],
-        # leniax_colormaps.colormaps['river-Leaf'],
-        # leniax_colormaps.colormaps['salvia'],
-        # leniax_colormaps.colormaps['summer'],
-        # leniax_colormaps.colormaps['white-black'],
+        # leniax_colormaps.get('alizarin'),
+        # leniax_colormaps.get('black-white'),
+        # leniax_colormaps.get('carmine-blue'),
+        # leniax_colormaps.get('cinnamon'),
+        # leniax_colormaps.get('city'),
+        # leniax_colormaps.get('golden'),
+        # leniax_colormaps.get('laurel'),
+        leniax_colormaps.get('msdos'),
+        # leniax_colormaps.get('pink-beach'),
+        # leniax_colormaps.get('rainbow'),
+        # leniax_colormaps.get('rainbow_transparent'),
+        # leniax_colormaps.get('river-Leaf'),
+        # leniax_colormaps.get('salvia'),
+        # leniax_colormaps.get('summer'),
+        # leniax_colormaps.get('white-black'),
         # leniax_colormaps.Hilbert2d3dColormap('hilbert-2d3d'),
-        leniax_colormaps.ExtendedColormap('extended', transparent_bg=transparent_bg),
+        # leniax_colormaps.ExtendedColormap('extended', transparent_bg=transparent_bg),
     ]
     leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict, colormaps, transparent_bg)
     for colormap in colormaps:

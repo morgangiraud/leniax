@@ -179,7 +179,7 @@ def run() -> None:
                 # assert (len(colormap_names) == len(color_proba))
                 # colormap_idx = np.random.multinomial(1, color_proba, size=1)[0].argmax()
                 # # colormap_idx = colormap_names.index('msdos')
-                # colormap = leniax_colormaps.colormaps[colormap_names[colormap_idx]]
+                # colormap = leniax_colormaps.get(colormap_names[colormap_idx])
                 colormap = leniax_colormaps.ExtendedColormap('extended')
 
                 leniax_helpers.dump_frame(subdir, 'init', all_cells[-1], False, colormap)

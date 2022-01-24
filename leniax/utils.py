@@ -217,7 +217,7 @@ def center_and_crop_cells(cells):
 ###
 def get_image(cells_buffer: np.ndarray, pixel_size: int, colormap) -> Image:
     nb_dims = len(cells_buffer.shape) - 1
-    
+
     if pixel_size != 1:
         for i in range(nb_dims):
             cells_buffer = np.repeat(cells_buffer, pixel_size, axis=i + 1)
@@ -400,12 +400,42 @@ def generate_mask(shape, max_h, max_w):
 ###
 # Memory
 ###
-def get_needed_memory_per_sequence(config):
-    nb_bytes_float_32 = 4
+def get_needed_memory(config, nb_sols=1):
+    nb_init = config['run_params']['nb_init_search']
+
+    kb_per_float = 4 / 1024
     nb_cells = config['world_params']['nb_channels'] * np.prod(config['render_params']['world_size'])
-    bytes_per_world = nb_cells * nb_bytes_float_32
-    bytes_per_sequence = bytes_per_world * config['run_params']['max_run_iter']
+    nb_kernels = len(config['kernels_params']['k'])
+    R = config['world_params']['R']
 
-    mb_per_sequence = bytes_per_sequence * 8 / 1024 / 1024
+    kernel_size_conv = (2 * R)**2
+    kernel_size_fft = np.prod(config['render_params']['world_size'])
+    kb_kernels_conv = nb_kernels * kernel_size_conv * kb_per_float * nb_sols
+    kb_kernels_fft = nb_kernels * kernel_size_fft * kb_per_float * nb_sols
 
-    return mb_per_sequence
+    kb_per_world = nb_cells * kb_per_float
+    mb_all_world = kb_per_world * nb_init * nb_sols / 1024
+
+    kb_per_seq = kb_per_world * config['run_params']['max_run_iter']
+    mb_per_seq = kb_per_seq / 1024
+
+    # We store 12 metrics for now
+    stats_kb_per_seq = 12 * config['run_params']['max_run_iter'] * kb_per_float
+    stats_kb_total = stats_kb_per_seq * nb_init * nb_sols
+
+    # we need memory for the init cells, final cells, all statistics, kernel/gfn parameters
+    # and the intermediary field and potential allocated
+    mb_qd_conv_estimate = mb_all_world * 2 + kb_kernels_conv / 1024 + stats_kb_total / 1024
+    mb_qd_fft_estimate = mb_all_world * 2 + kb_kernels_fft / 1024 + stats_kb_total / 1024
+
+    return {
+        'kb_per_world': kb_per_world,
+        'mb_all_world': mb_all_world,
+        'mb_per_seq': mb_per_seq,
+        'kb_kernels_conv': kb_kernels_conv,
+        'kb_kernels_fft': kb_kernels_fft,
+        'stats_kb_per_seq': stats_kb_per_seq,
+        'stats_kb_total': stats_kb_total,
+        'mb_qd_conv_estimate': mb_qd_conv_estimate,
+        'mb_qd_fft_estimate': mb_qd_fft_estimate,
+    }

@@ -100,19 +100,19 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness: bool 
     update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
     weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
     kernels_params = qd_config['kernels_params']['k']
+
     K, mapping = get_kernels_and_mapping(
         kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R'], fft
     )
-
-    update_fn_scale_1 = leniax_helpers.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
-    compute_stats_fn_scale_1 = build_compute_stats_fn(world_params, render_params)
+    update_fn = leniax_helpers.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
+    compute_stats_fn = build_compute_stats_fn(world_params, render_params)
 
     def eval_lenia_config_mem_optimized(lenia_sols: List[LeniaIndividual]) -> List[LeniaIndividual]:
         qd_config = lenia_sols[0].qd_config
         _, run_scan_mem_optimized_parameters = leniax_helpers.get_mem_optimized_inputs(qd_config, lenia_sols)
 
         stats, all_final_cells = leniax_runner.run_scan_mem_optimized(
-            *run_scan_mem_optimized_parameters, max_run_iter, R, update_fn_scale_1, compute_stats_fn_scale_1
+            *run_scan_mem_optimized_parameters, max_run_iter, R, update_fn, compute_stats_fn
         )
         stats['N'].block_until_ready()
         all_final_cells.block_until_ready()

@@ -62,6 +62,16 @@ To give an idea of the current search capacity:
 ### I want to know more
 I'm glad you do! Check the issues to see what we are working on and join our community: https://discord.gg/4TFNnCkJta
 
+
+## Performances
+### About memory
+If you want to run very long simulations and compute its statistics, you should the runner function `run_scan_mem_optimized`. It doesn't store intermediary data but compute statistics along the way which allows one to have as many iterations as one want.
+
+*Note: about QD*
+QD algorithms require to compute the statistics of multiple candidate solutions at the same time. In our case, we also need to compute multipe initial state to have a good-enough approximation of the quality of candidate.
+The total memory necessary is not easily computable so we provide an helper function to get an estimate of the required memory `leniax.utils.get_needed_memory`. 
+
+
 ## Research
 
 ### Experiments and tooling

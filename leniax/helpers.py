@@ -27,12 +27,10 @@ from .kernels import KernelMapping, get_kernels_and_mapping, get_kernel
 cdir = os.path.dirname(os.path.realpath(__file__))
 
 
-def init(
-    config: Dict, 
-    use_init_cells: bool = True, 
-    fft: bool = True,
-    override: Dict[str, Any] = {}
-) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
+def init(config: Dict,
+         use_init_cells: bool = True,
+         fft: bool = True,
+         override: Dict[str, Any] = {}) -> Tuple[jnp.ndarray, jnp.ndarray, KernelMapping]:
     nb_dims = config['world_params']['nb_dims']
     nb_channels = config['world_params']['nb_channels']
     world_size = config['render_params']['world_size']
@@ -508,7 +506,9 @@ def build_get_field_fn(cin_growth_fns: List[List[int]], average: bool = True) ->
 ###
 # Viz
 ###
-def dump_assets(save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict: Dict, colormaps=None, transparent_bg=False):
+def dump_assets(
+    save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict: Dict, colormaps=None, transparent_bg=False
+):
     if colormaps is None:
         colormaps = [
             leniax_colormaps.ExtendedColormap('extended')

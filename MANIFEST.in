@@ -1,4 +1,4 @@
-include scripts/*.py
+include examples/*.py
 
 include conf/*.yaml
 include conf/**/*.yaml

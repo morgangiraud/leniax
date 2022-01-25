@@ -44,6 +44,9 @@ def run(omegaConf: DictConfig) -> None:
 
     leniax_utils.print_config(config)
 
+    save_dir = os.getcwd()  # changed by hydra
+    leniax_utils.check_dir(save_dir)
+
     print("Rendering: start")
     start_time = time.time()
     all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
@@ -58,9 +61,6 @@ def run(omegaConf: DictConfig) -> None:
     total_time = time.time() - start_time
     nb_iter_done = len(all_cells)
     print(f"Rendering: {nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
-
-    save_dir = os.getcwd()  # changed by hydra
-    leniax_utils.check_dir(save_dir)
 
     print("Compressing")
     start_time = time.time()

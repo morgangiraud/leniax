@@ -88,7 +88,6 @@ kernels_params:
     q: 4
     r: 1
     s: 0.051699195
-main_path: /Users/morgangiraud/code/stockmouton/leniax/scripts/../conf/species/2d/2c-4k
 other:
   dump_bests: true
 phenotype:

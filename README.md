@@ -78,12 +78,12 @@ The total memory necessary is not easily computable so we provide an helper func
 To create an experiments, explore the results and create a collection out of it, follow those steps:
 - Create a folder named 'XXX_my_exp' in the experiments folder and a add a config file
 - Run the experiment
-- Use the script `python scripts/dump_best.py` to dump all the best solutions
+- Use the script `python examples/dump_best.py` to dump all the best solutions
 - Use the script `python tools/prepare_exp_folder.py` to gather all vizualisation data
 - Launch the webserver to classify `python ui.server.py` (go to http://127.0.0.1:5000/classifier.html)
 - Switch the comments in the script `python tools/prepare_exp_folder.py` and run it again to have your categories folder
 - Use the originals folder to create your collection
-- Call the script `python scripts/render_collection.py` to prepare all the data necessary for a collection
+- Call the script `python examples/render_collection.py` to prepare all the data necessary for a collection
 - If needed, update the metadata manually to suit your needs
 
 ## Tools

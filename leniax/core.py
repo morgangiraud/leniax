@@ -24,7 +24,7 @@ def update(
     Avoid changing non-static argument shape for performance.
 
     Args:
-        cells: cells state ``([N, nb_channels, world_dims...])``
+        cells: cells state ``[N, nb_channels, world_dims...]``
         K: Kernel ``[K_o=nb_channels * max_k_per_channel, K_i=1, kernel_dims...]``
         gfn_params: Growth function parmaeters ``[nb_kernels, params_shape...]``
         kernels_weight_per_channel: Kernels weight used in the averaginf function ``[nb_channels, nb_kernels]``

@@ -45,6 +45,8 @@ def get_container(omegaConf: DictConfig, main_path: str) -> Dict:
 
     if 'scale' not in config['world_params']:
         config['world_params']['scale'] = 1.
+    if "algo" not in config:
+        config["algo"] = {}
 
     return config
 
@@ -350,6 +352,10 @@ def check_dir(dir: str):
 
 def save_config(save_dir: str, config: Dict):
     check_dir(save_dir)
+
+    config = copy.deepcopy(config)
+    if 'main_path' in config:
+        del config['main_path']
 
     with open(os.path.join(save_dir, 'config.yaml'), 'w') as outfile:
         yaml.dump(config, outfile)

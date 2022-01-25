@@ -50,13 +50,13 @@ endif
 # CI
 ###
 yapf:
-	yapf --style tox.ini -r -i leniax/. tests/. scripts/. tools/.
+	yapf --style tox.ini -r -i leniax/. tests/. examples/. tools/.
 
 lint:
-	flake8 leniax/. tests/. scripts/. tools/.
+	flake8 leniax/. tests/. examples/. tools/.
 
 typecheck:
-	mypy $(CURRENT_DIR)/leniax $(CURRENT_DIR)/scripts
+	mypy $(CURRENT_DIR)/leniax $(CURRENT_DIR)/examples
 
 test:
 	pytest --disable-pytest-warnings .

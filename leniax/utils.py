@@ -366,6 +366,12 @@ def print_config(config: Dict):
     print(printable_config)
 
 
+def load_img(fullpath: str, resize: Tuple[int, int]) -> jnp.ndarray:
+    img = Image.open(fullpath).resize(resize)
+    img_np = np.rollaxis(np.array(img), -1)[np.newaxis] / 255.
+    return jnp.array(img_np, dtype=jnp.float32)
+
+
 ###
 # Random
 ###

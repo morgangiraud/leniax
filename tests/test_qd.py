@@ -31,8 +31,7 @@ class TestQD(unittest.TestCase):
             }]
         }
         rng_key = leniax_utils.seed_everything(1)
-        ind = LeniaIndividual(config, rng_key)
-        ind[:] = [0.7, 0.3]
+        ind = LeniaIndividual(config, rng_key, [0.7, 0.3])
 
         new_config = ind.get_config()
         true_config = {

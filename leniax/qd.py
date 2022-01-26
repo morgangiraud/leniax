@@ -7,8 +7,7 @@ import math
 import matplotlib.pyplot as plt
 from multiprocessing import get_context
 from absl import logging as absl_logging
-import random
-from typing import Dict, Callable, List
+from typing import Dict, Callable, List, Tuple
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -16,82 +15,20 @@ import numpy as np
 from ribs.archives import ArchiveBase
 from ribs.archives import GridArchive, CVTArchive
 from ribs.visualize import grid_archive_heatmap, cvt_archive_heatmap, parallel_axes_plot
+from ribs.optimizers import Optimizer
 
-from .lenia import LeniaIndividual
 from . import utils as leniax_utils
 from . import loader as leniax_loader
 from . import runner as leniax_runner
 from . import helpers as leniax_helpers
+from .lenia import LeniaIndividual
 from .statistics import build_compute_stats_fn
 from .kernels import get_kernels_and_mapping
 
 QDMetrics = Dict[str, Dict[str, list]]
 
 
-class genBaseIndividual(object):
-    def __init__(self, config: Dict, rng_key: jnp.ndarray):
-        self.config = config
-        self.rng_key = rng_key
-
-        self.fitness = None
-        self.features = None
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        self.rng_key, subkey = jax.random.split(self.rng_key)
-
-        return LeniaIndividual(self.config, subkey)
-
-    def __call__(self):
-        while (True):
-            yield self.__next__()
-
-
-def eval_lenia_config(ind: LeniaIndividual, neg_fitness: bool = False, fft: bool = True) -> LeniaIndividual:
-    # This function is usually called in forked processes, before launching any JAX code
-    # We silent it
-    # Disable JAX logging https://abseil.io/docs/python/guides/logging
-    absl_logging.set_verbosity(absl_logging.ERROR)
-
-    config = ind.get_config()
-
-    # We have a problem here for reproducibility
-    # This function can be called in an other computer and os the for numpy and random
-    # Whould be set again here.
-    # We use the first element of the jax rng key to do so
-    np.random.seed(ind.rng_key[0])
-    random.seed(ind.rng_key[0])
-
-    _, best, _ = leniax_helpers.search_for_init(ind.rng_key, config, fft)
-
-    nb_steps = best['N']
-    stats = best['all_stats']
-    config['behaviours'] = {}
-    for k in stats.keys():
-        if k == 'N':
-            continue
-        config['behaviours'][k] = stats[k][-128:].mean()
-    init_cells = best['all_cells'][0][:, 0, 0, ...]
-    final_cells = best['all_cells'][-1][:, 0, 0, ...]
-
-    ind.set_cells(leniax_loader.compress_array(leniax_utils.crop_zero(final_cells)))
-    ind.set_init_cells(leniax_loader.compress_array(init_cells))
-
-    if neg_fitness is True:
-        fitness = -nb_steps
-    else:
-        fitness = nb_steps
-    features = [leniax_utils.get_param(config, key_string) for key_string in ind.qd_config['phenotype']]
-
-    ind.fitness = fitness
-    ind.features = features
-
-    return ind
-
-
-def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness: bool = False, fft: bool = True) -> Callable:
+def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, fitness_coef: float = 1., fft: bool = True) -> Callable:
     max_run_iter = qd_config['run_params']['max_run_iter']
     world_params = qd_config['world_params']
     R = world_params['R']
@@ -109,13 +46,18 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness: bool 
 
     def eval_lenia_config_mem_optimized(lenia_sols: List[LeniaIndividual]) -> List[LeniaIndividual]:
         qd_config = lenia_sols[0].qd_config
-        _, run_scan_mem_optimized_parameters = leniax_helpers.get_mem_optimized_inputs(qd_config, lenia_sols)
+        t0 = time.time()
+
+        _, run_scan_mem_optimized_parameters = leniax_helpers.get_mem_optimized_inputs(qd_config, lenia_sols, fft)
+
+        t1 = time.time()
 
         stats, all_final_cells = leniax_runner.run_scan_mem_optimized(
             *run_scan_mem_optimized_parameters, max_run_iter, R, update_fn, compute_stats_fn
         )
         stats['N'].block_until_ready()
         all_final_cells.block_until_ready()
+        t2 = time.time()
 
         # top 8
         # top8_compressible = leniax_loader.make_array_compressible(top8)
@@ -124,7 +66,10 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness: bool 
         # )
 
         cells0s = run_scan_mem_optimized_parameters[0]
-        results = leniax_helpers.update_individuals(lenia_sols, stats, cells0s, all_final_cells, neg_fitness)
+        results = leniax_helpers.update_individuals(lenia_sols, stats, cells0s, all_final_cells, fitness_coef)
+        t3 = time.time()
+
+        print(t1 - t0, t2 - t1, t3 - t2)
 
         return results
 
@@ -132,14 +77,40 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, neg_fitness: bool 
 
 
 def run_qd_search(
+    rng_key: jax.random.KeyArray,
+    qd_config: Dict,
+    optimizer: Optimizer,
+    fitness_domain: Tuple[int, int],
     eval_fn: Callable,
-    nb_iter: int,
-    lenia_generator,
-    optimizer,
-    fitness_domain,
     log_freq: int = 1,
     n_workers: int = -1
-) -> QDMetrics:
+) -> Tuple[jax.random.KeyArray, QDMetrics]:
+    """Run a Quality-diveristy search
+
+    .. Warning::
+        n_workers == -1 means that your evaluation functions handles parallelism
+        n_workers == 0 means that you want to use a sinple python loop function
+        n_workers > 0 means that you want to use python spawn mechanism
+
+    Args:
+        rng_key: jax PRNGKey
+        qd_config: QD configuration
+        optimizer: pyribs Optimizer
+        fitness_domain: a 2-tuple of ints representing the fitness bounds
+        eval_fn: The evaluation function
+        log_freq: Logging frequency
+        n_workers: Number of workers used to eval a set of candidate solutions
+
+    Returns:
+        A 2-tuple representing a jax PRNGkey and search metrics
+    """
+    DEBUG = False
+    if DEBUG is True:
+        print('!!!! DEBUGGING MODE !!!!')
+        if n_workers >= 0:
+            print('!!!! n_workers set to 0 !!!!')
+            n_workers == 0
+
     metrics: QDMetrics = {
         "QD Score": {
             "x": [0],
@@ -158,25 +129,16 @@ def run_qd_search(
             "y": [0.0],
         },
     }
-    nb_total_bins = optimizer.archive._bins
-
-    DEBUG = False
-    if DEBUG is True:
-        print('!!!! DEBUGGING MODE !!!!')
-        if n_workers >= 0:
-            print('!!!! n_workers set to 0 !!!!')
-            n_workers == 0
-
     print(f"{'iter':>6}{'coverage':>30}{'mean':>20}{'std':>20}{'min':>16}{'max':>16}{'QD Score':>20}{'Duration':>20}")
+
+    nb_total_bins = optimizer.archive._bins
+    nb_iter = qd_config['algo']['budget'] // (qd_config['algo']['batch_size'] * len(optimizer._emitters))
     for itr in range(1, nb_iter + 1):
         t0 = time.time()
         # Request models from the optimizer.
         sols = optimizer.ask()
-        lenia_sols = []
-        for sol in sols:
-            lenia = next(lenia_generator)
-            lenia[:] = sol
-            lenia_sols.append(lenia)
+        rng_key, *subkeys = jax.random.split(rng_key, 1 + len(sols))
+        lenia_sols = [LeniaIndividual(qd_config, subkey, params) for subkey, params in zip(subkeys, sols)]
 
         # Evaluate the models and record the objectives and BCs.
         results: List
@@ -189,15 +151,15 @@ def run_qd_search(
             with get_context("spawn").Pool(processes=n_workers) as pool:
                 results = pool.map(eval_fn, lenia_sols)
 
+        # Send the results back to the optimizer.
         fits, bcs, metadata = [], [], []
         for _, ind in enumerate(results):
             fits.append(ind.fitness)
             bcs.append(ind.features)
             metadata.append(ind.get_config())
-
-        # Send the results back to the optimizer.
         optimizer.tell(fits, bcs, metadata)
 
+        # Log statistics
         if itr % log_freq == 0 or itr == nb_iter:
             df = optimizer.archive.as_pandas(include_solutions=False)
             metrics["QD Score"]["x"].append(itr)
@@ -231,14 +193,12 @@ def run_qd_search(
                 f"{time.time() - t0:>20.4f}"
             )
 
-    return metrics
+    return rng_key, metrics
 
 
 ###
 # QD Utils
 ###
-
-
 def load_qd_grid_and_config(grid_fullpath):
     with open(grid_fullpath, "rb") as f:
         data = pickle.load(f)
@@ -259,6 +219,64 @@ def load_qd_grid_and_config(grid_fullpath):
             qd_config = grid[0].qd_config
 
     return grid, qd_config
+
+
+def dump_best(grid: ArchiveBase, fitness_threshold: float):
+    qd_config = grid.qd_config
+    seed = qd_config['run_params']['seed']
+    rng_key = leniax_utils.seed_everything(seed)
+
+    real_bests = []
+    for idx in grid._occupied_indices:
+        if abs(grid._objective_values[idx]) >= fitness_threshold:
+            rng_key, subkey = jax.random.split(rng_key)
+            lenia = LeniaIndividual(grid._metadata[idx], subkey, grid._solutions[idx])
+            real_bests.append(lenia)
+
+    print(f"Found {len(real_bests)} beast!")
+
+    nb_cpus = psutil.cpu_count(logical=False) - 1
+    with get_context("spawn").Pool(processes=nb_cpus) as pool:
+        pool.map(process_lenia, enumerate(real_bests))
+    # for lenia_tuple in enumerate(real_bests):
+    #     leniax_helpers.process_lenia(lenia_tuple)
+
+
+def process_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
+    # This function is usually called in forked processes, before launching any JAX code
+    # We silent it
+    # Disable JAX logging https://abseil.io/docs/python/guides/logging
+    absl_logging.set_verbosity(absl_logging.ERROR)
+
+    id_lenia, lenia = enum_lenia
+    padded_id = str(id_lenia).zfill(4)
+    config = lenia.get_config()
+
+    save_dir = os.path.join(os.getcwd(), f"c-{padded_id}")  # changed by hydra
+    if os.path.isdir(save_dir):
+        print(f"Folder for id: {padded_id}, alreaady exist. Passing")
+        # If the lenia folder already exists at that path, we consider the work alreayd done
+        return
+    leniax_utils.check_dir(save_dir)
+
+    start_time = time.time()
+    all_cells, _, _, stats_dict = leniax_helpers.init_and_run(config, use_init_cells=True, with_jit=True, fft=True)
+    all_cells = all_cells[:int(stats_dict['N']), 0]
+    total_time = time.time() - start_time
+
+    nb_iter_done = len(all_cells)
+    print(f"[{padded_id}] - {nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
+
+    config['run_params']['init_cells'] = leniax_loader.compress_array(all_cells[0])
+    config['run_params']['cells'] = leniax_loader.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
+    leniax_utils.save_config(save_dir, config)
+
+    leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict)
+
+
+###
+# QD Viz
+###
 
 
 def save_ccdf(archive, fullpath):
@@ -384,32 +402,8 @@ def save_all(current_iter: int, optimizer, fitness_domain, sols: List, fits: Lis
             os.remove(previous_fullpath)
 
 
-def dump_best(grid: ArchiveBase, fitness_threshold: float):
-    qd_config = grid.qd_config
-    seed = qd_config['run_params']['seed']
-    rng_key = leniax_utils.seed_everything(seed)
-    generator_builder = genBaseIndividual(qd_config, rng_key)
-    lenia_generator = generator_builder()
-
-    real_bests = []
-    for idx in grid._occupied_indices:
-        if abs(grid._objective_values[idx]) >= fitness_threshold:
-            lenia = next(lenia_generator)
-            lenia.qd_config = grid._metadata[idx]
-            lenia[:] = grid._solutions[idx]
-            real_bests.append(lenia)
-
-    print(f"Found {len(real_bests)} beast!")
-
-    nb_cpus = psutil.cpu_count(logical=False) - 1
-    with get_context("spawn").Pool(processes=nb_cpus) as pool:
-        pool.map(leniax_helpers.process_lenia, enumerate(real_bests))
-    # for lenia_tuple in enumerate(real_bests):
-    #     leniax_helpers.process_lenia(lenia_tuple)
-
-
 ###
-# Debug
+# QD Debug
 ###
 def rastrigin(pos: jnp.ndarray, A: float = 10.):
     """Valu are expected to be between [0, 1]"""
@@ -424,17 +418,14 @@ def rastrigin(pos: jnp.ndarray, A: float = 10.):
     return 2 * A + z
 
 
-def eval_debug(ind: LeniaIndividual, neg_fitness=False):
+def eval_debug(ind: LeniaIndividual, fitness_coef=1.):
     # This function is usually called in forked processes, before launching any JAX code
     # We silent it
     # Disable JAX logging https://abseil.io/docs/python/guides/logging
     absl_logging.set_verbosity(absl_logging.ERROR)
 
-    if neg_fitness is True:
-        fitness = -rastrigin(jnp.array(ind)[jnp.newaxis, jnp.newaxis, :]).squeeze()
-    else:
-        fitness = rastrigin(jnp.array(ind)[jnp.newaxis, jnp.newaxis, :]).squeeze()
-    features = [ind[0] * 8 - 4, ind[1] * 8 - 4]
+    fitness = fitness_coef * rastrigin(jnp.array(ind.params)[jnp.newaxis, jnp.newaxis, :]).squeeze()
+    features = [ind.params[0] * 8 - 4, ind.params[1] * 8 - 4]
 
     ind.fitness = fitness
     ind.features = features

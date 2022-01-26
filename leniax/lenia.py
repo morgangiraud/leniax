@@ -4,30 +4,29 @@ from typing import Dict, List, Tuple
 from . import utils as leniax_utils
 
 
-class LeniaIndividual(list):
-    # Individual inherits from list
-    # The raw parameters can then be set with ind[:] = [param1,  ...]
-    #
-    # The philosophy of the lib is to have parameters sampled from the same domain
-    # And then scaled by custom functions before being used in the evaluation function
-    # To sum up:
-    #   - All parameters are generated in the sampling_domain
-    #   - the dimension parameter is the number of parameter
-    #   - in the eval function:
-    #       1. You scale those parameters
-    #       2. You create the configuration from those parameters
-    #       3. You evaluate the configuration
-    #       4. you set fitness and features
+class LeniaIndividual(object):
+    """
+    The philosophy of the lib is to have parameters sampled from the same domain
+    And then scaled by custom functions before being used in the evaluation function
+    To sum up:
+      - All parameters are generated in the sampling_domain
+      - the dimension parameter is the number of parameter
+      - in the eval function:
+          1. You scale those parameters
+          2. You create the configuration from those parameters
+          3. You evaluate the configuration
+          4. you set fitness and features
+    """
 
     fitness: float
     features: List[float]
 
-    def __init__(self, config: Dict, rng_key):
+    def __init__(self, config: Dict, rng_key, params: List = []):
         super().__init__()
 
         self.qd_config = copy.deepcopy(config)
-
         self.rng_key = rng_key
+        self.params = params
 
     def set_cells(self, cells: str):
         self.qd_config['run_params']['cells'] = cells
@@ -39,7 +38,7 @@ class LeniaIndividual(list):
         if 'genotype' in self.qd_config:
             p_and_ds = self.get_genotype()
             # Removing too much precision ensure that the one found are quite stable
-            raw_values = [round(raw_val, 8) for raw_val in self]
+            raw_values = [round(raw_val, 8) for raw_val in self.params]
             assert len(raw_values) == len(p_and_ds)
 
             to_update = get_update_config(p_and_ds, raw_values)

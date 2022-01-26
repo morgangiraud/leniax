@@ -18,7 +18,7 @@ kernels_params:
       c_in: 0
       c_out: 0
 run_params:
-  nb_init_search: 128
+  nb_init_search: 32
   max_run_iter: 1024
 
 genotype:
@@ -43,12 +43,12 @@ grid:
       - 1.
     - - 0.
       - 1.
-  shape: [25, 25]
+  shape: [16, 16]
   
 algo:
   # Generic
   budget: 4096
-  batch_size: 16
+  batch_size: 4
   sampling_domain:
     - 0.
     - 1.

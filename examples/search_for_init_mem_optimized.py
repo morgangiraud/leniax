@@ -30,7 +30,7 @@ def launch(omegaConf: DictConfig) -> None:
     # We are looking at multiple inits for one configuration
     nb_sols = 1
     rng_key, *subkeys = jax.random.split(rng_key, 1 + nb_sols)
-    lenia_sols = [LeniaIndividual(config, subkey) for subkey in subkeys]
+    lenia_sols = [LeniaIndividual(config, subkey, []) for subkey in subkeys]
 
     t0 = time.time()
     results = leniax_qd.build_eval_lenia_config_mem_optimized_fn(config)(lenia_sols)

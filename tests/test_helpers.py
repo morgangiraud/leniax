@@ -29,9 +29,7 @@ class TestHelpers(unittest.TestCase):
         seed = qd_config['run_params']['seed']
         rng_key = leniax_utils.seed_everything(seed)
 
-        lenia_sols = [LeniaIndividual(qd_config, rng_key), LeniaIndividual(qd_config, rng_key)]
-        lenia_sols[0][:] = [0.2, 0.02]
-        lenia_sols[1][:] = [0.3, 0.03]
+        lenia_sols = [LeniaIndividual(qd_config, rng_key, [0.2, 0.02]), LeniaIndividual(qd_config, rng_key, [0.3, 0.03])]
 
         rng_key, run_scan_mem_optimized_parameters = leniax_helpers.get_mem_optimized_inputs(
             qd_config, lenia_sols, fft=False
@@ -64,9 +62,8 @@ class TestHelpers(unittest.TestCase):
         seed = qd_config['run_params']['seed']
         rng_key = leniax_utils.seed_everything(seed)
 
-        inds = [LeniaIndividual(qd_config, rng_key), LeniaIndividual(qd_config, rng_key)]
-        inds[0][:] = [0.2, 0.02]
-        inds[1][:] = [0.3, 0.03]
+        inds = [LeniaIndividual(qd_config, rng_key, [0.2, 0.02]), LeniaIndividual(qd_config, rng_key, [0.3, 0.03])]
+
         stats = {'N': jnp.array([[1, 2, 3], [1, 3, 4]])}
         cells0s = jnp.ones([2, 3, qd_config["world_params"]['nb_channels']] + qd_config["render_params"]["world_size"])
         all_final_cells = jnp.ones([2, 3, qd_config["world_params"]['nb_channels']]

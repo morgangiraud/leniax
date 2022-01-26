@@ -33,7 +33,7 @@ def run(omegaConf: DictConfig) -> None:
     rng_key = leniax_utils.seed_everything(seed)
 
     # Archive
-    fitness_domain = [0, config['run_params']['max_run_iter']]
+    fitness_domain = (0, config['run_params']['max_run_iter'])
     features_domain = config['grid']['features_domain']
     grid_shape = config['grid']['shape']
     assert len(grid_shape) == len(features_domain)
@@ -66,19 +66,13 @@ def run(omegaConf: DictConfig) -> None:
         ),
         ImprovementEmitter(
             archive, initial_model.flatten(), sigma0, batch_size=batch_size, seed=seed + 4, bounds=sampling_bounds
-        ),
+        )
     ]
-
-    # Optimizer
     optimizer = Optimizer(archive, emitters)
+    eval_fn = leniax_qd.build_eval_lenia_config_mem_optimized_fn(config)
 
     # QD search
-    eval_fn = leniax_qd.build_eval_lenia_config_mem_optimized_fn(config)
-    nb_iter = config['algo']['budget'] // (batch_size * len(emitters))
-    lenia_generator = leniax_qd.genBaseIndividual(config, rng_key)()
-    log_freq = 1
-    n_workers = -1
-    metrics = leniax_qd.run_qd_search(eval_fn, nb_iter, lenia_generator, optimizer, fitness_domain, log_freq, n_workers)
+    rng_key, metrics = leniax_qd.run_qd_search(rng_key, config, optimizer, fitness_domain, eval_fn, log_freq=1, n_workers=-1)
 
     # Save results
     save_dir = os.getcwd()

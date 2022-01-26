@@ -1,4 +1,3 @@
-import time
 import os
 import copy
 import json
@@ -6,10 +5,10 @@ import pickle
 import functools
 import numpy as np
 import scipy
+import jax
 import jax.numpy as jnp
 from typing import Callable, Dict, Tuple, List, Union, Any
 import matplotlib.pyplot as plt
-from absl import logging as absl_logging
 
 from .lenia import LeniaIndividual
 from . import core as leniax_core
@@ -108,7 +107,7 @@ def create_init_cells(
     return cells
 
 
-def search_for_init(rng_key: jnp.ndarray, config: Dict, fft: bool = True) -> Tuple[jnp.ndarray, Dict, int]:
+def search_for_init(rng_key: jax.random.KeyArray, config: Dict, fft: bool = True) -> Tuple[jax.random.KeyArray, Dict, int]:
     world_params = config['world_params']
     nb_channels = world_params['nb_channels']
     update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
@@ -182,12 +181,12 @@ MUTATION_RATE = 1e-5
 
 
 def search_for_mutation(
-    rng_key: jnp.ndarray,
+    rng_key: jax.random.KeyArray,
     config: Dict,
     nb_scale_for_stability: int = 1,
     fft: bool = True,
     use_init_cells: bool = True
-) -> Tuple[jnp.ndarray, Dict, int]:
+) -> Tuple[jax.random.KeyArray, Dict, int]:
     render_params = config['render_params']
     world_size = render_params['world_size']
 
@@ -368,80 +367,46 @@ def update_individuals(
     stats: Dict[str, jnp.ndarray],
     all_cells0: jnp.ndarray,
     all_final_cells: jnp.ndarray,
-    neg_fitness=False
+    fitness_coef=1.
 ) -> List[LeniaIndividual]:
     """
-        Args:
-            - inds:         List,                       Evaluated Lenia individuals
-            - cells0s:      jnp.ndarray, [len(inds), nb_init, world_size...]
+
+    .. Warning::
+        In the statistics dictionnary. The ``N`` statistic is of shape ``[N_sols, N_init]``.
+    Args:
+        inds: Evaluated Lenia individuals
+        stats: ``Dict[str, [N_sols, nb_iter, N_init]]``
+        all_cells0: Initial cells state ``[N_sols, N_init, nb_channels, world_dims...]``
+        all_final_cells: Final cells state ``[N_sols, N_init, nb_channels, world_dims...]``
+        fitness_coef: Mainly used to change the sign
     """
+    Ns = stats['N']
+    N_sols = Ns.shape[0]
+    sols_idx = jnp.arange(N_sols)
+    all_best_init_idx = jnp.argmax(Ns, axis=1)
+
+    all_best_cells0 = all_cells0[sols_idx, all_best_init_idx]
+    all_best_final_cells = all_final_cells[sols_idx, all_best_init_idx]
+    all_fitness = fitness_coef * Ns[sols_idx, all_best_init_idx]
+
     for i, ind in enumerate(inds):
         config = ind.get_config()
 
-        ind_Ns = stats['N'][i]
-        ind_cells0s = all_cells0[i]
-        ind_final_cells = all_final_cells[i]
-
-        best_init_idx = jnp.argmax(ind_Ns, axis=0)
-
-        nb_steps = ind_Ns[best_init_idx]
-        cells0 = ind_cells0s[best_init_idx]
-        final_cells = ind_final_cells[best_init_idx]
-        # print(i, ind_Ns, max_idx)
-
-        ind.set_init_cells(leniax_loader.compress_array(cells0))
-        ind.set_cells(leniax_loader.compress_array(leniax_utils.center_and_crop_cells(final_cells)))
-
-        if neg_fitness is True:
-            fitness = -nb_steps
-        else:
-            fitness = nb_steps
-        ind.fitness = fitness
+        ind.set_init_cells(leniax_loader.compress_array(all_best_cells0[i]))
+        ind.set_cells(leniax_loader.compress_array(leniax_utils.center_and_crop_cells(all_best_final_cells[i])))
+        ind.fitness = all_fitness[i]
 
         config['behaviours'] = {}
+        ns = max(int(ind.fitness), 128)
         for k in stats.keys():
             if k == 'N':
                 continue
-            truncated_stat = stats[k][i, :int(nb_steps), best_init_idx]
-            config['behaviours'][k] = truncated_stat[-128:].mean()
+            config['behaviours'][k] = stats[k][i, ns - 128:ns, all_best_init_idx[i]].mean()
 
         if 'phenotype' in ind.qd_config:
-            features = [leniax_utils.get_param(config, key_string) for key_string in ind.qd_config['phenotype']]
-            ind.features = features
+            ind.features = [leniax_utils.get_param(config, key_string) for key_string in ind.qd_config['phenotype']]
 
     return inds
-
-
-def process_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
-    # This function is usually called in forked processes, before launching any JAX code
-    # We silent it
-    # Disable JAX logging https://abseil.io/docs/python/guides/logging
-    absl_logging.set_verbosity(absl_logging.ERROR)
-
-    id_lenia, lenia = enum_lenia
-    padded_id = str(id_lenia).zfill(4)
-    config = lenia.get_config()
-
-    save_dir = os.path.join(os.getcwd(), f"c-{padded_id}")  # changed by hydra
-    if os.path.isdir(save_dir):
-        print(f"Folder for id: {padded_id}, alreaady exist. Passing")
-        # If the lenia folder already exists at that path, we consider the work alreayd done
-        return
-    leniax_utils.check_dir(save_dir)
-
-    start_time = time.time()
-    all_cells, _, _, stats_dict = init_and_run(config, use_init_cells=True, with_jit=True, fft=True)
-    all_cells = all_cells[:int(stats_dict['N']), 0]
-    total_time = time.time() - start_time
-
-    nb_iter_done = len(all_cells)
-    print(f"[{padded_id}] - {nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
-
-    config['run_params']['init_cells'] = leniax_loader.compress_array(all_cells[0])
-    config['run_params']['cells'] = leniax_loader.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
-    leniax_utils.save_config(save_dir, config)
-
-    dump_assets(save_dir, config, all_cells, stats_dict)
 
 
 def build_update_fn(

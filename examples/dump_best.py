@@ -5,9 +5,7 @@ from leniax import qd as leniax_qd
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
 
-# final_dir = os.path.join(cdir, '..', 'experiments', '007_extended_6')
-final_dir = os.path.join(cdir, '..', 'experiments', '015_3channels', 'run-b[1.0]-force3channels')
-# final_dir = os.path.join(cdir, '..', 'experiments', '999_debug')
+final_dir = os.path.join(cdir, '..', 'experiments', '999_debug')
 
 
 def run() -> None:
@@ -18,7 +16,6 @@ def run() -> None:
         final_fullpath = os.path.join(subdir, 'final.p')
         if not os.path.isfile(final_fullpath):
             continue
-
         grid, qd_config = leniax_qd.load_qd_grid_and_config(final_fullpath)
 
         os.chdir(subdir)

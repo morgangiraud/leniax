@@ -34,8 +34,7 @@ class TestRunner(unittest.TestCase):
         lenia_sols1 = []
         for _ in range(nb_lenia):
             rng_key, subkey = jax.random.split(rng_key)
-            len = LeniaIndividual(qd_config, subkey)
-            len[:] = [random.random(), random.random()]
+            len = LeniaIndividual(qd_config, subkey, [random.random(), random.random()])
             lenia_sols1.append(len)
 
         (rng_key, run_scan_mem_optimized_parameters1) = get_mem_optimized_inputs(qd_config, lenia_sols1)
@@ -43,8 +42,7 @@ class TestRunner(unittest.TestCase):
         lenia_sols2 = []
         for _ in range(nb_lenia):
             rng_key, subkey = jax.random.split(rng_key)
-            len = LeniaIndividual(qd_config, subkey)
-            len[:] = [random.random(), random.random()]
+            len = LeniaIndividual(qd_config, subkey, [random.random(), random.random()])
             lenia_sols2.append(len)
 
         (rng_key, run_scan_mem_optimized_parameters2) = get_mem_optimized_inputs(qd_config, lenia_sols2)

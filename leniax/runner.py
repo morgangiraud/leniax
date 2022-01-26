@@ -153,7 +153,9 @@ def run_scan(
             'mass_angle': mass_angle,
         }
     }
-    fn: Callable = functools.partial(scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_simu_data=True)
+    fn: Callable = functools.partial(
+        scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_simu_data=True
+    )
 
     _, ys = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
 
@@ -208,7 +210,9 @@ def run_scan_mem_optimized(
             'mass_angle': mass_angle,
         }
     }
-    fn: Callable = functools.partial(scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_simu_data=False)
+    fn: Callable = functools.partial(
+        scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_simu_data=False
+    )
 
     final_carry, stats = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
 
@@ -268,7 +272,9 @@ def run_scan_mem_optimized_pmap(
             'mass_angle': mass_angle,
         }
     }
-    fn: Callable = functools.partial(scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_simu_data=False)
+    fn: Callable = functools.partial(
+        scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_simu_data=False
+    )
 
     final_carry, stats = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
 

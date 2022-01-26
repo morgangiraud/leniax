@@ -1,5 +1,4 @@
 import os
-import psutil
 from absl import logging
 from omegaconf import DictConfig
 import hydra
@@ -32,15 +31,13 @@ config_path = os.path.join(cdir, '..', 'conf')
 @hydra.main(config_path=config_path, config_name="config_qd_cmame")
 def run(omegaConf: DictConfig) -> None:
     config = get_container(omegaConf, config_path)
-    config['algo']['budget'] *= 2
     print(config)
 
+    # Seed
     seed = config['run_params']['seed']
     rng_key = leniax_utils.seed_everything(seed)
-    generator_builder = leniax_qd.genBaseIndividual(config, rng_key)
-    lenia_generator = generator_builder()
 
-    fitness_domain = [-65, 0]  # negative rastrigin domain in(to maximise)
+    fitness_domain = (-65, 0)  # negative rastrigin domain in(to maximise)
     features_domain = [[-4, 4], [-4, 4]]
     grid_shape = config['grid']['shape']
     assert len(grid_shape) == len(features_domain)
@@ -49,6 +46,7 @@ def run(omegaConf: DictConfig) -> None:
     archive = CVTArchive(bins, features_domain, seed=seed, use_kd_tree=True)
     archive.qd_config = config
 
+    # Emitters
     genotype_dims = len(config['genotype'])
     sampling_domain = config['algo']['sampling_domain']
     sampling_bounds = [sampling_domain for _ in range(genotype_dims)]
@@ -56,7 +54,6 @@ def run(omegaConf: DictConfig) -> None:
                                for bounds in sampling_bounds])  # start the CMA-ES algorithm
 
     batch_size = config['algo']['batch_size']
-    log_freq = 1
     mut_sigma0 = config['algo']['mut_sigma0']
     sigma0 = config['algo']['sigma0']
     emitters = [
@@ -71,15 +68,13 @@ def run(omegaConf: DictConfig) -> None:
         ),
         ImprovementEmitter(
             archive, initial_model.flatten(), sigma0, batch_size=batch_size, seed=seed + 4, bounds=sampling_bounds
-        ),
+        )
     ]
     optimizer = Optimizer(archive, emitters)
+    eval_fn = functools.partial(leniax_qd.eval_debug, fitness_coef=-1.)
 
-    # See https://stackoverflow.com/questions/40217873/multiprocessing-use-only-the-physical-cores
-    n_workers = psutil.cpu_count(logical=False) - 1
-    nb_iter = config['algo']['budget'] // (batch_size * len(emitters))
-    eval_fn = functools.partial(leniax_qd.eval_debug, neg_fitness=True)
-    metrics = leniax_qd.run_qd_search(eval_fn, nb_iter, lenia_generator, optimizer, fitness_domain, log_freq, n_workers)
+    # QD search
+    rng_key, metrics = leniax_qd.run_qd_search(rng_key, config, optimizer, fitness_domain, eval_fn, log_freq=1, n_workers=0)
 
     # Save results
     save_dir = os.getcwd()

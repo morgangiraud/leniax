@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from .lenia import LeniaIndividual
 from . import core as leniax_core
 from . import runner as leniax_runner
-from . import initializations as initializations
+from . import initializations as leniax_init
 from . import statistics as leniax_stat
 from . import loader as leniax_loader
 from . import utils as leniax_utils
@@ -135,7 +135,7 @@ def search_for_init(rng_key: jax.random.KeyArray,
     compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     nb_channels_to_init = nb_channels * nb_init_search
-    rng_key, noises = initializations.register[init_slug](
+    rng_key, noises = leniax_init.register[init_slug](
         rng_key, nb_channels_to_init, world_size, R, kernels_params[0]['k_params'], kernels_params[0]['gf_params']
     )
     init_noises = noises.reshape([nb_init_search, nb_channels] + world_size)
@@ -331,7 +331,7 @@ def get_mem_optimized_inputs(qd_config: Dict, lenia_sols: List[LeniaIndividual],
         kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 
         nb_channels_to_init = nb_channels * nb_init_search
-        rng_key, noises = initializations.register[init_slug](
+        rng_key, noises = leniax_init.register[init_slug](
             ind.rng_key, nb_channels_to_init, world_size, R, kernels_params[0]['k_params'], kernels_params[0]['gf_params']
         )
         cells_0 = noises.reshape([nb_init_search, nb_channels] + world_size)
@@ -359,13 +359,9 @@ def get_mem_optimized_inputs(qd_config: Dict, lenia_sols: List[LeniaIndividual],
     return rng_key, run_scan_mem_optimized_parameters
 
 
-def update_individuals(
-    inds: List[LeniaIndividual],
-    stats: Dict[str, jnp.ndarray],
-    all_cells0: jnp.ndarray,
-    all_final_cells: jnp.ndarray,
-    fitness_coef=1.
-) -> List[LeniaIndividual]:
+def update_individuals(inds: List[LeniaIndividual],
+                       stats: Dict[str, jnp.ndarray],
+                       fitness_coef=1.) -> List[LeniaIndividual]:
     """
 
     .. Warning::
@@ -381,27 +377,22 @@ def update_individuals(
     N_sols = Ns.shape[0]
     sols_idx = jnp.arange(N_sols)
     all_best_init_idx = jnp.argmax(Ns, axis=1)
-
-    all_best_cells0 = all_cells0[sols_idx, all_best_init_idx]
-    all_best_final_cells = all_final_cells[sols_idx, all_best_init_idx]
     all_fitness = fitness_coef * Ns[sols_idx, all_best_init_idx]
 
     for i, ind in enumerate(inds):
-        config = ind.get_config()
-
-        ind.set_init_cells(leniax_loader.compress_array(all_best_cells0[i]))
-        ind.set_cells(leniax_loader.compress_array(leniax_utils.center_and_crop_cells(all_best_final_cells[i])))
+        ind.set_init_props(list(ind.rng_key), int(all_best_init_idx[i]))
         ind.fitness = all_fitness[i]
 
-        config['behaviours'] = {}
-        ns = max(int(ind.fitness), 128)
-        for k in stats.keys():
-            if k == 'N':
-                continue
-            config['behaviours'][k] = stats[k][i, ns - 128:ns, all_best_init_idx[i]].mean()
+        tmp_config = ind.get_config()
 
+        tmp_config['behaviours'] = {}
         if 'phenotype' in ind.qd_config:
-            ind.features = [leniax_utils.get_param(config, key_string) for key_string in ind.qd_config['phenotype']]
+            ns = max(int(ind.fitness), 128)
+            for k in stats.keys():
+                if k == 'N':
+                    continue
+                tmp_config['behaviours'][k] = stats[k][i, ns - 128:ns, all_best_init_idx[i]].mean()
+            ind.features = [leniax_utils.get_param(tmp_config, key_string) for key_string in ind.qd_config['phenotype']]
 
     return inds
 

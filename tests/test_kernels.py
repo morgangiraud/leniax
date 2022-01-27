@@ -10,7 +10,7 @@ fixture_dir = os.path.join(cfd, 'fixtures')
 
 class TestKernels(unittest.TestCase):
     def test_circle_2d(self):
-        k_params = [[32, 32], 1., 5., [1.]]
+        k_params = [1., 5., [1.]]
         kf_slug = 'poly_quad4'
         kf_params = [0.15, 0.015]
 

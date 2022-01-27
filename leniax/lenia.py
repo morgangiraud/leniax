@@ -34,6 +34,10 @@ class LeniaIndividual(object):
             for gene in genotype:
                 leniax_utils.get_param(self.qd_config, gene['key'])
 
+    def set_init_props(self, rng_key: List[int], best_init_idx: int):
+        self.qd_config['algo']['init_rng_key'] = list(rng_key)
+        self.qd_config['algo']['best_init_idx'] = best_init_idx
+
     def set_cells(self, cells: str):
         self.qd_config['run_params']['cells'] = cells
 

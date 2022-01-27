@@ -21,6 +21,7 @@ from . import utils as leniax_utils
 from . import loader as leniax_loader
 from . import runner as leniax_runner
 from . import helpers as leniax_helpers
+from . import initializations as leniax_init
 from .lenia import LeniaIndividual
 from .statistics import build_compute_stats_fn
 from .kernels import get_kernels_and_mapping
@@ -46,30 +47,15 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, fitness_coef: floa
 
     def eval_lenia_config_mem_optimized(lenia_sols: List[LeniaIndividual]) -> List[LeniaIndividual]:
         qd_config = lenia_sols[0].qd_config
-        t0 = time.time()
 
         _, run_scan_mem_optimized_parameters = leniax_helpers.get_mem_optimized_inputs(qd_config, lenia_sols, fft)
 
-        t1 = time.time()
-
-        stats, all_final_cells = leniax_runner.run_scan_mem_optimized(
+        stats, _ = leniax_runner.run_scan_mem_optimized(
             *run_scan_mem_optimized_parameters, max_run_iter, R, update_fn, compute_stats_fn
         )
         stats['N'].block_until_ready()
-        all_final_cells.block_until_ready()
-        t2 = time.time()
 
-        # top 8
-        # top8_compressible = leniax_loader.make_array_compressible(top8)
-        # stats, all_final_cells = leniax_runner.run_scan_mem_optimized(
-        #     *run_scan_mem_optimized_parameters, max_run_iter, R, update_fn_scale_2, compute_stats_fn_scale_2
-        # )
-
-        cells0s = run_scan_mem_optimized_parameters[0]
-        results = leniax_helpers.update_individuals(lenia_sols, stats, cells0s, all_final_cells, fitness_coef)
-        t3 = time.time()
-
-        print(t1 - t0, t2 - t1, t3 - t2)
+        results = leniax_helpers.update_individuals(lenia_sols, stats, fitness_coef)
 
         return results
 
@@ -237,12 +223,12 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
 
     nb_cpus = psutil.cpu_count(logical=False) - 1
     with get_context("spawn").Pool(processes=nb_cpus) as pool:
-        pool.map(process_lenia, enumerate(real_bests))
+        pool.map(render_found_lenia, enumerate(real_bests))
     # for lenia_tuple in enumerate(real_bests):
-    #     leniax_helpers.process_lenia(lenia_tuple)
+    #     render_found_lenia(lenia_tuple)
 
 
-def process_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
+def render_found_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
     # This function is usually called in forked processes, before launching any JAX code
     # We silent it
     # Disable JAX logging https://abseil.io/docs/python/guides/logging
@@ -253,11 +239,26 @@ def process_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
     config = lenia.get_config()
 
     save_dir = os.path.join(os.getcwd(), f"c-{padded_id}")  # changed by hydra
-    if os.path.isdir(save_dir):
-        print(f"Folder for id: {padded_id}, alreaady exist. Passing")
-        # If the lenia folder already exists at that path, we consider the work alreayd done
-        return
+    # if os.path.isdir(save_dir):
+    #     print(f"Folder for id: {padded_id}, alreaady exist. Passing")
+    #     # If the lenia folder already exists at that path, we consider the work alreayd done
+    #     return
     leniax_utils.check_dir(save_dir)
+
+    if 'init_rng_key' in config['algo']:
+        init_slug = config['algo']['init_slug']
+        _, noises = leniax_init.register[init_slug](
+            jnp.array(config['algo']['init_rng_key']),
+            config['run_params']['nb_init_search'] * config['world_params']['nb_channels'],
+            config['render_params']['world_size'],
+            config['world_params']['R'],
+            config['kernels_params'][0]['k_params'],
+            config['kernels_params'][0]['gf_params']
+        )
+        init_noises_shape = [config['run_params']['nb_init_search'], config['world_params']['nb_channels']
+                             ] + config['render_params']['world_size']
+        init_noises = noises.reshape(init_noises_shape)
+        config['run_params']['init_cells'] = init_noises[config['algo']['best_init_idx']]
 
     start_time = time.time()
     all_cells, _, _, stats_dict = leniax_helpers.init_and_run(config, use_init_cells=True, with_jit=True, fft=True)

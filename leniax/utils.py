@@ -69,26 +69,19 @@ def update_config_v1_v2(config: Dict) -> Dict:
             bs = kernel_params['b']
 
         new_kernel_params = {
-            'k_slug':
-            'circle_2d',
+            'k_slug': 'circle_2d',
             'k_params': [
-                config['render_params']['world_size'],
                 kernel_params['r'] if 'r' in kernel_params else 1.,
                 config['world_params']['R'],
                 bs,
             ],
-            'kf_slug':
-            old_k_register[kernel_params['k_id']],
+            'kf_slug': old_k_register[kernel_params['k_id']],
             'kf_params': [kernel_params['q']],
-            'gf_slug':
-            old_gf_register[kernel_params['gf_id']],
+            'gf_slug': old_gf_register[kernel_params['gf_id']],
             'gf_params': [kernel_params['m'], kernel_params['s']],
-            'h':
-            kernel_params['h'],
-            'c_in':
-            kernel_params['c_in'],
-            'c_out':
-            kernel_params['c_out'],
+            'h': kernel_params['h'],
+            'c_in': kernel_params['c_in'],
+            'c_out': kernel_params['c_out'],
         }
         new_kernels_params.append(new_kernel_params)
     config['kernels_params'] = new_kernels_params
@@ -103,7 +96,9 @@ def update_config_v1_v2(config: Dict) -> Dict:
     if 'phenotype' in config:
         for idx, phen_str in enumerate(config['phenotype']):
             if 'kernels_params.k' in phen_str:
-                config['phenotype'][idx] = phen_str.replace('kernels_params.k', 'kernels_params')
+                phen_str = phen_str.replace('kernels_params.k', 'kernels_params')
+                phen_str = phen_str.replace('.m', '.gf_params.0')
+                config['phenotype'][idx] = phen_str.replace('.s', '.gf_params.1')
 
     update_fn_version = config['world_params']['update_fn_version'] if 'update_fn_version' in config['world_params'
                                                                                                      ] else 'v1'
@@ -111,7 +106,7 @@ def update_config_v1_v2(config: Dict) -> Dict:
         config['algo']['init_slug'] = 'perlin'
     elif update_fn_version == 'v2':
         config['algo']['init_slug'] = 'perlin_local'
-    config['algo']['init_param'] = {}
+    config['algo']['init_param'] = []
 
     return config
 
@@ -151,14 +146,14 @@ def set_param(dic: Dict, key_string: str, value: Any):
                 dic = dic.setdefault(key, [])
             else:
                 dic = dic.setdefault(key, {})
-    if keys[-1].isdigit:
-        final_key = int(keys[-1])
-        if len(dic) < final_key + 1:
-            for _ in range(final_key + 1 - len(dic)):
-                dic.append(None)
+    if keys[-1].isdigit():
+        idx = int(keys[-1])
+        if len(dic) < idx + 1:
+            for _ in range(idx + 1 - len(dic)):
+                dic.append(None)  # type: ignore
+        dic[idx] = value
     else:
-        final_key = keys[-1]
-    dic[final_key] = value
+        dic[keys[-1]] = value
 
 
 def st2fracs2float(st: str) -> List[float]:

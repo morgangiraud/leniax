@@ -1,13 +1,20 @@
 import math
 import jax
 import jax.numpy as jnp
-from typing import List, Dict, Callable
+from typing import List, Dict, Callable, Tuple
 
 from .loader import make_array_compressible
 from .perlin import generate_perlin_noise_2d
 
 
-def random_uniform(rng_key, nb_noise: int, world_size: List[int], nb_channels: int):
+def random_uniform(
+    rng_key: jax.random.KeyArray,
+    nb_noise: int,
+    world_size: List[int],
+    nb_channels: int,
+    k_params: Dict,
+    gf_params: List
+) -> Tuple[jax.random.KeyArray, jnp.ndarray]:
     rng_key, subkey = jax.random.split(rng_key)
     maxvals = jnp.linspace(0.4, 1., nb_noise)[:, jnp.newaxis, jnp.newaxis, jnp.newaxis]
     rand_shape = [nb_noise] + [nb_channels] + world_size
@@ -18,25 +25,30 @@ def random_uniform(rng_key, nb_noise: int, world_size: List[int], nb_channels: i
     return rng_key, cells
 
 
-def random_uniform_1k(rng_key, nb_noise: int, world_size, nb_channels: int, kernel_params):
+def random_uniform_1k(
+    rng_key: jax.random.KeyArray, nb_noise: int, world_size, nb_channels: int, k_params: Dict, gf_params: List
+) -> Tuple[jax.random.KeyArray, jnp.ndarray]:
     """
     Random uniform initialization which target the mean of the growth function
     """
     rng_key, subkey = jax.random.split(rng_key)
     rand_shape = [nb_noise] + [nb_channels] + world_size
-
-    cells = jax.random.uniform(subkey, rand_shape, minval=0, maxval=kernel_params['m'] * 2)
+    min_mean_bound = gf_params[0]
+    max_mean_bound = min(1, 3 * min_mean_bound)
+    cells = jax.random.uniform(subkey, rand_shape, minval=0, maxval=max_mean_bound)
 
     cells = make_array_compressible(cells)
 
     return rng_key, cells
 
 
-def perlin(rng_key, nb_noise: int, world_size: List[int], R: float, k_params: Dict, gf_params: list):
+def perlin(
+    rng_key: jax.random.KeyArray, nb_noise: int, world_size: List[int], R: float, k_params: Dict, gf_params: List
+) -> Tuple[jax.random.KeyArray, jnp.ndarray]:
     """
     Perlin noise initialization which target the mean of the growth function
     """
-    r = k_params[1]
+    r = k_params[0]
 
     kernel_radius = math.ceil(R * r)
     res = [world_size[0] // (kernel_radius * 3), world_size[1] // (kernel_radius * 2)]
@@ -62,14 +74,18 @@ def perlin(rng_key, nb_noise: int, world_size: List[int], R: float, k_params: Di
     return rng_key, init_cells
 
 
-def perlin_local(rng_key, nb_noise: int, world_size: List[int], R: float, kernel_params: Dict):
+def perlin_local(
+    rng_key: jax.random.KeyArray, nb_noise: int, world_size: List[int], R: float, k_params: Dict, gf_params: List
+) -> Tuple[jax.random.KeyArray, jnp.ndarray]:
     """
     Perlin noise initialization which target the mean of the growth function
     """
-    kernel_radius = int(R * kernel_params['r'])
+    r = k_params[1]
+
+    kernel_radius = math.ceil(R * r)
     res = [world_size[0] // (kernel_radius * 3), world_size[1] // (kernel_radius * 2)]
-    min_mean_bound = kernel_params['m']
-    max_mean_bound = min(1, 3 * kernel_params['m'])
+    min_mean_bound = gf_params[0]
+    max_mean_bound = min(1, 3 * min_mean_bound)
     scaling = jnp.array([min_mean_bound + i / nb_noise * (max_mean_bound - min_mean_bound) for i in range(nb_noise)])
     scaling = scaling[:, jnp.newaxis, jnp.newaxis]
 

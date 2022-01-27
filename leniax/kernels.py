@@ -120,9 +120,9 @@ def get_kernels_and_mapping(kernels_params: List,
 
 def circle_2d(k_params: List, kf_slug: str, kf_params: jnp.ndarray) -> jnp.ndarray:
     """ Build one kernel """
-    r = k_params[1]
-    R = k_params[2]
-    bs = jnp.array(k_params[3])
+    r = k_params[0]
+    R = k_params[1]
+    bs = jnp.array(k_params[2])
     k_radius_px = math.ceil(r * R)
 
     midpoint = jnp.array([k_radius_px, k_radius_px])

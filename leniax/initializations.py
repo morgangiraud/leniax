@@ -1,7 +1,7 @@
 import math
 import jax
 import jax.numpy as jnp
-from typing import List, Dict
+from typing import List, Dict, Callable
 
 from .loader import make_array_compressible
 from .perlin import generate_perlin_noise_2d
@@ -32,34 +32,16 @@ def random_uniform_1k(rng_key, nb_noise: int, world_size, nb_channels: int, kern
     return rng_key, cells
 
 
-def sinusoide_1c1k(rng_key, world_size, R, kernel_params):
-    rng_key, subkey = jax.random.split(rng_key)
-
-    midpoint = jnp.asarray([size // 2 for size in world_size])  # [nb_dims]
-    midpoint = midpoint.reshape([-1] + [1] * len(world_size))  # [nb_dims, 1, 1, ...]
-    coords = jnp.indices(world_size)  # [nb_dims, dim_0, dim_1, ...]
-    centered_coords = (coords - midpoint) / (kernel_params['r'] * R)  # [nb_dims, dim_0, dim_1, ...]
-
-    phases = jnp.array([0, 0]).reshape([-1] + [1] * len(world_size))
-    freqs = jnp.array([1, 3]).reshape([-1] + [1] * len(world_size))
-    scaled_coords = freqs * centered_coords + phases
-    # Distances from the center of the grid
-    distances = jnp.sqrt(jnp.sum(scaled_coords**2, axis=0))  # [dim_0, dim_1, ...]
-    cells = ((distances % (6 * math.pi)) < 2 * math.pi) * (jnp.sin(distances) + 1) / 2.
-
-    cells = make_array_compressible(cells)
-
-    return rng_key, cells
-
-
-def perlin(rng_key, nb_noise: int, world_size: List[int], R: float, kernel_params: Dict):
+def perlin(rng_key, nb_noise: int, world_size: List[int], R: float, k_params: Dict, gf_params: list):
     """
     Perlin noise initialization which target the mean of the growth function
     """
-    kernel_radius = int(R * kernel_params['r'])
+    r = k_params[1]
+
+    kernel_radius = math.ceil(R * r)
     res = [world_size[0] // (kernel_radius * 3), world_size[1] // (kernel_radius * 2)]
-    min_mean_bound = kernel_params['m']
-    max_mean_bound = min(1, 3 * kernel_params['m'])
+    min_mean_bound = gf_params[0]
+    max_mean_bound = min(1, 3 * min_mean_bound)
     scaling = jnp.array([min_mean_bound + i / nb_noise * (max_mean_bound - min_mean_bound) for i in range(nb_noise)])
     scaling = scaling[:, jnp.newaxis, jnp.newaxis]
 
@@ -118,3 +100,11 @@ def perlin_local(rng_key, nb_noise: int, world_size: List[int], R: float, kernel
     init_cells = make_array_compressible(init_cells)
 
     return rng_key, init_cells
+
+
+register: Dict[str, Callable] = {
+    'random_uniform': random_uniform,
+    'random_uniform_1k': random_uniform_1k,
+    'perlin': perlin,
+    'perlin_local': perlin_local
+}

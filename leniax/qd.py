@@ -36,7 +36,7 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, fitness_coef: floa
     render_params = qd_config['render_params']
     update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
     weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
-    kernels_params = qd_config['kernels_params']['k']
+    kernels_params = qd_config['kernels_params']
 
     K, mapping = get_kernels_and_mapping(
         kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R'], fft

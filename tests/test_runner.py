@@ -52,7 +52,7 @@ class TestRunner(unittest.TestCase):
         update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
         weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
         render_params = qd_config['render_params']
-        kernels_params = qd_config['kernels_params']['k']
+        kernels_params = qd_config['kernels_params']
         K, mapping = get_kernels_and_mapping(
             kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R']
         )
@@ -105,25 +105,25 @@ class TestRunner(unittest.TestCase):
 
         cells1 = jnp.ones(cells.shape) * 0.2
         K1 = jnp.ones(K.shape) * 0.3
-        gfn_params1 = mapping.get_gfn_params()
+        gf_params1 = mapping.get_gf_params()
         kernels_weight_per_channel1 = mapping.get_kernels_weight_per_channel()
 
         t0 = time.time()
         out1, _, _, _ = leniax_runner.run_scan(
-            cells1, K1, gfn_params1, kernels_weight_per_channel1, T, max_run_iter, R, update_fn, compute_stats_fn
+            cells1, K1, gf_params1, kernels_weight_per_channel1, T, max_run_iter, R, update_fn, compute_stats_fn
         )
         out1.block_until_ready()
         delta_t = time.time() - t0
 
         cells2 = jnp.ones(cells.shape) * 0.5
         K2 = jnp.ones(K.shape) * 0.5
-        mapping.gfn_params[0][0][0] = .3
-        gfn_params2 = mapping.get_gfn_params()
+        mapping.gf_params[0][0][0] = .3
+        gf_params2 = mapping.get_gf_params()
         kernels_weight_per_channel2 = mapping.get_kernels_weight_per_channel()
 
         t0 = time.time()
         out2, _, _, _ = leniax_runner.run_scan(
-            cells2, K2, gfn_params2, kernels_weight_per_channel2, T, max_run_iter, R, update_fn, compute_stats_fn
+            cells2, K2, gf_params2, kernels_weight_per_channel2, T, max_run_iter, R, update_fn, compute_stats_fn
         )
         out2.block_until_ready()
         delta_t_compiled = time.time() - t0

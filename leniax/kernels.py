@@ -1,63 +1,40 @@
+import math
 from dataclasses import dataclass
-from typing import List, Dict, Tuple
-from fractions import Fraction
+from typing import List, Dict, Tuple, Callable
 import jax.numpy as jnp
 
 from . import utils as leniax_utils
+from .kernel_functions import register as kf_register
 
 
 @dataclass()
 class KernelMapping(object):
     cin_kernels: List[List[int]]
-    gfn_params: List[List]
-    cin_growth_fns: List[List[int]]
+    cin_growth_fns: List[List[str]]
+    gf_params: List[List]
+    cin_kf: List[List[str]]
+    k_params: List[List]
     kernels_weight_per_channel: List[List[float]]
     true_channels: jnp.ndarray
 
     def __init__(self, nb_channels: int, nb_kernels: int):
         self.cin_kernels = [[] for _ in range(nb_channels)]
-        self.gfn_params = [[] for _ in range(nb_channels)]
         self.cin_growth_fns = [[] for _ in range(nb_channels)]
+        self.gf_params = [[] for _ in range(nb_channels)]
+        self.cin_kf = [[] for _ in range(nb_channels)]
+        self.k_params = [[] for _ in range(nb_channels)]
         self.kernels_weight_per_channel = [[0.] * nb_kernels for _ in range(nb_channels)]
 
-    def get_gfn_params(self) -> jnp.ndarray:
-        flat_gfn_params = [item for sublist in self.gfn_params for item in sublist]
-        return jnp.array(flat_gfn_params, dtype=jnp.float32)
+    def get_k_params(self) -> jnp.ndarray:
+        flat_k_params = [item for sublist in self.k_params for item in sublist]
+        return jnp.array(flat_k_params, dtype=jnp.float32)
+
+    def get_gf_params(self) -> jnp.ndarray:
+        flat_gf_params = [item for sublist in self.gf_params for item in sublist]
+        return jnp.array(flat_gf_params, dtype=jnp.float32)
 
     def get_kernels_weight_per_channel(self) -> jnp.ndarray:
         return jnp.array(self.kernels_weight_per_channel, dtype=jnp.float32)
-
-
-def poly_quad4(x: jnp.ndarray, q: float = 4):
-    out = 4 * x * (1 - x)
-    out = out**q
-
-    return out
-
-
-def gauss_bump(x: jnp.ndarray, q: float = 1):
-    out = q - 1 / (x * (1 - x))
-    out = jnp.exp(q * out)
-
-    return out
-
-
-def step4(x: jnp.ndarray, q: float = 1 / 4):
-    return (x >= q) * (x <= 1 - q)
-
-
-def staircase(x: jnp.ndarray, q: float = 1 / 4):
-    return (x >= q) * (x <= 1 - q) + (x < q) * 0.5
-
-
-def gauss(x: jnp.ndarray, q: float = 1):
-    out = ((x - q) / (0.3 * q))**2
-    out = jnp.exp(-out / 2)
-
-    return out
-
-
-kernel_core = {0: poly_quad4, 1: gauss_bump, 2: step4, 3: staircase, 4: gauss}
 
 
 def get_kernels_and_mapping(kernels_params: List,
@@ -76,16 +53,28 @@ def get_kernels_and_mapping(kernels_params: List,
     # We need to sort those kernels_params to make sure kernels_weight_per_channel is in the right order
     kernels_params.sort(key=lambda d: d['c_in'])
     for kernel_idx, param in enumerate(kernels_params):
-        k = get_kernel(param, world_size, R)
-        kernels_list.append(k)
+        if param['k_slug'] == 'raw':
+            k = jnp.array(param['k_params'])
+        else:
+            k = register[param['k_slug']](param['k_params'], param['kf_slug'], param['kf_params'])
+        padding = [[0, 0]]
+        for ws, ks in zip(world_size, k.shape[1:]):
+            pad_needed = ws - ks
+            if pad_needed % 2 == 0:
+                pad = [(ws - ks) // 2, (ws - ks) // 2]
+            else:
+                pad = [(ws - ks) // 2, (ws - ks) // 2 + 1]
+            padding.append(pad)
+        kernels_list.append(jnp.pad(k, padding))
 
         channel_in = param["c_in"]
-        channel_out = param["c_out"]
-
         mapping.cin_kernels[channel_in].append(kernel_idx)
-        mapping.cin_growth_fns[channel_in].append(param["gf_id"])
-        mapping.gfn_params[channel_in].append([param["m"], param["s"]])
+        mapping.cin_growth_fns[channel_in].append(param["gf_slug"])
+        mapping.gf_params[channel_in].append(param["gf_params"])
+        mapping.cin_kf[channel_in].append(param["kf_slug"])
+        mapping.k_params[channel_in].append(param["k_params"])
 
+        channel_out = param["c_out"]
         mapping.kernels_weight_per_channel[channel_out][kernel_idx] = param["h"]
 
     # ! vstack concantenate on the first dimension
@@ -129,43 +118,34 @@ def get_kernels_and_mapping(kernels_params: List,
     return K, mapping
 
 
-def get_kernel(kernel_params: Dict, world_size: list, R: float, normalize=True) -> jnp.ndarray:
+def circle_2d(k_params: List, kf_slug: str, kf_params: jnp.ndarray) -> jnp.ndarray:
     """ Build one kernel """
-    midpoint = jnp.asarray([size // 2 for size in world_size])  # [nb_dims]
-    midpoint = midpoint.reshape([-1] + [1] * len(world_size))  # [nb_dims, 1, 1, ...]
-    coords = jnp.indices(world_size)  # [nb_dims, dim_0, dim_1, ...]
-    centered_coords = (coords - midpoint) / (kernel_params['r'] * R)  # [nb_dims, dim_0, dim_1, ...]
+    r = k_params[1]
+    R = k_params[2]
+    bs = jnp.array(k_params[3])
+    k_radius_px = math.ceil(r * R)
+
+    midpoint = jnp.array([k_radius_px, k_radius_px])
+    midpoint = midpoint.reshape([-1] + [1, 1])  # [nb_dims, 1, 1]
+    coords = jnp.indices([k_radius_px * 2, k_radius_px * 2])  # [nb_dims, dim_0, dim_1]
+    centered_coords = (coords - midpoint) / (r * R)  # [nb_dims, dim_0, dim_1]
     # Distances from the center of the grid
+    distances = jnp.sqrt(jnp.sum(centered_coords**2, axis=0))  # [dim_0, dim_1]
 
-    distances = jnp.sqrt(jnp.sum(centered_coords**2, axis=0))  # [dim_0, dim_1, ...]
-
-    kernel = kernel_shell(distances, kernel_params)
-    if normalize:
-        kernel = kernel / kernel.sum()
-    kernel = kernel[jnp.newaxis, ...]  # [1, dim_0, dim_1, ...]
-
-    return kernel
-
-
-def kernel_shell(distances: jnp.ndarray, kernel_params: Dict) -> jnp.ndarray:
-    if type(kernel_params['b']) == str:
-        bs = jnp.asarray(st2fracs2float(kernel_params['b']))
-    else:
-        bs = jnp.asarray(kernel_params['b'])
     nb_b = bs.shape[0]
-
     B_dist = nb_b * distances  # scale distances by the number of modes
     bs_mat = bs[jnp.minimum(jnp.floor(B_dist).astype(int), nb_b - 1)]  # Define postions for each mode
 
     # All kernel functions are defined in [0, 1] so we compute B_dist modulo 1 to make sure value lies in the good range
     # Notice that those kernel functions should be positive and fk(0) = 0, fk(1) = 0
     # We then crop to distances < 1 which defines the "size" of the kernel
-    kernel_func = kernel_core[kernel_params['k_id']]
-    kernel_q = kernel_params['q']
-    kernel = (distances < 1) * kernel_func(B_dist % 1, kernel_q) * bs_mat  # type: ignore
+    raw_kernel = kf_register[kf_slug](kf_params, B_dist % 1)
+    kernel = (distances < 1) * raw_kernel * bs_mat  # type: ignore
+    kernel = kernel / kernel.sum()
+
+    kernel = kernel[jnp.newaxis, ...]  # [1, dim_0, dim_1, ...]
 
     return kernel
 
 
-def st2fracs2float(st: str) -> List[float]:
-    return [float(Fraction(st)) for st in st.split(',')]
+register: Dict[str, Callable] = {'circle_2d': circle_2d}

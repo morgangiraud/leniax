@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import jax
 import jax.numpy as jnp
 import numpy as np
+from fractions import Fraction
 from PIL import Image
 from typing import Tuple, List, Dict, Any, Union
 import uuid
@@ -47,6 +48,68 @@ def get_container(omegaConf: DictConfig, main_path: str) -> Dict:
         config['world_params']['scale'] = 1.
     if "algo" not in config:
         config["algo"] = {}
+
+    if 'version' not in config:
+        # we are dealing with a V1 config
+        config = update_config_v1_v2(config)
+
+    return config
+
+
+def update_config_v1_v2(config: Dict) -> Dict:
+    config['version'] = 2
+
+    old_gf_register = {0: 'poly_quad4', 1: 'gaussian', 2: 'gaussian_target', 3: 'step'}
+    old_k_register = {0: 'poly_quad4', 1: 'gauss_bump', 2: 'step4', 3: 'staircase', 4: 'gauss'}
+    new_kernels_params = []
+    for kernel_params in config['kernels_params']['k']:
+        if type(kernel_params['b']) == str:
+            bs = st2fracs2float(kernel_params['b'])
+        else:
+            bs = kernel_params['b']
+
+        new_kernel_params = {
+            'k_slug':
+            'circle_2d',
+            'k_params': [
+                config['render_params']['world_size'],
+                kernel_params['r'] if 'r' in kernel_params else 1.,
+                config['world_params']['R'],
+                bs,
+            ],
+            'kf_slug':
+            old_k_register[kernel_params['k_id']],
+            'kf_params': [kernel_params['q']],
+            'gf_slug':
+            old_gf_register[kernel_params['gf_id']],
+            'gf_params': [kernel_params['m'], kernel_params['s']],
+            'h':
+            kernel_params['h'],
+            'c_in':
+            kernel_params['c_in'],
+            'c_out':
+            kernel_params['c_out'],
+        }
+        new_kernels_params.append(new_kernel_params)
+    config['kernels_params'] = new_kernels_params
+
+    if 'genotype' in config:
+        for gen_conf in config['genotype']:
+            if 'kernels_params.k' in gen_conf['key']:
+                gen_conf['key'] = gen_conf['key'].replace('kernels_params.k', 'kernels_params')
+
+    if 'phenotype' in config:
+        for idx, phen_str in enumerate(config['phenotype']):
+            if 'kernels_params.k' in phen_str:
+                config['phenotype'][idx] = phen_str.replace('kernels_params.k', 'kernels_params')
+
+    update_fn_version = config['world_params']['update_fn_version'] if 'update_fn_version' in config['world_params'
+                                                                                                     ] else 'v1'
+    if update_fn_version == 'v1':
+        config['algo']['init_slug'] = 'perlin'
+    elif update_fn_version == 'v2':
+        config['algo']['init_slug'] = 'perlin_local'
+    config['algo']['init_param'] = {}
 
     return config
 
@@ -88,6 +151,10 @@ def set_param(dic: Dict, key_string: str, value: Any):
                 dic = dic.setdefault(key, {})
 
     dic[keys[-1]] = value
+
+
+def st2fracs2float(st: str) -> List[float]:
+    return [float(Fraction(st)) for st in st.split(',')]
 
 
 ###
@@ -417,7 +484,7 @@ def get_needed_memory(config, nb_sols=1):
 
     kb_per_float = 4 / 1024
     nb_cells = config['world_params']['nb_channels'] * np.prod(config['render_params']['world_size'])
-    nb_kernels = len(config['kernels_params']['k'])
+    nb_kernels = len(config['kernels_params'])
     R = config['world_params']['R']
 
     kernel_size_conv = (2 * R)**2

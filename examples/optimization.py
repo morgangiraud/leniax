@@ -96,10 +96,14 @@ def run(omegaConf: DictConfig) -> None:
     nb_channels = world_params['nb_channels']
     world_size = config_target['render_params']['world_size']
     R = config['world_params']['R']
+    kernels_params = config_target['kernels_params']
+    init_slug = config['algo']['init_slug']
 
     _, subkey = jax.random.split(rng_key)
     nb_channels_to_init = nb_channels * nb_init_search
-    rng_key, noises = leniax_initializations.perlin(subkey, nb_channels_to_init, world_size, R, config_target['kernels_params']['k'][0])
+    rng_key, noises = leniax_initializations.register[init_slug](
+        rng_key, nb_channels_to_init, world_size, R, kernels_params[0]['k_params'], kernels_params[0]['gf_params']
+    )
     all_init_cells = noises.reshape([nb_init_search, 1] + world_size)
     config_target['run_params']['init_cells'] = all_init_cells
 
@@ -130,14 +134,14 @@ def run(omegaConf: DictConfig) -> None:
     ###
     config_train = copy.deepcopy(config)
     # config_train['world_params']['update_fn_version'] = 'v1'
-    # config_train['kernels_params']['k'][0]['b'] = [1., 1.]
-    # config_train['kernels_params']['k'][0]['gf_id'] = 0
-    # config_train['kernels_params']['k'][0]['m'] = 0.15
-    # config_train['kernels_params']['k'][0]['s'] = 0.015
-    # config_train['kernels_params']['k'][0]['k_id'] = 0
-    # config_train['kernels_params']['k'][0]['q'] = 1.
+    # config_train['kernels_params'][0]['b'] = [1., 1.]
+    # config_train['kernels_params'][0]['gf_id'] = 0
+    # config_train['kernels_params'][0]['m'] = 0.15
+    # config_train['kernels_params'][0]['s'] = 0.015
+    # config_train['kernels_params'][0]['k_id'] = 0
+    # config_train['kernels_params'][0]['q'] = 1.
 
-    K, mapping = get_kernels_and_mapping(config_train['kernels_params']['k'], world_size, nb_channels, R, fft=False)
+    K, mapping = get_kernels_and_mapping(config_train['kernels_params'], world_size, nb_channels, R, fft=False)
     #     # kernel_shape = [
     #     #     1,
     #     #     config_train['world_params']['nb_channels'],
@@ -158,7 +162,7 @@ def run(omegaConf: DictConfig) -> None:
     )
     run_fn_value_and_grads = jax.value_and_grad(run_fn, argnums=(1))
 
-    gfn_params = mapping.get_gfn_params()
+    gf_params = mapping.get_gf_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
     T = jnp.array(config_train['world_params']['T'], dtype=jnp.float32)
 
@@ -167,22 +171,22 @@ def run(omegaConf: DictConfig) -> None:
     K_opt_state = K_opt_init(K_params)
     gfn_lr = 1e-2
     gfn_opt_init, gfn_opt_update, gfn_get_params = jax_opt.adam(gfn_lr)
-    gfn_opt_state = gfn_opt_init(gfn_params)
+    gfn_opt_state = gfn_opt_init(gf_params)
     for i, training_data in enumerate(dataset):
         x = training_data['input_cells']
         y = (training_data['target_cells'], training_data['target_fields'], training_data['target_potentials'])
         K_params = K_get_params(K_opt_state)
-        gfn_params = gfn_get_params(gfn_opt_state)
-        error, grads = run_fn_value_and_grads(x, K_params, gfn_params, kernels_weight_per_channel, T, target=y)
+        gf_params = gfn_get_params(gfn_opt_state)
+        error, grads = run_fn_value_and_grads(x, K_params, gf_params, kernels_weight_per_channel, T, target=y)
 
         K_opt_state = K_opt_update(i, grads[0], K_opt_state)
         gfn_opt_state = gfn_opt_update(i, grads[1], gfn_opt_state)
 
         if i % 50 == 0:
             K_params_neg_grad = -grads[0]
-            gfn_params_neg_grad = -grads[1]
+            gf_params_neg_grad = -grads[1]
 
-            print(i, error, gfn_params, gfn_params_neg_grad)
+            print(i, error, gf_params, gf_params_neg_grad)
 
             np.save(f"{save_dir}/K.npy", K_params, allow_pickle=True, fix_imports=True)
 

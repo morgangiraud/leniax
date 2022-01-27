@@ -11,7 +11,7 @@ from typing import Callable, Tuple
 def update(
     cells: jnp.ndarray,
     K: jnp.ndarray,
-    gfn_params: jnp.ndarray,
+    gf_params: jnp.ndarray,
     kernels_weight_per_channel: jnp.ndarray,
     dt: jnp.ndarray,
     get_potential_fn: Callable,
@@ -26,7 +26,7 @@ def update(
     Args:
         cells: cells state ``[N, nb_channels, world_dims...]``
         K: Kernel ``[K_o=nb_channels * max_k_per_channel, K_i=1, kernel_dims...]``
-        gfn_params: Growth function parmaeters ``[nb_kernels, params_shape...]``
+        gf_params: Growth function parmaeters ``[nb_kernels, params_shape...]``
         kernels_weight_per_channel: Kernels weight used in the averaginf function ``[nb_channels, nb_kernels]``
         dt: Update rate ``[N]``
         get_potential_fn: **(jit static arg)** Function used to compute the potential
@@ -38,7 +38,7 @@ def update(
     """
 
     potential = get_potential_fn(cells, K)
-    field = get_field_fn(potential, gfn_params, kernels_weight_per_channel)
+    field = get_field_fn(potential, gf_params, kernels_weight_per_channel)
     cells = update_fn(cells, field, dt)
 
     return cells, field, potential
@@ -107,7 +107,7 @@ def get_potential(cells: jnp.ndarray, K: jnp.ndarray, padding: jnp.ndarray, true
 @functools.partial(jit, static_argnums=(3, 4))
 def get_field(
     potential: jnp.ndarray,
-    gfn_params: jnp.ndarray,
+    gf_params: jnp.ndarray,
     kernels_weight_per_channel: jnp.ndarray,
     growth_fn_t: Tuple[Callable],
     weighted_fn: Callable
@@ -119,7 +119,7 @@ def get_field(
 
     Args:
         potential: ``[N, nb_kernels, world_dims...]``
-        gfn_params: ``[nb_kernels, 2]``
+        gf_params: ``[nb_kernels, nb_gf_params]``
         kernels_weight_per_channel: Kernels weight used in the averaginf function ``[nb_channels, nb_kernels]``
         growth_fn_t: **(jit static arg)** Tuple of growth functions. ``length: nb_kernels``
         weighted_fn: **(jit static arg)** Function used to merge fields linked to the same channel
@@ -130,10 +130,10 @@ def get_field(
     fields = []
     for i in range(len(growth_fn_t)):
         sub_potential = potential[:, i]
-        current_gfn_params = gfn_params[i]
+        current_gf_params = gf_params[i]
         growth_fn = growth_fn_t[i]
 
-        sub_field = growth_fn(current_gfn_params, sub_potential)
+        sub_field = growth_fn(current_gf_params, sub_potential)
 
         fields.append(sub_field)
     fields_jnp = jnp.stack(fields, axis=1)  # [N, nb_kernels, world_dims...]

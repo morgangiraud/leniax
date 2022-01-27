@@ -160,4 +160,4 @@ def step(params: jnp.ndarray, X: jnp.ndarray):
     return out
 
 
-growth_fns = {0: poly_quad4, 1: gaussian, 2: gaussian_target, 3: step}
+register = {'poly_quad4': poly_quad4, 'gaussian': gaussian, 'gaussian_target': gaussian_target, 'step': step}

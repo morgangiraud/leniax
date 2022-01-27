@@ -1,5 +1,6 @@
 import os
 import unittest
+import numpy as np
 
 from leniax import kernels as leniax_kernels
 
@@ -8,9 +9,11 @@ fixture_dir = os.path.join(cfd, 'fixtures')
 
 
 class TestKernels(unittest.TestCase):
-    def test_st2fracs2float(self):
-        fracs = '1/2,2/3'
-        out = leniax_kernels.st2fracs2float(fracs)
+    def test_circle_2d(self):
+        k_params = [[32, 32], 1., 5., [1.]]
+        kf_slug = 'poly_quad4'
+        kf_params = [0.15, 0.015]
 
-        assert out[0] == .5
-        assert out[1] == 2 / 3
+        kernel = leniax_kernels.circle_2d(k_params, kf_slug, kf_params)
+
+        np.testing.assert_array_equal(kernel.shape, [1, 10, 10])

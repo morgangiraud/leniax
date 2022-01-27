@@ -39,7 +39,7 @@ def get_parameters_for_scale(scale: float, world_size: List[int], config: Dict, 
     use_init_cells = True
     render_params = tmp_config['render_params']
     cells, K, mapping = leniax_helpers.init(tmp_config, use_init_cells, fft)
-    gfn_params = mapping.get_gfn_params()
+    gf_params = mapping.get_gf_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
     R = config['world_params']['R']
     update_fn = leniax_helpers.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
@@ -48,7 +48,7 @@ def get_parameters_for_scale(scale: float, world_size: List[int], config: Dict, 
     return {
         'cells0': cells,
         'K': K,
-        'gfn_params': gfn_params,
+        'gf_params': gf_params,
         'kernels_weight_per_channel': kernels_weight_per_channel,
         'T': T,
         'max_run_iter': max_run_iter,
@@ -262,7 +262,7 @@ def run() -> None:
                         "value": colormap.name, "trait_type": "Colormap"
                     }],
                     'config': {
-                        'kernels_params': config['kernels_params']['k'],
+                        'kernels_params': config['kernels_params'],
                         'world_params': config['world_params'],
                         'cells': leniax_loader.compress_array(cropped_compressible_cells_1[0])
                     }

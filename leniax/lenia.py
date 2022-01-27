@@ -55,8 +55,8 @@ class LeniaIndividual(object):
 def update_config(old_config, to_update):
     new_config = copy.deepcopy(old_config)
     if 'kernels_params' in to_update:
-        for i, kernel in enumerate(to_update['kernels_params']['k']):
-            new_config['kernels_params']['k'][i].update(kernel)
+        for i, kernel in enumerate(to_update['kernels_params']):
+            new_config['kernels_params'][i].update(kernel)
     if 'world_params' in to_update:
         new_config['world_params'].update(to_update['world_params'])
 

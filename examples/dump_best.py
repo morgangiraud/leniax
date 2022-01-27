@@ -5,7 +5,7 @@ from leniax import qd as leniax_qd
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
 
-final_dir = os.path.join(cdir, '..', 'experiments', '999_debug')
+final_dir = os.path.join(cdir, '..', 'experiments', '000_debug')
 
 
 def run() -> None:

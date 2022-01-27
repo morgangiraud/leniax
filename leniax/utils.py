@@ -97,6 +97,8 @@ def update_config_v1_v2(config: Dict) -> Dict:
         for gen_conf in config['genotype']:
             if 'kernels_params.k' in gen_conf['key']:
                 gen_conf['key'] = gen_conf['key'].replace('kernels_params.k', 'kernels_params')
+                gen_conf['key'] = gen_conf['key'].replace('.m', '.gf_params.0')
+                gen_conf['key'] = gen_conf['key'].replace('.s', '.gf_params.1')
 
     if 'phenotype' in config:
         for idx, phen_str in enumerate(config['phenotype']):
@@ -146,11 +148,17 @@ def set_param(dic: Dict, key_string: str, value: Any):
                 raise Exception('This key should be an array')
         else:
             if keys[i + 1].isdigit():
-                dic = dic.setdefault(key, [{}])
+                dic = dic.setdefault(key, [])
             else:
                 dic = dic.setdefault(key, {})
-
-    dic[keys[-1]] = value
+    if keys[-1].isdigit:
+        final_key = int(keys[-1])
+        if len(dic) < final_key + 1:
+            for _ in range(final_key + 1 - len(dic)):
+                dic.append(None)
+    else:
+        final_key = keys[-1]
+    dic[final_key] = value
 
 
 def st2fracs2float(st: str) -> List[float]:

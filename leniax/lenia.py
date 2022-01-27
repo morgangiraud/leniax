@@ -28,6 +28,12 @@ class LeniaIndividual(object):
         self.rng_key = rng_key
         self.params = params
 
+        # We assert that the genotype only update existing values
+        if 'genotype' in self.qd_config:
+            genotype = self.get_genotype()
+            for gene in genotype:
+                leniax_utils.get_param(self.qd_config, gene['key'])
+
     def set_cells(self, cells: str):
         self.qd_config['run_params']['cells'] = cells
 
@@ -36,12 +42,12 @@ class LeniaIndividual(object):
 
     def get_config(self) -> Dict:
         if 'genotype' in self.qd_config:
-            p_and_ds = self.get_genotype()
+            genotype = self.get_genotype()
             # Removing too much precision ensure that the one found are quite stable
             raw_values = [round(raw_val, 8) for raw_val in self.params]
-            assert len(raw_values) == len(p_and_ds)
+            assert len(raw_values) == len(genotype)
 
-            to_update = get_update_config(p_and_ds, raw_values)
+            to_update = get_update_config(genotype, raw_values)
             config = update_config(self.qd_config, to_update)
         else:
             config = self.qd_config
@@ -65,10 +71,10 @@ def update_config(old_config, to_update):
 
 def get_update_config(genotype: Dict, raw_values: list) -> Dict:
     to_update: Dict = {}
-    for p_and_d, raw_val in zip(genotype, raw_values):
-        key_str = p_and_d['key']
-        domain = p_and_d['domain']
-        val_type = p_and_d['type']
+    for gene, raw_val in zip(genotype, raw_values):
+        key_str = gene['key']
+        domain = gene['domain']
+        val_type = gene['type']
         if val_type == 'float':
             val = float(linear_scale(raw_val, domain))
         elif val_type == 'int':
@@ -79,7 +85,6 @@ def get_update_config(genotype: Dict, raw_values: list) -> Dict:
             val = domain[int(linear_scale(raw_val, d) - 0.5)]
         else:
             raise ValueError(f"type {val_type} unknown")
-
         leniax_utils.set_param(to_update, key_str, val)
 
     return to_update

@@ -55,11 +55,50 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, fitness_coef: floa
         )
         stats['N'].block_until_ready()
 
-        results = leniax_helpers.update_individuals(lenia_sols, stats, fitness_coef)
+        results = update_individuals(lenia_sols, stats, fitness_coef)
 
         return results
 
     return eval_lenia_config_mem_optimized
+
+
+def update_individuals(inds: List[LeniaIndividual],
+                       stats: Dict[str, jnp.ndarray],
+                       fitness_coef=1.) -> List[LeniaIndividual]:
+    """Update Lenia individuals
+
+    .. Warning::
+        In the statistics dictionnary. The ``N`` statistic is of shape ``[N_sols, N_init]``.
+
+    Args:
+        inds: Evaluated Lenia individuals
+        stats: ``Dict[str, [N_sols, nb_iter, N_init]]``
+        fitness_coef: Mainly used to change the sign
+
+    Returns:
+        Lpdate Lenia individuals
+    """
+    Ns = stats['N']
+    all_best_init_idx = jnp.argmax(Ns, axis=1)
+    all_max_N = jnp.max(Ns, axis=1)
+    all_fitness = fitness_coef * all_max_N
+
+    for i, ind in enumerate(inds):
+        best_init_idxs = jnp.concatenate(jnp.where(Ns[i] == all_max_N[i]))
+        ind.set_init_props(ind.rng_key, best_init_idxs.tolist())
+        ind.fitness = all_fitness[i]
+
+        tmp_config = ind.get_config()
+        tmp_config['behaviours'] = {}
+        if 'phenotype' in ind.qd_config:
+            ns = max(int(ind.fitness), 128)
+            for k in stats.keys():
+                if k == 'N':
+                    continue
+                tmp_config['behaviours'][k] = stats[k][i, ns - 128:ns, all_best_init_idx[i]].mean()
+            ind.features = [leniax_utils.get_param(tmp_config, key_string) for key_string in ind.qd_config['phenotype']]
+
+    return inds
 
 
 def run_qd_search(
@@ -238,17 +277,10 @@ def render_found_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
     padded_id = str(id_lenia).zfill(4)
     config = lenia.get_config()
 
-    save_dir = os.path.join(os.getcwd(), f"c-{padded_id}")  # changed by hydra
-    # if os.path.isdir(save_dir):
-    #     print(f"Folder for id: {padded_id}, alreaady exist. Passing")
-    #     # If the lenia folder already exists at that path, we consider the work alreayd done
-    #     return
-    leniax_utils.check_dir(save_dir)
-
     if 'init_rng_key' in config['algo']:
         init_slug = config['algo']['init_slug']
         _, noises = leniax_init.register[init_slug](
-            jnp.array(config['algo']['init_rng_key']),
+            jnp.array(config['algo']['init_rng_key'], dtype=jnp.uint32),
             config['run_params']['nb_init_search'] * config['world_params']['nb_channels'],
             config['render_params']['world_size'],
             config['world_params']['R'],
@@ -258,21 +290,33 @@ def render_found_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
         init_noises_shape = [config['run_params']['nb_init_search'], config['world_params']['nb_channels']
                              ] + config['render_params']['world_size']
         init_noises = noises.reshape(init_noises_shape)
-        config['run_params']['init_cells'] = init_noises[config['algo']['best_init_idx']]
 
-    start_time = time.time()
-    all_cells, _, _, stats_dict = leniax_helpers.init_and_run(config, use_init_cells=True, with_jit=True, fft=True)
-    all_cells = all_cells[:int(stats_dict['N']), 0]
-    total_time = time.time() - start_time
+        for idx in config['algo']['best_init_idxs']:
+            save_dir = os.path.join(os.getcwd(), f"c-{padded_id}", str(idx).zfill(2))
+            if os.path.isdir(save_dir):
+                print(f"Folder for id: {padded_id}, alreaady exist. Passing")
+                # If the lenia folder already exists at that path, we consider the work alreayd done
+                continue
+            leniax_utils.check_dir(save_dir)
+            config['run_params']['init_cells'] = init_noises[idx]
 
-    nb_iter_done = len(all_cells)
-    print(f"[{padded_id}] - {nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
+            start_time = time.time()
+            all_cells, _, _, stats_dict = leniax_helpers.init_and_run(config, use_init_cells=True, with_jit=True, fft=True, stat_trunc=True)
+            all_cells = all_cells[:, 0]
+            total_time = time.time() - start_time
 
-    config['run_params']['init_cells'] = leniax_loader.compress_array(all_cells[0])
-    config['run_params']['cells'] = leniax_loader.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
-    leniax_utils.save_config(save_dir, config)
+            nb_iter_done = len(all_cells)
+            print(
+                f"[{padded_id}] - {nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps"
+            )
+            config['run_params']['cells'] = leniax_loader.compress_array(
+                leniax_utils.center_and_crop_cells(all_cells[-1])
+            )
+            leniax_utils.save_config(save_dir, config)
 
-    leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict)
+            leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict)
+    else:
+        raise NotImplementedError('You should use v1 version of the library to render QD results of that version')
 
 
 ###

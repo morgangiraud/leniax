@@ -55,7 +55,6 @@ def run(omegaConf: DictConfig) -> None:
         with_jit=False,
         fft=True,
         stat_trunc=True,
-        # override=override
     )  # [nb_max_iter, N=1, C, world_dims...]
     all_cells = all_cells[:, 0]
     total_time = time.time() - start_time

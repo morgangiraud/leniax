@@ -48,9 +48,7 @@ def perlin(
     """
     Perlin noise initialization which target the mean of the growth function
     """
-    r = k_params[0]
-
-    kernel_radius = math.ceil(R * r)
+    kernel_radius = math.ceil(R)
     res = [world_size[0] // (kernel_radius * 3), world_size[1] // (kernel_radius * 2)]
     min_mean_bound = gf_params[0]
     max_mean_bound = min(1, 3 * min_mean_bound)
@@ -80,9 +78,7 @@ def perlin_local(
     """
     Perlin noise initialization which target the mean of the growth function
     """
-    r = k_params[1]
-
-    kernel_radius = math.ceil(R * r)
+    kernel_radius = math.ceil(R)
     res = [world_size[0] // (kernel_radius * 3), world_size[1] // (kernel_radius * 2)]
     min_mean_bound = gf_params[0]
     max_mean_bound = min(1, 3 * min_mean_bound)

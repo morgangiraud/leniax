@@ -1,5 +1,6 @@
 import copy
 from typing import Dict, List, Tuple
+import jax
 
 from . import utils as leniax_utils
 
@@ -20,6 +21,9 @@ class LeniaIndividual(object):
 
     fitness: float
     features: List[float]
+    qd_config: Dict
+    rng_key: jax.random.KeyArray
+    params: List
 
     def __init__(self, config: Dict, rng_key, params: List = []):
         super().__init__()
@@ -34,9 +38,9 @@ class LeniaIndividual(object):
             for gene in genotype:
                 leniax_utils.get_param(self.qd_config, gene['key'])
 
-    def set_init_props(self, rng_key: List[int], best_init_idx: int):
-        self.qd_config['algo']['init_rng_key'] = list(rng_key)
-        self.qd_config['algo']['best_init_idx'] = best_init_idx
+    def set_init_props(self, rng_key: jax.random.KeyArray, best_init_idxs: List[int]):
+        self.qd_config['algo']['init_rng_key'] = rng_key.tolist()  # type: ignore
+        self.qd_config['algo']['best_init_idxs'] = best_init_idxs
 
     def set_cells(self, cells: str):
         self.qd_config['run_params']['cells'] = cells

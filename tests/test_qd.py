@@ -1,6 +1,9 @@
 import os
 import unittest
+import jax.numpy as jnp
+from hydra import compose, initialize
 
+from leniax import qd as leniax_qd
 from leniax.lenia import LeniaIndividual
 from leniax import utils as leniax_utils
 
@@ -44,3 +47,20 @@ class TestQD(unittest.TestCase):
         }
 
         self.assertDictEqual(true_config, new_config)
+
+    def test_update_individuals(self):
+        with initialize(config_path='fixtures'):
+            omegaConf = compose(config_name="qd_config-test")
+            qd_config = leniax_utils.get_container(omegaConf, fixture_dir)
+        seed = qd_config['run_params']['seed']
+        rng_key = leniax_utils.seed_everything(seed)
+
+        inds = [LeniaIndividual(qd_config, rng_key, [0.2, 0.02]), LeniaIndividual(qd_config, rng_key, [0.3, 0.03])]
+
+        stats = {'N': jnp.array([[1, 2, 3], [1, 3, 4]])}
+
+        new_inds = leniax_qd.update_individuals(inds, stats)
+
+        assert len(new_inds) == 2
+        assert new_inds[0].fitness == 3
+        assert new_inds[1].fitness == 4

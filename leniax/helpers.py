@@ -7,7 +7,7 @@ import numpy as np
 import scipy
 import jax
 import jax.numpy as jnp
-from typing import Callable, Dict, Tuple, List, Union, Any
+from typing import Callable, Dict, Tuple, List, Union
 import matplotlib.pyplot as plt
 
 from .lenia import LeniaIndividual
@@ -28,8 +28,7 @@ cdir = os.path.dirname(os.path.realpath(__file__))
 
 def init(config: Dict,
          use_init_cells: bool = True,
-         fft: bool = True,
-         override: Dict[str, Any] = {}) -> Tuple[jnp.ndarray, jnp.ndarray, leniax_kernels.KernelMapping]:
+         fft: bool = True) -> Tuple[jnp.ndarray, jnp.ndarray, leniax_kernels.KernelMapping]:
     nb_dims = config['world_params']['nb_dims']
     nb_channels = config['world_params']['nb_channels']
     world_size = config['render_params']['world_size']
@@ -65,11 +64,6 @@ def init(config: Dict,
     else:
         init_cells = create_init_cells(world_size, nb_channels, [raw_cells])
     K, mapping = leniax_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)
-
-    if 'cells' in override:
-        init_cells = override['cells']
-    if 'K' in override:
-        K = override['K']
 
     return init_cells, K, mapping
 
@@ -244,8 +238,7 @@ def init_and_run(
     use_init_cells: bool = True,
     with_jit: bool = True,
     fft: bool = True,
-    stat_trunc: bool = False,
-    override: Dict[str, Any] = {}
+    stat_trunc: bool = False
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
     """Initialize and simulate a Lenia configuration
 
@@ -267,7 +260,7 @@ def init_and_run(
     """
     config = copy.deepcopy(config)
 
-    cells, K, mapping = init(config, use_init_cells, fft, override)
+    cells, K, mapping = init(config, use_init_cells, fft)
     gf_params = mapping.get_gf_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 
@@ -357,44 +350,6 @@ def get_mem_optimized_inputs(qd_config: Dict, lenia_sols: List[LeniaIndividual],
     )
 
     return rng_key, run_scan_mem_optimized_parameters
-
-
-def update_individuals(inds: List[LeniaIndividual],
-                       stats: Dict[str, jnp.ndarray],
-                       fitness_coef=1.) -> List[LeniaIndividual]:
-    """
-
-    .. Warning::
-        In the statistics dictionnary. The ``N`` statistic is of shape ``[N_sols, N_init]``.
-    Args:
-        inds: Evaluated Lenia individuals
-        stats: ``Dict[str, [N_sols, nb_iter, N_init]]``
-        all_cells0: Initial cells state ``[N_sols, N_init, nb_channels, world_dims...]``
-        all_final_cells: Final cells state ``[N_sols, N_init, nb_channels, world_dims...]``
-        fitness_coef: Mainly used to change the sign
-    """
-    Ns = stats['N']
-    N_sols = Ns.shape[0]
-    sols_idx = jnp.arange(N_sols)
-    all_best_init_idx = jnp.argmax(Ns, axis=1)
-    all_fitness = fitness_coef * Ns[sols_idx, all_best_init_idx]
-
-    for i, ind in enumerate(inds):
-        ind.set_init_props(list(ind.rng_key), int(all_best_init_idx[i]))
-        ind.fitness = all_fitness[i]
-
-        tmp_config = ind.get_config()
-
-        tmp_config['behaviours'] = {}
-        if 'phenotype' in ind.qd_config:
-            ns = max(int(ind.fitness), 128)
-            for k in stats.keys():
-                if k == 'N':
-                    continue
-                tmp_config['behaviours'][k] = stats[k][i, ns - 128:ns, all_best_init_idx[i]].mean()
-            ind.features = [leniax_utils.get_param(tmp_config, key_string) for key_string in ind.qd_config['phenotype']]
-
-    return inds
 
 
 def build_update_fn(

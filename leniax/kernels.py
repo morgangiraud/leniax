@@ -55,6 +55,7 @@ def get_kernels_and_mapping(kernels_params: List,
     for kernel_idx, param in enumerate(kernels_params):
         if param['k_slug'] == 'raw':
             k = jnp.array(param['k_params'])
+            assert k.shape[0] == 1, 'Kernel shape should be like [1, world_dims...]'
         else:
             k = register[param['k_slug']](param['k_params'], param['kf_slug'], param['kf_params'])
         padding = [[0, 0]]

@@ -1,6 +1,5 @@
 import os
 import unittest
-import jax.numpy as jnp
 import numpy as np
 from hydra import compose, initialize
 
@@ -55,20 +54,3 @@ class TestHelpers(unittest.TestCase):
         )
         all_Ks_jnp = run_scan_mem_optimized_parameters[1]
         np.testing.assert_array_equal(all_Ks_jnp.shape, [2, 1, nb_channels, nb_kernels] + world_size)
-
-    def test_update_individuals(self):
-        with initialize(config_path='fixtures'):
-            omegaConf = compose(config_name="qd_config-test")
-            qd_config = leniax_utils.get_container(omegaConf, fixture_dir)
-        seed = qd_config['run_params']['seed']
-        rng_key = leniax_utils.seed_everything(seed)
-
-        inds = [LeniaIndividual(qd_config, rng_key, [0.2, 0.02]), LeniaIndividual(qd_config, rng_key, [0.3, 0.03])]
-
-        stats = {'N': jnp.array([[1, 2, 3], [1, 3, 4]])}
-
-        new_inds = leniax_helpers.update_individuals(inds, stats)
-
-        assert len(new_inds) == 2
-        assert new_inds[0].fitness == 3
-        assert new_inds[1].fitness == 4

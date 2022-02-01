@@ -1,4 +1,5 @@
 import os
+import logging
 import time
 import ffmpeg
 import numpy as np
@@ -72,7 +73,7 @@ def dump_video(
 
         total_time = np.sum(all_times)
         mean_time = np.mean(all_times)
-        print(f"{len(all_times)} images dumped in {total_time} seconds: {1. / mean_time} fps")
+        logging.info(f"Video rendering: {len(all_times)} images dumped in {total_time} seconds: {1. / mean_time} fps")
 
         all_outputs_fullpath.append(output_fullpath)
 

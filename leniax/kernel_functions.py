@@ -4,21 +4,21 @@ import jax.numpy as jnp
 from .constant import EPSILON
 
 
-def poly_quad4(params: jnp.ndarray, X: jnp.ndarray):
+def poly_quad(params: jnp.ndarray, X: jnp.ndarray):
     r"""Quadratic polynomial
 
     .. math::
-        y = (4 * X * (1 - X))^q
+        y = (q * X * (1 - X))^q
 
     .. plot::
 
         import matplotlib.pyplot as plt
         import numpy as np
-        from leniax.kernel_functions import poly_quad4
+        from leniax.kernel_functions import poly_quad
         x = np.linspace(0., 1., 100)
         q = 4
         params = np.array([q])
-        y = poly_quad4(params, x)
+        y = poly_quad(params, x)
         plt.plot(x, y)
         plt.axhline(y=0, color='grey', linestyle='dotted')
         plt.title(r'Poly_quad4: q=%.2f'%(q))
@@ -49,7 +49,7 @@ def gauss_bump(params: jnp.ndarray, X: jnp.ndarray):
         import numpy as np
         from leniax.kernel_functions import gauss_bump
         x = np.linspace(0., 1., 100)
-        q = 0.15
+        q = 4
         params = np.array([q])
         y = gauss_bump(params, x)
         plt.plot(x, y)
@@ -168,6 +168,48 @@ def gauss(params: jnp.ndarray, X: jnp.ndarray):
     return out
 
 
+def triangle(params: jnp.ndarray, X: jnp.ndarray):
+    r"""Gauss function
+
+    .. math::
+        y = e^{-\frac{1}{2} \left(\frac{X - q}{0.3 * q}\right)^2}
+
+    .. plot::
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from leniax.kernel_functions import triangle
+        x = np.linspace(0., 1., 100)
+        m = 0.5
+        s = 0.1
+        params = np.array([m, s])
+        y = triangle(params, x)
+        plt.plot(x, y)
+        plt.axhline(y=0, color='grey', linestyle='dotted')
+        plt.title(r'Triangle: m=%.2f, s=%.2f'%(m, s))
+        plt.show()
+
+    Args:
+        params: Kernel function parameters
+        X: Raw kernel
+    """
+    m = params[0]
+    s = params[1]
+
+    left = m - s
+    right = m + s
+
+    out = (X >= left) * (X < m) * (X - left) / (m - left)
+    out += (X >= m) * (X < right) * (X - right) / (m - right)
+
+    return out
+
+
 register: Dict[str, Callable] = {
-    'poly_quad4': poly_quad4, 'gauss_bump': gauss_bump, 'step': step, 'staircase': staircase, 'gauss': gauss
+    'poly_quad': poly_quad,
+    'gauss_bump': gauss_bump,
+    'step': step,
+    'staircase': staircase,
+    'gauss': gauss,
+    'triangle': triangle,
 }

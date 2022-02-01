@@ -1,6 +1,7 @@
 import time
 import os
-from absl import logging
+import logging
+from absl import logging as absl_logging
 from omegaconf import DictConfig
 import hydra
 
@@ -8,7 +9,7 @@ import leniax.utils as leniax_utils
 import leniax.loader as leniax_loader
 import leniax.helpers as leniax_helpers
 
-logging.set_verbosity(logging.ERROR)
+absl_logging.set_verbosity(absl_logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 # config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
@@ -17,31 +18,21 @@ cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '000-hope', '0060')
 config_name = "config"
 
-nb_scale_for_stability = 1
-
 
 @hydra.main(config_path=config_path, config_name=config_name)
 def launch(omegaConf: DictConfig) -> None:
     config = leniax_utils.get_container(omegaConf, config_path)
+    leniax_utils.set_log_level(config)
 
-    config['render_params']['pixel_size_power2'] = 0
-    config['render_params']['pixel_size'] = 1
-    config['render_params']['size_power2'] = 7
-    config['render_params']['world_size'] = [128, 128]
-    config['world_params']['scale'] = 1.
-    config['run_params']['max_run_iter'] = 4096
-    config['run_params']['nb_mut_search'] = 128
+    # config['render_params']['pixel_size_power2'] = 0
+    # config['render_params']['pixel_size'] = 1
+    # config['render_params']['size_power2'] = 7
+    # config['render_params']['world_size'] = [128, 128]
+    # config['world_params']['scale'] = 1.
+    # config['run_params']['max_run_iter'] = 4096
+    # config['run_params']['nb_mut_search'] = 128
     use_init_cells = True
-    if 'init_cells' in config['run_params']:
-        init_cells = leniax_loader.decompress_array(
-            config['run_params']['init_cells'], len(config['render_params']['world_size'])
-        )
-        config['run_params']['init_cells'] = leniax_loader.make_array_compressible(init_cells)
-    else:
-        cells = leniax_loader.decompress_array(
-            config['run_params']['cells'], len(config['render_params']['world_size'])
-        )
-        config['run_params']['cells'] = leniax_loader.make_array_compressible(cells)
+    nb_scale_for_stability = 1
 
     leniax_utils.print_config(config)
 
@@ -51,12 +42,12 @@ def launch(omegaConf: DictConfig) -> None:
     _, (best, nb_mut_done) = leniax_helpers.search_for_mutation(
         rng_key, config, nb_scale_for_stability, use_init_cells=use_init_cells, fft=True
     )
-    print(f"Init search done in {time.time() - t0} (nb_muts done: {nb_mut_done})")
+    logging.info(f"Mutatation search done in {time.time() - t0} (nb_muts done: {nb_mut_done})")
 
     all_cells = best['all_cells'][:int(best['N'])]
     stats_dict = {k: v.squeeze() for k, v in best['all_stats'].items()}
 
-    print(f"best run length: {best['N']}")
+    logging.info(f"best run length: {best['N']}")
 
     save_dir = os.getcwd()  # changed by hydra
     leniax_utils.check_dir(save_dir)
@@ -70,7 +61,7 @@ def launch(omegaConf: DictConfig) -> None:
     # if best['N'] == config['run_params']['max_run_iter']:
     #     leniax_utils.save_config(config_path, config)
 
-    print("Dumping assets")
+    logging.info("Dumping assets")
     leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict)
 
 

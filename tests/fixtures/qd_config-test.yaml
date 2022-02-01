@@ -51,7 +51,6 @@ genotype:
       - .1
     type: float
 
-
 phenotype:
   - kernels_params.k.0.m
   - kernels_params.k.0.s

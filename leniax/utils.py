@@ -3,6 +3,7 @@ import functools
 import copy
 import random
 import logging
+from pprint import pprint
 import os
 import yaml
 import matplotlib.pyplot as plt
@@ -62,7 +63,7 @@ def update_config_v1_v2(config: Dict) -> Dict:
     config['version'] = 2
 
     old_gf_register = {0: 'poly_quad4', 1: 'gaussian', 2: 'gaussian_target', 3: 'step'}
-    old_k_register = {0: 'poly_quad4', 1: 'gauss_bump', 2: 'step4', 3: 'staircase', 4: 'gauss'}
+    old_k_register = {0: 'poly_quad', 1: 'gauss_bump', 2: 'step', 3: 'staircase', 4: 'gauss'}
     new_kernels_params = []
     for kernel_params in config['kernels_params']['k']:
         if type(kernel_params['b']) == str:
@@ -441,7 +442,8 @@ def print_config(config: Dict):
     if 'init_cells' in printable_config['run_params'].keys():
         del printable_config['run_params']['init_cells']
 
-    logging.info(printable_config)
+    if logging.getLogger().getEffectiveLevel() <= 20:
+        pprint(printable_config)
 
 
 def load_img(fullpath: str, resize: Tuple[int, int]) -> jnp.ndarray:

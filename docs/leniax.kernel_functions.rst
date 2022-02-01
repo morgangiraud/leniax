@@ -6,8 +6,9 @@ leniax.kernel_functions package
 .. automodule:: leniax.kernel_functions
 
 
-.. autofunction:: poly_quad4
+.. autofunction:: poly_quad
 .. autofunction:: gauss_bump
 .. autofunction:: step
 .. autofunction:: staircase
 .. autofunction:: gauss
+.. autofunction:: triangle

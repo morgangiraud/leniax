@@ -299,7 +299,7 @@ def search_for_init(
 
     nb_channels_to_init = nb_channels * nb_init_search
     rng_key, noises = leniax_init.register[init_slug](
-        rng_key, nb_channels_to_init, world_size, R, kernels_params[0]['k_params'], kernels_params[0]['gf_params']
+        rng_key, nb_channels_to_init, world_size, R, kernels_params[0]['gf_params']
     )
     init_noises = noises.reshape([nb_init_search, nb_channels] + world_size)
 

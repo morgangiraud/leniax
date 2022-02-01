@@ -1,3 +1,6 @@
+hydra:
+  run:
+    dir: tests/hydra_tmp/${now:%H-%M-%S}
 algo:
   init_param: []
   init_slug: perlin
@@ -96,3 +99,24 @@ world_params:
   nb_channels: 1
   nb_dims: 2
   scale: 1.0
+genotype:
+  - key: kernels_params.0.gf_params.0
+    domain: 
+      - .1
+      - .5
+    type: float
+  - key: kernels_params.0.gf_params.1
+    domain: 
+      - 0.
+      - .1
+    type: float
+phenotype:
+  - kernels_params.0.gf_params.0
+  - kernels_params.0.gf_params.1
+grid:
+  features_domain:
+    - - .1
+      - .5
+    - - 0.
+      - .1
+  shape: [25, 25]

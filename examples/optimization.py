@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import leniax.utils as leniax_utils
 import leniax.helpers as leniax_helpers
 import leniax.runner as leniax_runner
-import leniax.initializations as leniax_initializations
+import leniax.initializations as leniax_init
 from leniax.kernels import get_kernels_and_mapping
 
 absl_logging.set_verbosity(absl_logging.ERROR)
@@ -100,10 +100,8 @@ def run(omegaConf: DictConfig) -> None:
     init_slug = config['algo']['init_slug']
 
     _, subkey = jax.random.split(rng_key)
-    nb_channels_to_init = nb_channels * nb_init_search
-    rng_key, noises = leniax_initializations.register[init_slug](
-        rng_key, nb_channels_to_init, world_size, R, kernels_params[0]['k_params'], kernels_params[0]['gf_params']
-    )
+    nb_init = nb_channels * nb_init_search
+    rng_key, noises = leniax_init.register[init_slug](subkey, nb_init, world_size, R, kernels_params[0]['gf_params'])
     all_init_cells = noises.reshape([nb_init_search, 1] + world_size)
     config_target['run_params']['init_cells'] = all_init_cells
 

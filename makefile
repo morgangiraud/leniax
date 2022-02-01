@@ -46,6 +46,12 @@ endif
 
 .PHONY: install export_env
 
+
+docs: ## generate Sphinx HTML documentation, including API docs
+	$(MAKE) -C docs clean
+	$(MAKE) -C docs html
+.PHONY: docs
+
 ##
 # CI
 ###
@@ -61,9 +67,12 @@ typecheck:
 test:
 	pytest --disable-pytest-warnings .
 
-ci: lint typecheck test
+test-examples: ## test examples are working
+	bash tests/examples.sh
 
-.PHONY: typecheck yapf lint test ci
+ci: lint typecheck test test-examples
+
+.PHONY: typecheck yapf lint test test-examples ci
 
 ###
 # Deploy

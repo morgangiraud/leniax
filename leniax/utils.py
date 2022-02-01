@@ -2,6 +2,7 @@
 import functools
 import copy
 import random
+import logging
 import os
 import yaml
 import matplotlib.pyplot as plt
@@ -11,7 +12,6 @@ import numpy as np
 from fractions import Fraction
 from PIL import Image
 from typing import Tuple, List, Dict, Any, Union
-import uuid
 from omegaconf import DictConfig, OmegaConf
 
 from .constant import NB_STATS_STEPS, EPSILON
@@ -25,9 +25,6 @@ image_ext = "png"
 # Config
 ###
 def get_container(omegaConf: DictConfig, main_path: str) -> Dict:
-    # TODO: Need to check if missing first
-    omegaConf.run_params.code = str(uuid.uuid4())
-
     world_params = omegaConf.world_params
     render_params = omegaConf.render_params
     if omegaConf.render_params.pixel_size == 'MISSING':
@@ -48,6 +45,11 @@ def get_container(omegaConf: DictConfig, main_path: str) -> Dict:
         config['world_params']['scale'] = 1.
     if "algo" not in config:
         config["algo"] = {}
+    if "other" not in config:
+        config["other"] = {}
+
+    if "log_level" not in config["other"]:
+        config["other"]["log_level"] = 20
 
     if 'version' not in config:
         # we are dealing with a V1 config
@@ -439,13 +441,20 @@ def print_config(config: Dict):
     if 'init_cells' in printable_config['run_params'].keys():
         del printable_config['run_params']['init_cells']
 
-    print(printable_config)
+    logging.info(printable_config)
 
 
 def load_img(fullpath: str, resize: Tuple[int, int]) -> jnp.ndarray:
     img = Image.open(fullpath).resize(resize)
     img_np = np.rollaxis(np.array(img), -1)[np.newaxis] / 255.
     return jnp.array(img_np, dtype=jnp.float32)
+
+
+def set_log_level(config):
+    numeric_level = config['other']['log_level'] if 'log_level' in config['other'] else 1
+    if not isinstance(numeric_level, int):
+        raise ValueError(f'Invalid log level: {numeric_level}')
+    logging.getLogger().setLevel(numeric_level)
 
 
 ###

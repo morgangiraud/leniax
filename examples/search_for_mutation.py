@@ -48,8 +48,9 @@ def launch(omegaConf: DictConfig) -> None:
     rng_key = leniax_utils.seed_everything(config['run_params']['seed'])
 
     t0 = time.time()
-    _, best, nb_mut_done = leniax_helpers.search_for_mutation(
-        rng_key, config, nb_scale_for_stability, fft=True, use_init_cells=use_init_cells)
+    _, (best, nb_mut_done) = leniax_helpers.search_for_mutation(
+        rng_key, config, nb_scale_for_stability, use_init_cells=use_init_cells, fft=True
+    )
     print(f"Init search done in {time.time() - t0} (nb_muts done: {nb_mut_done})")
 
     all_cells = best['all_cells'][:int(best['N'])]

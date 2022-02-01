@@ -140,18 +140,9 @@ def run_scan(
         A 4-tuple of arrays representing the updated cells state, the used potential
         and used field and simulations statistics
     """
-    N = cells0.shape[0]
-    nb_world_dims = cells0.ndim - 2
-    init_carry = {
-        'fn_params': (cells0, K, gf_params, kernels_weight_per_channel, T),
-        'stats_properties': {
-            'total_shift_idx': jnp.zeros([N, nb_world_dims], dtype=jnp.int32),
-            'mass_centroid': jnp.zeros([nb_world_dims, N]),
-            'mass_angle': jnp.zeros([N]),
-        }
-    }
+    init_carry = _get_init_carry(cells0, K, gf_params, kernels_weight_per_channel, T)
     fn: Callable = functools.partial(
-        scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_simu_data=True
+        _scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_simu_data=True
     )
 
     _, ys = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
@@ -194,18 +185,9 @@ def run_scan_mem_optimized(
     Returns:
         A 2-tuple containing simulations statistics and final cells states
     """
-    N = cells0.shape[0]
-    nb_world_dims = cells0.ndim - 2
-    init_carry = {
-        'fn_params': (cells0, K, gf_params, kernels_weight_per_channel, T),
-        'stats_properties': {
-            'total_shift_idx': jnp.zeros([N, nb_world_dims], dtype=jnp.int32),
-            'mass_centroid': jnp.zeros([nb_world_dims, N]),
-            'mass_angle': jnp.zeros([N]),
-        }
-    }
+    init_carry = _get_init_carry(cells0, K, gf_params, kernels_weight_per_channel, T)
     fn: Callable = functools.partial(
-        scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_simu_data=False
+        _scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_simu_data=False
     )
 
     final_carry, stats = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
@@ -253,18 +235,9 @@ def run_scan_mem_optimized_pmap(
     Returns:
         A 2-tuple containing simulations statistics and final cells states
     """
-    N = cells0.shape[0]
-    nb_world_dims = cells0.ndim - 2
-    init_carry = {
-        'fn_params': (cells0, K, gf_params, kernels_weight_per_channel, T),
-        'stats_properties': {
-            'total_shift_idx': jnp.zeros([N, nb_world_dims], dtype=jnp.int32),
-            'mass_centroid': jnp.zeros([nb_world_dims, N]),
-            'mass_angle': jnp.zeros([N]),
-        }
-    }
+    init_carry = _get_init_carry(cells0, K, gf_params, kernels_weight_per_channel, T)
     fn: Callable = functools.partial(
-        scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_simu_data=False
+        _scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_simu_data=False
     )
 
     final_carry, stats = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
@@ -277,8 +250,29 @@ def run_scan_mem_optimized_pmap(
     return stats, final_cells
 
 
+def _get_init_carry(
+    cells0: jnp.ndarray,
+    K: jnp.ndarray,
+    gf_params: jnp.ndarray,
+    kernels_weight_per_channel: jnp.ndarray,
+    T: jnp.ndarray
+) -> Dict:
+    N = cells0.shape[0]
+    nb_world_dims = cells0.ndim - 2
+    init_carry = {
+        'fn_params': (cells0, K, gf_params, kernels_weight_per_channel, T),
+        'stats_properties': {
+            'total_shift_idx': jnp.zeros([N, nb_world_dims], dtype=jnp.int32),
+            'mass_centroid': jnp.zeros([nb_world_dims, N]),
+            'mass_angle': jnp.zeros([N]),
+        }
+    }
+
+    return init_carry
+
+
 @functools.partial(jit, static_argnums=(2, 3, 4))
-def scan_fn(
+def _scan_fn(
     carry: Dict,
     x: Optional[jnp.ndarray],
     update_fn: Callable,

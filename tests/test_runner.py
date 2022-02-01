@@ -10,7 +10,8 @@ from leniax import runner as leniax_runner
 from leniax import statistics as leniax_stat
 from leniax import utils as leniax_utils
 from leniax.utils import get_container
-from leniax.helpers import get_mem_optimized_inputs, build_update_fn, init
+from leniax.qd import get_dynamic_args
+from leniax.helpers import build_update_fn, init
 from leniax.lenia import LeniaIndividual
 from leniax.kernels import get_kernels_and_mapping
 
@@ -31,21 +32,21 @@ class TestRunner(unittest.TestCase):
 
         nb_lenia = 4
 
-        lenia_sols1 = []
+        leniax_sols1 = []
         for _ in range(nb_lenia):
             rng_key, subkey = jax.random.split(rng_key)
             len = LeniaIndividual(qd_config, subkey, [random.random(), random.random()])
-            lenia_sols1.append(len)
+            leniax_sols1.append(len)
 
-        (rng_key, run_scan_mem_optimized_parameters1) = get_mem_optimized_inputs(qd_config, lenia_sols1)
+        (rng_key, dynamic_args1) = get_dynamic_args(qd_config, leniax_sols1)
 
-        lenia_sols2 = []
+        leniax_sols2 = []
         for _ in range(nb_lenia):
             rng_key, subkey = jax.random.split(rng_key)
             len = LeniaIndividual(qd_config, subkey, [random.random(), random.random()])
-            lenia_sols2.append(len)
+            leniax_sols2.append(len)
 
-        (rng_key, run_scan_mem_optimized_parameters2) = get_mem_optimized_inputs(qd_config, lenia_sols2)
+        (rng_key, dynamic_args2) = get_dynamic_args(qd_config, leniax_sols2)
 
         max_run_iter = qd_config['run_params']['max_run_iter']
         world_params = qd_config['world_params']
@@ -63,7 +64,7 @@ class TestRunner(unittest.TestCase):
 
         t0 = time.time()
         stats1, _ = leniax_runner.run_scan_mem_optimized(
-            *run_scan_mem_optimized_parameters1,
+            *dynamic_args1,
             max_run_iter,
             R,
             update_fn,
@@ -74,7 +75,7 @@ class TestRunner(unittest.TestCase):
 
         t0 = time.time()
         stats2, _ = leniax_runner.run_scan_mem_optimized(
-            *run_scan_mem_optimized_parameters2,
+            *dynamic_args2,
             max_run_iter,
             R,
             update_fn,

@@ -1,5 +1,6 @@
 import time
 import os
+import logging
 from absl import logging as absl_logging
 from omegaconf import DictConfig
 import hydra
@@ -34,20 +35,21 @@ config_name = "orbium"
 @hydra.main(config_path=config_path, config_name=config_name)
 def run(omegaConf: DictConfig) -> None:
     config = leniax_utils.get_container(omegaConf, config_path)
+    leniax_utils.set_log_level(config)
 
     # config['render_params']['pixel_size_power2'] = 0
-    config['render_params']['pixel_size'] = 1
+    # config['render_params']['pixel_size'] = 1
     # config['render_params']['size_power2'] = 7
     # config['render_params']['world_size'] = [256, 256]
     # config['world_params']['scale'] = 2.
-    config['run_params']['max_run_iter'] = 512
+    # config['run_params']['max_run_iter'] = 512
 
     leniax_utils.print_config(config)
 
     save_dir = os.getcwd()  # changed by hydra
     leniax_utils.check_dir(save_dir)
 
-    print("Rendering: start")
+    logging.info("Rendering: start")
     start_time = time.time()
     all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
         config,
@@ -59,17 +61,17 @@ def run(omegaConf: DictConfig) -> None:
     all_cells = all_cells[:, 0]
     total_time = time.time() - start_time
     nb_iter_done = len(all_cells)
-    print(f"Rendering: {nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
+    logging.info(f"Rendering: {nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
 
-    print("Compressing")
+    logging.info("Compressing")
     start_time = time.time()
     config['run_params']['init_cells'] = leniax_loader.compress_array(all_cells[0])
     config['run_params']['cells'] = leniax_loader.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
     leniax_utils.save_config(save_dir, config)
     total_time = time.time() - start_time
-    print(f"Compressing in {total_time} seconds")
+    logging.info(f"Compressing done in {total_time} seconds")
 
-    print("Dumping assets")
+    logging.info("Dumping assets")
     transparent_bg = False
     colormaps = [
         # leniax_colormaps.get('alizarin'),
@@ -92,8 +94,8 @@ def run(omegaConf: DictConfig) -> None:
     ]
     leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict, colormaps, transparent_bg)
     for colormap in colormaps:
-        leniax_helpers.dump_frame(save_dir, f'last_frame_cropped_{colormap.name}', all_cells[-1], False, colormap)
-        leniax_helpers.dump_frame(save_dir, f'last_frame_{colormap.name}', all_cells[-1], True, colormap)
+        leniax_helpers.dump_frame(save_dir, f'last_frame_cropped_{colormap.name}', all_cells[-1], True, colormap)
+        leniax_helpers.dump_frame(save_dir, f'last_frame_{colormap.name}', all_cells[-1], False, colormap)
 
 
 if __name__ == '__main__':

@@ -1,3 +1,4 @@
+import functools
 import os
 import psutil
 import time
@@ -21,15 +22,17 @@ from . import utils as leniax_utils
 from . import loader as leniax_loader
 from . import runner as leniax_runner
 from . import helpers as leniax_helpers
+from . import kernels as leniax_kernels
 from . import initializations as leniax_init
 from .lenia import LeniaIndividual
 from .statistics import build_compute_stats_fn
-from .kernels import get_kernels_and_mapping
 
 QDMetrics = Dict[str, Dict[str, list]]
 
 
 def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, fitness_coef: float = 1., fft: bool = True) -> Callable:
+    """Construct the
+    """
     max_run_iter = qd_config['run_params']['max_run_iter']
     world_params = qd_config['world_params']
     R = world_params['R']
@@ -39,27 +42,101 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, fitness_coef: floa
     weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
     kernels_params = qd_config['kernels_params']
 
-    K, mapping = get_kernels_and_mapping(
+    K, mapping = leniax_kernels.get_kernels_and_mapping(
         kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R'], fft
     )
     update_fn = leniax_helpers.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
     compute_stats_fn = build_compute_stats_fn(world_params, render_params)
+    run_fn: Callable = functools.partial(
+        leniax_runner.run_scan_mem_optimized,
+        max_run_iter=max_run_iter,
+        R=R,
+        update_fn=update_fn,
+        compute_stats_fn=compute_stats_fn,
+    )
 
-    def eval_lenia_config_mem_optimized(lenia_sols: List[LeniaIndividual]) -> List[LeniaIndividual]:
-        qd_config = lenia_sols[0].qd_config
+    def eval_lenia_config_mem_optimized(leniax_sols: List[LeniaIndividual]) -> List[LeniaIndividual]:
+        qd_config = leniax_sols[0].qd_config
 
-        _, run_scan_mem_optimized_parameters = leniax_helpers.get_mem_optimized_inputs(qd_config, lenia_sols, fft)
-
-        stats, _ = leniax_runner.run_scan_mem_optimized(
-            *run_scan_mem_optimized_parameters, max_run_iter, R, update_fn, compute_stats_fn
-        )
+        _, dynamic_args = get_dynamic_args(qd_config, leniax_sols, fft)
+        stats, _ = run_fn(*dynamic_args)
         stats['N'].block_until_ready()
 
-        results = update_individuals(lenia_sols, stats, fitness_coef)
+        results = update_individuals(leniax_sols, stats, fitness_coef)
 
         return results
 
     return eval_lenia_config_mem_optimized
+
+
+def get_dynamic_args(
+    qd_config: Dict,
+    leniax_sols: List[LeniaIndividual],
+    fft: bool = True
+) -> Tuple[jax.random.KeyArray, Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
+    """Prepare dynamic arguments to be used in parrallel simulations
+
+    Args:
+        qd_config: Leniax QD configuration
+        leniax_sols: Candidate Leniax solutions
+
+
+    Returns:
+        A 5-tuple representing a batch of simulation parameters of shape
+        ``[N_sols, N_init, nb_channels, world_dims...]``
+    """
+    world_params = qd_config['world_params']
+    nb_channels = world_params['nb_channels']
+    R = world_params['R']
+
+    render_params = qd_config['render_params']
+    world_size = render_params['world_size']
+
+    run_params = qd_config['run_params']
+    nb_init_search = run_params['nb_init_search']
+
+    init_slug = qd_config['algo']['init_slug']
+
+    all_cells_0 = []
+    all_Ks = []
+    all_gf_params = []
+    all_kernels_weight_per_channel = []
+    all_Ts = []
+    for ind in leniax_sols:
+        config = ind.get_config()
+        kernels_params = config['kernels_params']
+
+        K, mapping = leniax_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)
+        gf_params = mapping.get_gf_params()
+        kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
+
+        nb_init = nb_channels * nb_init_search
+        rng_key, noises = leniax_init.register[init_slug](
+            ind.rng_key, nb_init, world_size, R, kernels_params[0]['gf_params']
+        )
+        cells_0 = noises.reshape([nb_init_search, nb_channels] + world_size)
+
+        all_cells_0.append(cells_0)
+        all_Ks.append(K)
+        all_gf_params.append(gf_params)
+        all_kernels_weight_per_channel.append(kernels_weight_per_channel)
+        all_Ts.append(config['world_params']['T'])
+
+    all_cells_0_jnp = jnp.stack(all_cells_0)  # add a dimension
+    all_Ks_jnp = jnp.stack(all_Ks)
+    all_gf_params_jnp = jnp.stack(all_gf_params)
+    all_kernels_weight_per_channel_jnp = jnp.stack(all_kernels_weight_per_channel)
+    all_Ts_jnp = jnp.stack(all_Ts)
+
+    dynamic_args = (
+        all_cells_0_jnp,
+        all_Ks_jnp,
+        all_gf_params_jnp,
+        all_kernels_weight_per_channel_jnp,
+        all_Ts_jnp,
+    )
+
+    return rng_key, dynamic_args
 
 
 def update_individuals(inds: List[LeniaIndividual],
@@ -163,18 +240,18 @@ def run_qd_search(
         # Request models from the optimizer.
         sols = optimizer.ask()
         rng_key, *subkeys = jax.random.split(rng_key, 1 + len(sols))
-        lenia_sols = [LeniaIndividual(qd_config, subkey, params) for subkey, params in zip(subkeys, sols)]
+        leniax_sols = [LeniaIndividual(qd_config, subkey, params) for subkey, params in zip(subkeys, sols)]
 
         # Evaluate the models and record the objectives and BCs.
         results: List
         if n_workers == -1:
             # Beware in this case, we expect the evaluation function to handle a list of solutions
-            results = eval_fn(lenia_sols)
+            results = eval_fn(leniax_sols)
         elif n_workers == 0:
-            results = list(map(eval_fn, lenia_sols))
+            results = list(map(eval_fn, leniax_sols))
         else:
             with get_context("spawn").Pool(processes=n_workers) as pool:
-                results = pool.map(eval_fn, lenia_sols)
+                results = pool.map(eval_fn, leniax_sols)
 
         # Send the results back to the optimizer.
         fits, bcs, metadata = [], [], []
@@ -284,7 +361,6 @@ def render_found_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
             config['run_params']['nb_init_search'] * config['world_params']['nb_channels'],
             config['render_params']['world_size'],
             config['world_params']['R'],
-            config['kernels_params'][0]['k_params'],
             config['kernels_params'][0]['gf_params']
         )
         init_noises_shape = [config['run_params']['nb_init_search'], config['world_params']['nb_channels']

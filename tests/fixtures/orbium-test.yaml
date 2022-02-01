@@ -1,3 +1,6 @@
+hydra:
+  run:
+    dir: tests/hydra_tmp/${now:%H-%M-%S}
 world_params:
   nb_dims: 2
   nb_channels: 1

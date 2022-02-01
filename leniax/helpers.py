@@ -1,3 +1,8 @@
+"""Leniax helper functions
+
+Those functions are provided to ease the use of this library. See them as template
+gluing core functions together to achieve common usages.
+"""
 import os
 import copy
 import json
@@ -10,7 +15,6 @@ import jax.numpy as jnp
 from typing import Callable, Dict, Tuple, List, Union
 import matplotlib.pyplot as plt
 
-from .lenia import LeniaIndividual
 from . import core as leniax_core
 from . import runner as leniax_runner
 from . import initializations as leniax_init
@@ -26,9 +30,21 @@ from .growth_functions import register as gf_register
 cdir = os.path.dirname(os.path.realpath(__file__))
 
 
-def init(config: Dict,
-         use_init_cells: bool = True,
-         fft: bool = True) -> Tuple[jnp.ndarray, jnp.ndarray, leniax_kernels.KernelMapping]:
+def init(
+    config: Dict,
+    use_init_cells: bool = True,
+    fft: bool = True,
+) -> Tuple[jnp.ndarray, jnp.ndarray, leniax_kernels.KernelMapping]:
+    """Construct the initial state and metadata to run a simulation.
+
+    Args:
+        config: Leniax confguration
+        use_init_cells: Set to ``True`` to use the ``init_cells`` configuration property.
+        fft: Set to ``True`` to use FFT optimization
+
+    Returns:
+        A 3-tuple representing the initial state, Kernel and mapping data
+    """
     nb_dims = config['world_params']['nb_dims']
     nb_channels = config['world_params']['nb_channels']
     world_size = config['render_params']['world_size']
@@ -74,9 +90,16 @@ def create_init_cells(
     other_cells: Union[jnp.ndarray, List[jnp.ndarray]] = [],
     offsets: List[List[int]] = [],
 ) -> jnp.ndarray:
-    """
-        Outputs:
-            - cells: jnp.ndarray[N=1, C, world_dims...]
+    """Construct the initial state
+
+    Args:
+        world_size: World size
+        nb_channels: Number of world channels
+        other_cells: Other initial states to merge
+        offsets: Offsets used to merge other initial states
+
+    Returns:
+        The initial state
     """
     world_shape = [nb_channels] + world_size  # [C, world_dims...]
     cells = jnp.zeros(world_shape)
@@ -101,9 +124,155 @@ def create_init_cells(
     return cells
 
 
-def search_for_init(rng_key: jax.random.KeyArray,
-                    config: Dict,
-                    fft: bool = True) -> Tuple[jax.random.KeyArray, Dict, int]:
+def init_and_run(
+    config: Dict,
+    use_init_cells: bool = True,
+    with_jit: bool = True,
+    fft: bool = True,
+    stat_trunc: bool = False
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
+    """Initialize and simulate a Lenia configuration
+
+    To simulate a configuration with multiple initializations you must set:
+    - ``with_jit=True`` so the function use the scan implementaton.
+    - ``stat_trunc=False`` multiple initializations means different simulation length measured by the statistics.
+
+    Args:
+        config: Lenia configuration
+        use_init_cells: Set to ``True`` to use the ``init_cells`` configuration property.
+        with_jit: Set to ``True`` to use the jitted scan implementation
+        fft: Set to ``True`` to use FFT optimization
+        stat_trunc: Set to ``True`` to truncate run based on its statistics
+
+    Returns:
+        A tuple of `[nb_iter, nb_init, nb_channels, world_dims...]` shaped
+        cells, fields, potentials and statistics of the simulation
+    """
+    config = copy.deepcopy(config)
+
+    cells, K, mapping = init(config, use_init_cells, fft)
+    gf_params = mapping.get_gf_params()
+    kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
+
+    world_params = config['world_params']
+    update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
+    weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
+    R = config['world_params']['R']
+    T = jnp.array(config['world_params']['T'])
+
+    max_run_iter = config['run_params']['max_run_iter']
+
+    update_fn = build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
+    compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
+
+    if with_jit is True:
+        all_cells, all_fields, all_potentials, stats_dict = leniax_runner.run_scan(
+            cells, K, gf_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
+        )
+    else:
+        all_cells, all_fields, all_potentials, stats_dict = leniax_runner.run(
+            cells, K, gf_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
+        )  # [nb_iter, nb_init, C, world_dims...]
+    stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
+
+    if stat_trunc is True:
+        all_cells = all_cells[:int(stats_dict['N'])]  # [nb_iter, C, world_dims...]
+        all_fields = all_fields[:int(stats_dict['N'])]
+        all_potentials = all_potentials[:int(stats_dict['N'])]
+
+    return all_cells, all_fields, all_potentials, stats_dict
+
+
+def search_for_mutation(
+    rng_key: jax.random.KeyArray,
+    config: Dict,
+    nb_scale_for_stability: int = 1,
+    use_init_cells: bool = True,
+    fft: bool = True,
+    mutation_rate: float = 1e-5,
+) -> Tuple[jax.random.KeyArray, Tuple[Dict, int]]:
+    """Search for a stable mutation
+
+    Args:
+        rng_key: JAX PRNG key.
+        config: Lenia configuration.
+        use_init_cells: Set to ``True`` to use the ``init_cells`` configuration property.
+        fft: Set to ``True`` to use FFT optimization.
+        nb_scale_for_stability: Number of time the configuration will be scaled and tested.
+        mutation_rate: Mutation rate.
+
+    Returns:
+        The new rng_key and a 2-tuple of a dictionnary with the best run data and
+        the number of runs made to find it
+    """
+    render_params = config['render_params']
+    world_size = render_params['world_size']
+
+    run_params = config['run_params']
+    nb_mut_search = run_params['nb_mut_search']
+    max_run_iter = run_params['max_run_iter']
+
+    best_run = {}
+    current_max = 0
+    for i in range(nb_mut_search):
+        copied_config = copy.deepcopy(config)
+        for gene in config['genotype']:
+            val = leniax_utils.get_param(copied_config, gene['key'])
+            val += np.random.normal(0., mutation_rate)
+            leniax_utils.set_param(copied_config, gene['key'], val)
+
+        total_iter_done = 0
+        nb_iter_done = 0
+        for scale_power in range(nb_scale_for_stability):
+            # t0 = time.time()
+            scaled_config = copy.deepcopy(copied_config)
+            scaled_config['render_params']['world_size'] = [ws * 2**scale_power for ws in world_size]
+            scaled_config['world_params']['scale'] = 2**scale_power
+
+            all_cells, _, _, stats_dict = init_and_run(
+                scaled_config, use_init_cells=use_init_cells, with_jit=True, fft=fft
+            )
+            all_cells = all_cells[:, 0]
+            stats_dict['N'].block_until_ready()
+
+            nb_iter_done = max(nb_iter_done, stats_dict['N'])
+            total_iter_done += stats_dict['N']
+
+        # Current_max at all scale
+        # print(f'total_iter_done: {total_iter_done}')
+        if current_max < total_iter_done:
+            current_max = total_iter_done
+            best_run = {
+                "N": nb_iter_done,
+                "all_cells": all_cells,
+                "all_stats": stats_dict,
+                "config": copied_config,
+            }
+
+        if total_iter_done >= max_run_iter * nb_scale_for_stability:
+            break
+
+        # print(t1 - t0, nb_iter_done)
+
+    return rng_key, (best_run, i)
+
+
+def search_for_init(
+    rng_key: jax.random.KeyArray,
+    config: Dict,
+    fft: bool = True,
+) -> Tuple[jax.random.KeyArray, Tuple[Dict, int]]:
+    """Search for a stable initial state
+
+    Args:
+        rng_key: JAX PRNG key.
+        config: Lenia configuration.
+        fft: Set to ``True`` to use FFT optimization.
+
+    Returns:
+        The new rng_key and a 2-tuple of a dictionnary with the best run data and
+        the number of runs made to find it
+    """
     world_params = config['world_params']
     nb_channels = world_params['nb_channels']
     update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
@@ -169,197 +338,33 @@ def search_for_init(rng_key: jax.random.KeyArray,
 
         # print(t1 - t0, nb_iter_done)
 
-    return rng_key, best_run, i
+    return rng_key, (best_run, i)
 
 
-MUTATION_RATE = 1e-5
-
-
-def search_for_mutation(
-    rng_key: jax.random.KeyArray,
-    config: Dict,
-    nb_scale_for_stability: int = 1,
-    fft: bool = True,
-    use_init_cells: bool = True
-) -> Tuple[jax.random.KeyArray, Dict, int]:
-    render_params = config['render_params']
-    world_size = render_params['world_size']
-
-    run_params = config['run_params']
-    nb_mut_search = run_params['nb_mut_search']
-    max_run_iter = run_params['max_run_iter']
-    best_run = {}
-    current_max = 0
-    for i in range(nb_mut_search):
-        copied_config = copy.deepcopy(config)
-        for gene in config['genotype']:
-            val = leniax_utils.get_param(copied_config, gene['key'])
-            val += np.random.normal(0., MUTATION_RATE)
-            leniax_utils.set_param(copied_config, gene['key'], val)
-
-        total_iter_done = 0
-        nb_iter_done = 0
-        for scale_power in range(nb_scale_for_stability):
-            # t0 = time.time()
-            scaled_config = copy.deepcopy(copied_config)
-            scaled_config['render_params']['world_size'] = [ws * 2**scale_power for ws in world_size]
-            scaled_config['world_params']['scale'] = 2**scale_power
-
-            all_cells, _, _, stats_dict = init_and_run(
-                scaled_config, use_init_cells=use_init_cells, with_jit=True, fft=fft
-            )
-            all_cells = all_cells[:, 0]
-            stats_dict['N'].block_until_ready()
-
-            nb_iter_done = max(nb_iter_done, stats_dict['N'])
-            total_iter_done += stats_dict['N']
-
-        # Current_max at all scale
-        # print(f'total_iter_done: {total_iter_done}')
-        if current_max < total_iter_done:
-            current_max = total_iter_done
-            best_run = {
-                "N": nb_iter_done,
-                "all_cells": all_cells,
-                "all_stats": stats_dict,
-                "config": copied_config,
-            }
-
-        if total_iter_done >= max_run_iter * nb_scale_for_stability:
-            break
-
-        # print(t1 - t0, nb_iter_done)
-
-    return rng_key, best_run, i
-
-
-def init_and_run(
-    config: Dict,
-    use_init_cells: bool = True,
-    with_jit: bool = True,
-    fft: bool = True,
-    stat_trunc: bool = False
-) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
-    """Initialize and simulate a Lenia configuration
-
-    To simulate a configuration with multiple initializations you must set
-    ``with_jit`` to ``True`` so the function use the scan implementaton.
-    Tou must also set ``stat_trunc`` to ``False``: multiple initializartions
-    means different simulation length measured by the statistics.
-
-    Args:
-        config: The Lenia configuration
-        use_init_cells: Boolean to choose if the `init_cells` field in the configuraiton will be used
-        with_jit: Boolean to choose if the jitted function will be used
-        fft: Boolean to choose if the fft implementation will be used
-        stat_trunc: Boolean to choose if the outputs will be truncated using the simulation statistics
-
-    Returns:
-        A tuple of `[nb_iter, nb_init, nb_channels, world_dims...]` shaped
-        cells, fields, potentials and statistics of the simulation
-    """
-    config = copy.deepcopy(config)
-
-    cells, K, mapping = init(config, use_init_cells, fft)
-    gf_params = mapping.get_gf_params()
-    kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
-
-    world_params = config['world_params']
-    update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
-    weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
-    R = config['world_params']['R']
-    T = jnp.array(config['world_params']['T'])
-
-    max_run_iter = config['run_params']['max_run_iter']
-
-    update_fn = build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
-    compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
-
-    if with_jit is True:
-        all_cells, all_fields, all_potentials, stats_dict = leniax_runner.run_scan(
-            cells, K, gf_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
-        )
-    else:
-        all_cells, all_fields, all_potentials, stats_dict = leniax_runner.run(
-            cells, K, gf_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
-        )  # [nb_iter, nb_init, C, world_dims...]
-    stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
-
-    if stat_trunc is True:
-        all_cells = all_cells[:int(stats_dict['N'])]  # [nb_iter, C, world_dims...]
-        all_fields = all_fields[:int(stats_dict['N'])]
-        all_potentials = all_potentials[:int(stats_dict['N'])]
-
-    return all_cells, all_fields, all_potentials, stats_dict
-
-
-def get_mem_optimized_inputs(qd_config: Dict, lenia_sols: List[LeniaIndividual], fft: bool = True):
-    """
-        All critical parameters are taken from the qd_config.
-        All non-critical parameters are taken from each potential lenia solutions
-    """
-    world_params = qd_config['world_params']
-    nb_channels = world_params['nb_channels']
-    R = world_params['R']
-
-    render_params = qd_config['render_params']
-    world_size = render_params['world_size']
-
-    run_params = qd_config['run_params']
-    nb_init_search = run_params['nb_init_search']
-
-    init_slug = qd_config['algo']['init_slug']
-
-    all_cells_0 = []
-    all_Ks = []
-    all_gf_params = []
-    all_kernels_weight_per_channel = []
-    all_Ts = []
-    for ind in lenia_sols:
-        config = ind.get_config()
-        kernels_params = config['kernels_params']
-
-        K, mapping = leniax_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)
-        gf_params = mapping.get_gf_params()
-        kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
-
-        nb_channels_to_init = nb_channels * nb_init_search
-        rng_key, noises = leniax_init.register[init_slug](
-            ind.rng_key, nb_channels_to_init, world_size, R, kernels_params[0]['k_params'], kernels_params[0]['gf_params']
-        )
-        cells_0 = noises.reshape([nb_init_search, nb_channels] + world_size)
-
-        all_cells_0.append(cells_0)
-        all_Ks.append(K)
-        all_gf_params.append(gf_params)
-        all_kernels_weight_per_channel.append(kernels_weight_per_channel)
-        all_Ts.append(config['world_params']['T'])
-
-    all_cells_0_jnp = jnp.stack(all_cells_0)  # add a dimension
-    all_Ks_jnp = jnp.stack(all_Ks)
-    all_gf_params_jnp = jnp.stack(all_gf_params)
-    all_kernels_weight_per_channel_jnp = jnp.stack(all_kernels_weight_per_channel)
-    all_Ts_jnp = jnp.stack(all_Ts)
-
-    run_scan_mem_optimized_parameters = (
-        all_cells_0_jnp,
-        all_Ks_jnp,
-        all_gf_params_jnp,
-        all_kernels_weight_per_channel_jnp,
-        all_Ts_jnp,
-    )
-
-    return rng_key, run_scan_mem_optimized_parameters
-
-
+###
+# Pipeline dynamic builder
+###
 def build_update_fn(
-    K_shape: Tuple[int, ...],
+    kernel_shape: Tuple[int, ...],
     mapping: leniax_kernels.KernelMapping,
     update_fn_version: str = 'v1',
     average_weight: bool = True,
     fft: bool = True,
 ) -> Callable:
-    get_potential_fn = build_get_potential_fn(K_shape, mapping.true_channels, fft)
+    """Construct an Leniax update function
+
+    An update function allows one to update a simulation state.
+
+    Args:
+        kernel_shape: Kernel shape.
+        mapping: Mapping data.
+        update_fn_version: Which version of Lenia should be run
+        fft: Set to ``True`` to use FFT optimization
+
+    Returns:
+        A Leniax update function
+    """
+    get_potential_fn = build_get_potential_fn(kernel_shape, mapping.true_channels, fft)
     get_field_fn = build_get_field_fn(mapping.cin_growth_fns, average_weight)
     if update_fn_version == 'v1':
         update_fn = leniax_core.update_cells
@@ -374,6 +379,18 @@ def build_update_fn(
 
 
 def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: jnp.ndarray, fft: bool = True) -> Callable:
+    """Construct an Leniax potential function
+
+    A potential function allows one to compute the potential from a Lenia state.
+
+    Args:
+        kernel_shape: Kernel shape.
+        true_channels: Boolean array indicating the true potential channels
+        fft: Set to ``True`` to use FFT optimization
+
+    Returns:
+        A Leniax potential function
+    """
     # First 2 dimensions are for fake batch dim and nb_channels
     if fft is True:
         max_k_per_channel = kernel_shape[1]
@@ -395,6 +412,17 @@ def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: jnp.nda
 
 
 def build_get_field_fn(cin_growth_fns: List[List[str]], average: bool = True) -> Callable:
+    """Construct an Leniax field function
+
+    A field function allows one to compute the field from a Lenia potential.
+
+    Args:
+        cin_growth_fns: List of growth functions per channel.
+        average: Set to ``True`` to average instead of summing input channels
+
+    Returns:
+        A Leniax field function
+    """
     growth_fn_l = []
     for growth_fns_per_channel in cin_growth_fns:
         for gf_slug in growth_fns_per_channel:
@@ -415,9 +443,30 @@ def build_get_field_fn(cin_growth_fns: List[List[str]], average: bool = True) ->
 # Viz
 ###
 def dump_assets(
-    save_dir: str, config: Dict, all_cells: jnp.ndarray, stats_dict: Dict, colormaps=None, transparent_bg=False
+    save_dir: str,
+    config: Dict,
+    all_cells: jnp.ndarray,
+    stats_dict: Dict,
+    colormaps: List = [],
+    transparent_bg: bool = False
 ):
-    if colormaps is None:
+    """Dump a set of interesting assets.
+
+        Those assets include:
+            - Simulation statistics (plots and data)
+            - Kernels and growth functions plots
+            - Last frame
+            - Video and Gif of the simulation
+
+    Args:
+        save_dir: directory used to save assets.
+        config: Leniax configuration.
+        all_cells: Simulation data of shape ``[nb_iter, C, world_dims...]``.
+        stats_dict: Leniax statistics dictionnary.
+        colormaps: A List of matplotlib compatible colormap.
+        transparent_bg: Set to ``True`` to maek the background transparent.
+    """
+    if len(colormaps) == 0:
         colormaps = [
             leniax_colormaps.ExtendedColormap('extended')
         ]  # https://matplotlib.org/stable/tutorials/colors/colormaps.html
@@ -432,9 +481,9 @@ def dump_assets(
     # with open(os.path.join(save_dir, 'cells.p'), 'wb') as f:
     #     np.save(f, np.array(all_cells))
 
-    dump_last_frame(save_dir, all_cells, True, colormaps[0])
+    dump_last_frame(save_dir, all_cells, False, colormaps[0])
 
-    dump_viz_data(save_dir, stats_dict, config)
+    dump_viz_data(save_dir, config, stats_dict)
 
     all_outputs_fullpath = leniax_video.dump_video(
         save_dir, all_cells, config['render_params'], colormaps, '', transparent_bg
@@ -443,18 +492,43 @@ def dump_assets(
         leniax_video.dump_gif(output_fullpath)
 
 
-def dump_last_frame(save_dir: str, all_cells: jnp.ndarray, raw: bool = False, colormap=None):
-    """
-        Args:
-            - save_dir: str
-            - all_cells: jnp.ndarray[nb_iter, C, world_dims...]
+def dump_last_frame(
+    save_dir: str,
+    all_cells: jnp.ndarray,
+    center_and_crop: bool = True,
+    colormap=None,
+):
+    """Dump the last frame of the simulation
+
+    The dumped last frame is called **last_frame.png**.
+
+    Args:
+        save_dir: directory used to save assets.
+        all_cells: Simulation data of shape ``[nb_iter, C, world_dims...]``.
+        center_and_crop: Set to ``True`` to center the stable pattern and crop the margin.
+        colormap: A  matplotlib compatible colormap.
     """
     last_frame = all_cells[-1]
-    dump_frame(save_dir, 'last_frame', last_frame, raw, colormap)
+    dump_frame(save_dir, 'last_frame', last_frame, center_and_crop, colormap)
 
 
-def dump_frame(save_dir: str, filename: str, cells: jnp.ndarray, raw: bool = False, colormap=None):
-    if raw is False:
+def dump_frame(
+    save_dir: str,
+    filename: str,
+    cells: jnp.ndarray,
+    center_and_crop: bool = True,
+    colormap=None,
+):
+    """Dump a Lenia state as a image
+
+    Args:
+        save_dir: directory used to save assets.
+        filename: File name.
+        cells: A Lenia state of shape ``[C, world_dims...]``.
+        center_and_crop: Set to ``True`` to center the stable pattern and crop the margin.
+        colormap: A  matplotlib compatible colormap.
+    """
+    if center_and_crop is True:
         cells = leniax_utils.center_and_crop_cells(cells)
     if colormap is None:
         colormap = plt.get_cmap('plasma')
@@ -467,7 +541,15 @@ def dump_frame(save_dir: str, filename: str, cells: jnp.ndarray, raw: bool = Fal
         img.save(f, format='png')
 
 
-def dump_viz_data(save_dir: str, stats_dict: Dict, config: Dict):
+def dump_viz_data(save_dir: str, config: Dict, stats_dict: Dict):
+    """Dump vizualization data as JSON
+
+    Args:
+        save_dir: directory used to save assets.
+        config: Leniax configuration.
+        stats_dict: Leniax statistics dictionnary.
+    """
+
     viz_data: Dict = {'stats': {}}
     for k, v in stats_dict.items():
         if k == 'N':
@@ -483,7 +565,14 @@ def dump_viz_data(save_dir: str, stats_dict: Dict, config: Dict):
         json.dump(viz_data, fviz)
 
 
-def plot_kernels(save_dir, config):
+def plot_kernels(save_dir: str, config: Dict):
+    """Plots kernels and growth functions
+
+    Args:
+        save_dir: directory used to save assets.
+        config: Leniax configuration.
+    """
+
     R = config['world_params']['R']
 
     x = jnp.linspace(0, 1, 1000)
@@ -495,7 +584,7 @@ def plot_kernels(save_dir, config):
         else:
             k = leniax_kernels.register[param['k_slug']](param['k_params'], param['kf_slug'], param['kf_params'])
         all_ks.append(k)
-        gf_params = np.array(param["gf_params"])
+        gf_params = jnp.array(param["gf_params"])
         all_gs.append(leniax_gf.register[param['gf_slug']](gf_params, x) * param['h'])
     Ks = leniax_utils.crop_zero(jnp.vstack(all_ks))
     nb_Ks = Ks.shape[0]

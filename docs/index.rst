@@ -44,5 +44,7 @@ For a quick introduction and short example snippets, see our `README
 
    leniax.core
    leniax.runner
+   leniax.helpers
    leniax.growth_functions
+   leniax.kernel_functions
 

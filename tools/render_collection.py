@@ -91,9 +91,9 @@ def scale_cells(cells: jnp.ndarray, scale: float) -> jnp.ndarray:
 def dump_assets(inputData):
     scale, subdir, all_cells, render_params, colormap, dump_gif = inputData
 
-    leniax_helpers.dump_frame(subdir, f'creature_scale{scale}', all_cells[-1], False, colormap)
+    leniax_helpers.dump_frame(subdir, f'creature_scale{scale}', all_cells[-1], True, colormap)
     leniax_helpers.dump_frame(
-        subdir, f'world_scale{scale}', leniax_utils.auto_center_cells(all_cells[-1]), True, colormap
+        subdir, f'world_scale{scale}', leniax_utils.auto_center_cells(all_cells[-1]), False, colormap
     )
     all_outputs_fullpath = leniax_video.dump_video(subdir, all_cells, render_params, [colormap], 'creature_scale4')
     if dump_gif:
@@ -171,7 +171,7 @@ def run() -> None:
                     print('/////////////////////////////////////////////')
                     continue
 
-                leniax_helpers.dump_viz_data(subdir, stats_dict, config)
+                leniax_helpers.dump_viz_data(subdir, config, stats_dict)
 
                 # colormap_names = list(leniax_colormaps.colormaps.keys())
                 # colormap_names.remove('rainbow_transparent')
@@ -182,7 +182,7 @@ def run() -> None:
                 # colormap = leniax_colormaps.get(colormap_names[colormap_idx])
                 colormap = leniax_colormaps.ExtendedColormap('extended')
 
-                leniax_helpers.dump_frame(subdir, 'init', all_cells[-1], False, colormap)
+                leniax_helpers.dump_frame(subdir, 'init', all_cells[-1], True, colormap)
                 leniax_video.dump_video(subdir, all_cells, tmp_config_1['render_params'], [colormap], 'init')
 
                 # I didn't find a solution to discover which frames are stable to scale

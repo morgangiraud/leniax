@@ -1,16 +1,41 @@
 # Leniax
+| Website | Source | PyPI | Conda | CI/CD | Docs | Docs Status | Twitter |
+| :------------------------------: | :--------------------------------------------: | :---------------------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :----------------------------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------: |
+| [leniax.org](https://leniax.org) | [GitHub](https://github.com/morgangiraud/leniax) | [![PyPI](https://img.shields.io/pypi/v/ribs.svg?style=flat-square&color=blue)](https://pypi.python.org/pypi/leniax) | [![Conda Recipe](https://img.shields.io/badge/recipe-pyribs-green.svg?style=flat-square)](https://anaconda.org/conda-forge/leniax) | [![Tests](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2Ficaros-usc%2Fpyribs%2Fbadge&style=flat-square)](https://github.com/morgangiraud/leniax/actions?query=workflow%3A"Tests") | [docs.pyribs.org](https://docs.pyribs.org) | [![Documentation Status](https://readthedocs.org/projects/ribs/badge/?version=stable&style=flat-square)](https://readthedocs.org/projects/ribs/) | [![Twitter](https://img.shields.io/badge/twitter-%231DA1F2.svg?&style=flat-square&logo=twitter&logoColor=white)](https://twitter.com/pyribs) |
+
 Leniax is a [Lenia](https://chakazul.github.io/lenia.html) simulation library powered by JAX.
 It can efficiently simulate and render Lenia worlds and can also be used to search for creatures, initial conditions, kernels and growth functions.
 It is also fully differentiable!
 
-## Install
+## Installation
+
+### From source
+To install a version from source, clone the repo
+```
+git clone https://github.com/morgangiraud/leniax
+cd leniax
+```
 Install Leniax library with conda (make sure you have it before typing the following command): `make install`
 **Currently, only an OSX environment is provided**
 
 Then activate the environment: `conda activate leniax`
 Now, install the lib itself in the conda env: `pip install -e .`
 
+### Verification
 Finally, make sure, everything is fine by running the following command: `make ci`
+
+## Documentation
+See here for the documentation: https://docs.pyribs.org
+
+To serve the documentation locally, clone the repo and install the development requirements with
+```
+cd docs
+pip install -r requirements.txt
+```
+then run
+```
+make html
+```
 
 ## About Lenia
 In Lenia we have multiple things interacting with each other:
@@ -46,7 +71,7 @@ This introduces limitations, all configurations mush share:
 ### Gradient API
 The gradient API does not allow one to explore multiple solutions nor multiple initialization at the same time.
 
-### What search algorith mare you using
+### What search algorithm are you using
 I'm using the family of Quality-Diversity algorithm to search for species. More precisely, I'm mainly using the CMA-ME algorithm with multiple emitters.
 
 I believe those are particularly adapted to search for Lenia creatures as we can search over some *genetic* parameters and store high-potential creatures using some *behavioral* parameters.

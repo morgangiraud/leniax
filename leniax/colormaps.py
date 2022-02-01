@@ -1,3 +1,6 @@
+"""Leniax colormaps
+"""
+
 from __future__ import annotations
 
 import json
@@ -10,13 +13,13 @@ from hilbertcurve.hilbertcurve import HilbertCurve
 
 
 class PerceptualGradientColormap():
-    """The perceptual gradient colormap class
+    """Perceptual gradient colormap
 
     Attributes:
-        name: Name of the colormap
-        hex_bg_color: The bacground color (in hexadecimal)
-        hex_colors: the list of colors used to create the perceptual gradient
-        cmap: Matplotlib ListedColormap
+        name: Colormap name
+        hex_bg_color: Background color (in hexadecimal)
+        hex_colors: List of colors used to create the perceptual gradient
+        cmap: Matplotlib ``ListedColormap``
     """
 
     name: str
@@ -25,14 +28,12 @@ class PerceptualGradientColormap():
     cmap: ListedColormap
 
     def __init__(self, name: str, hex_bg_color: str, hex_colors: List[str]) -> None:
-        """initialize the RNN cell carry.
+        """Initialize the perceptual colormap
 
         Args:
-            name: Name of the colormap
-            hex_bg_color: The bacground color (in hexadecimal)
-            hex_colors: the list of colors used to create the perceptual gradient
-        Returns:
-            Nothing
+            name: Colormap name
+            hex_bg_color: Background color (in hexadecimal)
+            hex_colors: List of colors used to create the perceptual gradient
         """
         self.name = name
         self.hex_bg_color = hex_bg_color
@@ -44,8 +45,9 @@ class PerceptualGradientColormap():
 
         Args:
             data: 1-channel data
+
         Returns:
-            RGBA data
+            RGBA data of shape [nb_dims..., 1, C=4] and dtype float32
         """
         return self.cmap(data)
 
@@ -81,53 +83,130 @@ class PerceptualGradientColormap():
 
 
 class Hilbert2d3dColormap():
-    def __init__(self, name: str, p_pixels: int = 7, p_colors: int = 12):
+    """Colormap using Hilbert curves
+
+    This Colormap use Hilbert curves to map a 2 channel image to a 3 channel one.
+
+    Attributes:
+        name: Colormap name
+        nb_pixels_power2: Number of pixels defined as a power of 2
+        nb_colors_power2: Number of colors defined as a power of 2
+    """
+
+    name: str
+    nb_pixels_power2: int
+    nb_colors_power2: int
+
+    def __init__(self, name: str, nb_pixels_power2: int = 7, nb_colors_power2: int = 12):
+        """Initialize the Hilbert 2d->3d mapping colormap
+
+        Args:
+            name: Colormap name
+            nb_pixels_power2: Number of pixels defined as a power of 2
+            nb_colors_power2: Number of colors defined as a power of 2
+        """
         self.name = name
+        self.nb_pixels_power2 = nb_pixels_power2
+        self.nb_colors_power2 = nb_colors_power2
 
-        H = 2**p_pixels
-        W = 2**p_pixels
-        self.nb_pixels = H * W
-        self.mapping = np.zeros([H, W, 4])
+        self._populate()
 
-        self.nb_colors = (2**p_colors)**2
+    def set_nb_pixels_power2(self, nb_pixels_power2: int = 7):
+        """Set the number of pixels as a power of 2
 
-        self.pixel_colors_step_size = (2**(p_colors - p_pixels))**2
+        Args:
+            nb_pixels_power2: Number of pixels defined as a power of 2
+        """
 
-        self.hilbert2d = HilbertCurve(p_pixels, 2)
-        self.hilbert3d = HilbertCurve(p_colors, 3)
+        self.nb_pixels_power2 = nb_pixels_power2
 
-        self.populate()
+        self._populate()
 
-    def populate(self):
-        for i in range(self.nb_pixels):
-            rgb = self.hilbert3d.point_from_distance(self.pixel_colors_step_size * i)
-            px_pos = self.hilbert2d.point_from_distance(i)
+    def set_nb_colors_power2(self, nb_colors_power2: int = 12):
+        """Set the number of colors as a power of 2
 
-            self.mapping[px_pos[0], px_pos[1]] = np.array(list(rgb) + [255]) / 255
+        Args:
+            nb_colors_power2: Number of pixels defined as a power of 2
+        """
+        self.nb_colors_power2 = nb_colors_power2
 
-    def __call__(self, data):
+        self._populate()
+
+    def _populate(self):
+        H = W = 2**self.nb_pixels_power2
+        nb_pixels = H * W
+        pixel_colors_step_size = (2**(self.nb_colors_power2 - self.nb_pixels_power2))**2
+        hilbert2d = HilbertCurve(self.nb_pixels_power2, n=2)
+        hilbert3d = HilbertCurve(self.nb_colors_power2, n=3)
+
+        self._rgba_mapping = np.zeros([H, W, 4], dtype=np.float32)
+        self._max_h = self._rgba_mapping.shape[0] - 1
+        self._max_w = self._rgba_mapping.shape[1] - 1
+
+        for i in range(nb_pixels):
+            px_pos = hilbert2d.point_from_distance(i)
+            rgb = hilbert3d.point_from_distance(pixel_colors_step_size * i)
+
+            self._rgba_mapping[px_pos[0], px_pos[1]] = np.array(list(rgb) + [255]) / 255
+
+    def __call__(self, data: np.ndarray):
+        """Apply the colormap
+
+        Args:
+            data: data of shape [nb_dims..., C=2] and dtype float32
+
+        Returns:
+            RGBA data of shape [nb_dims..., 1, C=4] and dtype float32
+        """
+
         assert data.shape[-1] == 2
+
         ori_shape = data.shape
+        # Map data as 2d coordinates
         data = data.reshape(-1, 2)
-
-        max_h = self.mapping.shape[0] - 1
-        max_w = self.mapping.shape[1] - 1
-
-        data[:, 0] = (data[:, 0] * max_h).round()
-        data[:, 1] = (data[:, 1] * max_w).round()
+        data[:, 0] = (data[:, 0] * self._max_h).round()
+        data[:, 1] = (data[:, 1] * self._max_w).round()
         data = data.astype(np.uint8)
 
-        data = self.mapping[data[:, 0], data[:, 1]]
+        # Gather RGBA values
+        data = self._rgba_mapping[data[:, 0], data[:, 1]]
 
         return data.reshape(list(ori_shape[:-1]) + [1, 4])
 
 
 class ExtendedColormap():
+    """Extended colormap
+
+    This colormaps simply extends less than 3 channels data into 4 channels RGBA data
+
+    Attributes:
+        name: Colormap name
+        transparent_bg: Should the background be made transparent
+    """
+
+    name: str
+    transparent_bg: bool
+
     def __init__(self, name: str, transparent_bg: bool = False):
+        """Initialize the perceptual colormap
+
+        Args:
+            name: Colormap name
+            transparent_bg: Should the background be made transparent
+        """
         self.name = name
         self.transparent_bg = transparent_bg
 
     def __call__(self, data):
+        """Apply the colormap
+
+        Args:
+            data: 1-channel data
+
+        Returns:
+            RGBA data of shape [nb_dims..., 1, C=4] and dtype float32
+        """
+
         c = data.shape[-1]
 
         if self.transparent_bg is True:

@@ -10,3 +10,5 @@ leniax.growth_functions package
 .. autofunction:: gaussian
 .. autofunction:: gaussian_target
 .. autofunction:: step
+.. autofunction:: staircase
+.. autofunction:: triangle

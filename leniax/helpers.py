@@ -21,10 +21,10 @@ from . import initializations as leniax_init
 from . import statistics as leniax_stat
 from . import loader as leniax_loader
 from . import utils as leniax_utils
-from . import growth_functions as leniax_gf
 from . import video as leniax_video
 from . import colormaps as leniax_colormaps
 from . import kernels as leniax_kernels
+from .kernel_functions import register as kf_register
 from .growth_functions import register as gf_register
 
 cdir = os.path.dirname(os.path.realpath(__file__))
@@ -577,15 +577,16 @@ def plot_kernels(save_dir: str, config: Dict):
 
     x = jnp.linspace(0, 1, 1000)
     all_ks = []
-    all_gs = []
+    all_kfs = []
+    all_gfs = []
     for param in config['kernels_params']:
         if param['k_slug'] == 'raw':
             k = jnp.array(param['k_params'])
         else:
             k = leniax_kernels.register[param['k_slug']](param['k_params'], param['kf_slug'], param['kf_params'])
         all_ks.append(k)
-        gf_params = jnp.array(param["gf_params"])
-        all_gs.append(leniax_gf.register[param['gf_slug']](gf_params, x) * param['h'])
+        all_kfs.append(kf_register[param['kf_slug']](param['kf_params'], x))
+        all_gfs.append(gf_register[param['gf_slug']](param["gf_params"], x) * param['h'])
     Ks = leniax_utils.crop_zero(jnp.vstack(all_ks))
     nb_Ks = Ks.shape[0]
 
@@ -628,18 +629,22 @@ def plot_kernels(save_dir: str, config: Dict):
 
     # Plot Kernels and growth functions
     fullpath = f"{save_dir}/Ks_graph.png"
-    fig, ax = plt.subplots(1, 2, figsize=(10, 2))
+    fig, ax = plt.subplots(1, 3, figsize=(10, 2))
+
+    ax[0].plot(x, jnp.asarray(all_kfs).T)
+    ax[0].axhline(y=0, color='grey', linestyle='dotted')
+    ax[0].title.set_text('Kernel functions')
 
     if len(Ks.shape) == 3:
-        ax[0].plot(range(K_size), Ks[:, K_mid, :].T)
+        ax[1].plot(range(K_size), Ks[:, K_mid, :].T)
     elif len(Ks.shape) == 4:
-        ax[0].plot(range(K_size), Ks[:, K_mid, K_mid, :].T)
-    ax[0].title.set_text('Ks cross-sections')
-    ax[0].set_xlim([K_mid - R - 3, K_mid + R + 3])
+        ax[1].plot(range(K_size), Ks[:, K_mid, K_mid, :].T)
+    ax[1].title.set_text('Ks cross-sections')
+    ax[1].set_xlim([K_mid - R - 3, K_mid + R + 3])
 
-    ax[1].plot(x, jnp.asarray(all_gs).T)
-    ax[1].axhline(y=0, color='grey', linestyle='dotted')
-    ax[1].title.set_text('growths Gs')
+    ax[2].plot(x, jnp.asarray(all_gfs).T)
+    ax[2].axhline(y=0, color='grey', linestyle='dotted')
+    ax[2].title.set_text('Growth functions')
 
     plt.tight_layout()
     fig.savefig(fullpath)

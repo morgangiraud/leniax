@@ -89,15 +89,15 @@ def scale_cells(cells: jnp.ndarray, scale: float) -> jnp.ndarray:
 
 
 def dump_assets(inputData):
-    scale, subdir, all_cells, render_params, colormap, dump_gif = inputData
+    scale, subdir, all_cells, render_params, colormap, render_gif = inputData
 
     leniax_helpers.dump_frame(subdir, f'creature_scale{scale}', all_cells[-1], True, colormap)
     leniax_helpers.dump_frame(
         subdir, f'world_scale{scale}', leniax_utils.auto_center_cells(all_cells[-1]), False, colormap
     )
-    all_outputs_fullpath = leniax_video.dump_video(subdir, all_cells, render_params, [colormap], 'creature_scale4')
-    if dump_gif:
-        leniax_video.dump_gif(all_outputs_fullpath[0])
+    all_outputs_fullpath = leniax_video.render_video(subdir, all_cells, render_params, [colormap], 'creature_scale4')
+    if render_gif:
+        leniax_video.render_gif(all_outputs_fullpath[0])
 
     return all_outputs_fullpath
 
@@ -183,7 +183,7 @@ def run() -> None:
                 colormap = leniax_colormaps.ExtendedColormap('extended')
 
                 leniax_helpers.dump_frame(subdir, 'init', all_cells[-1], True, colormap)
-                leniax_video.dump_video(subdir, all_cells, tmp_config_1['render_params'], [colormap], 'init')
+                leniax_video.render_video(subdir, all_cells, tmp_config_1['render_params'], [colormap], 'init')
 
                 # I didn't find a solution to discover which frames are stable to scale
                 # so I check a few frames
@@ -245,9 +245,9 @@ def run() -> None:
                 assert gif_idx < nb_media
                 zip_subdirs = [subdir] * nb_media
                 zip_colormap = [colormap] * nb_media
-                zip_dump_gif = [False] * nb_media
-                zip_dump_gif[gif_idx] = True
-                input_data = zip(zip_scales, zip_subdirs, zip_cells, zip_render_params, zip_colormap, zip_dump_gif)
+                zip_render_gif = [False] * nb_media
+                zip_render_gif[gif_idx] = True
+                input_data = zip(zip_scales, zip_subdirs, zip_cells, zip_render_params, zip_colormap, zip_render_gif)
                 with multiprocessing.Pool(processes=nb_media) as pool:
                     pool_results = pool.map(dump_assets, input_data)
                 all_outputs_fullpath = pool_results[gif_idx][0]

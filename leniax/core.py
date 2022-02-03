@@ -50,7 +50,7 @@ def get_potential_fft(
     true_channels: jnp.ndarray,
     max_k_per_channel: int,
     C: int,
-    wdims_axes: Tuple[int]
+    wdims_axes: Tuple[int, ...]
 ) -> jnp.ndarray:
     """Compute the potential using FFT
 
@@ -109,7 +109,7 @@ def get_field(
     potential: jnp.ndarray,
     gf_params: jnp.ndarray,
     kernels_weight_per_channel: jnp.ndarray,
-    growth_fn_t: Tuple[Callable],
+    growth_fn_t: Tuple[Callable, ...],
     weighted_fn: Callable
 ) -> jnp.ndarray:
     """Compute the field

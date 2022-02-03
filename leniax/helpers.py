@@ -464,7 +464,7 @@ def dump_assets(
         all_cells: Simulation data of shape ``[nb_iter, C, world_dims...]``.
         stats_dict: Leniax statistics dictionnary.
         colormaps: A List of matplotlib compatible colormap.
-        transparent_bg: Set to ``True`` to maek the background transparent.
+        transparent_bg: Set to ``True`` to make the background transparent.
     """
     if len(colormaps) == 0:
         colormaps = [
@@ -485,11 +485,11 @@ def dump_assets(
 
     dump_viz_data(save_dir, config, stats_dict)
 
-    all_outputs_fullpath = leniax_video.dump_video(
+    all_outputs_fullpath = leniax_video.render_video(
         save_dir, all_cells, config['render_params'], colormaps, '', transparent_bg
     )
     for output_fullpath in all_outputs_fullpath:
-        leniax_video.dump_gif(output_fullpath)
+        leniax_video.render_gif(output_fullpath)
 
 
 def dump_last_frame(

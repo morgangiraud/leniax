@@ -66,7 +66,7 @@ def render(tuple_input):
         # leniax_colormaps.get('summer'),
         # leniax_colormaps.get('white-black'),
     ]
-    leniax_video.dump_video(save_dir, all_cells, config["render_params"], colormaps, 'birth')
+    leniax_video.render_video(save_dir, all_cells, config["render_params"], colormaps, 'birth')
     # leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict, colormaps)
     leniax_helpers.dump_frame(save_dir, f'creature_scale{scale}', all_cells[-1], True, colormaps[0])
 

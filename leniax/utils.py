@@ -12,20 +12,39 @@ import jax.numpy as jnp
 import numpy as np
 from fractions import Fraction
 from PIL import Image
-from typing import Tuple, List, Dict, Any, Union
+from typing import Tuple, List, Dict, Any
 from omegaconf import DictConfig, OmegaConf
 
 from .constant import NB_STATS_STEPS, EPSILON
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 save_dir = os.path.join(cdir, 'save')
-image_ext = "png"
 
 
 ###
 # Config
 ###
 def get_container(omegaConf: DictConfig, main_path: str) -> Dict:
+    """Retrieve the populated container from an omegaConf
+
+    This functions is used to:
+    - Populate missing mandatory value in Leniax configuration
+    - Handle versioning update if necessary
+
+    .. code-block:: python
+
+        # Use with Hydra as follow
+        @hydra.main(config_path=config_path, config_name=config_name)
+        def run(omegaConf: DictConfig) -> None:
+            config = leniax_utils.get_container(omegaConf, config_path)
+
+    Args:
+        omegaConf: Hydra's Omega configuration
+        main_path: Absolute path of the configuration directory
+
+    Returns:
+        A populated python dictionnary
+    """
     world_params = omegaConf.world_params
     render_params = omegaConf.render_params
     if omegaConf.render_params.pixel_size == 'MISSING':
@@ -60,6 +79,14 @@ def get_container(omegaConf: DictConfig, main_path: str) -> Dict:
 
 
 def update_config_v1_v2(config: Dict) -> Dict:
+    """Update a configuration from version 1 to version 2
+
+    Args:
+        config: A v1 configuration
+
+    Returns:
+        A v2 configuration
+    """
     config['version'] = 2
 
     old_gf_register = {0: 'poly_quad4', 1: 'gaussian', 2: 'gaussian_target', 3: 'step'}
@@ -114,7 +141,16 @@ def update_config_v1_v2(config: Dict) -> Dict:
     return config
 
 
-def get_param(dic: Dict, key_string: str) -> Union[float, int]:
+def get_param(dic: Dict, key_string: str) -> Any:
+    """Retrieve a parameter in a dictionnary using a string
+
+    Args:
+        dic: Dictionnary
+        key_string: String representing the parameter path in the dicitonnary
+
+    Returns:
+        The parameter
+    """
     keys = key_string.split('.')
     for key in keys:
         if key.isdigit():
@@ -133,6 +169,13 @@ def get_param(dic: Dict, key_string: str) -> Union[float, int]:
 
 
 def set_param(dic: Dict, key_string: str, value: Any):
+    """Set a parameter in a dictionnary using a string
+
+    Args:
+        dic: Dictionnary
+        key_string: String representing the parameter path in the dicitonnary
+        value: Value to be set
+    """
     keys = key_string.split('.')
     for i, key in enumerate(keys[:-1]):
         if key.isdigit():
@@ -160,6 +203,16 @@ def set_param(dic: Dict, key_string: str, value: Any):
 
 
 def st2fracs2float(st: str) -> List[float]:
+    """Convert a string of fraction into an list of floats
+
+    String example: ``st = '1,2/3,6.7'``
+
+    Args:
+        st: String of fractions.
+
+    Returns:
+        An list of float
+    """
     return [float(Fraction(st)) for st in st.split(',')]
 
 
@@ -167,6 +220,16 @@ def st2fracs2float(st: str) -> List[float]:
 # Animals
 ###
 def merge_cells(cells: jnp.ndarray, other_cells: jnp.ndarray, offset: List[int] = None) -> jnp.ndarray:
+    """Merge cells together using addition
+
+    Args:
+        cells: Base cells
+        other_cells: Cells to be merged into the base cells
+        offset: Offsets in each dimensions
+
+    Returns:
+        Resulting cells
+    """
     # We ensure the animal and the world are compatible:
     # - same number of dims
     # - same number of channels
@@ -194,21 +257,26 @@ def merge_cells(cells: jnp.ndarray, other_cells: jnp.ndarray, offset: List[int] 
 ###
 # Math
 ###
-def get_unit_distances(world_size: List[int]) -> jnp.ndarray:
-    midpoint = jnp.asarray([size // 2 for size in world_size])  # [nb_dims]
-    midpoint = midpoint.reshape([-1] + [1] * len(world_size))  # [nb_dims, 1, 1, ...]
-    coords = jnp.indices(world_size)  # [nb_dims, dim_0, dim_1, ...]
-    centered_coords = coords - midpoint
-    unit_coords = centered_coords / centered_coords.max()
-
-    unit_distances = jnp.sqrt(jnp.sum(unit_coords**2, axis=0))
-
-    return unit_distances
-
-
 @functools.partial(jax.vmap, in_axes=(0, 0, 0, 0, None), out_axes=(0, 0, 0))
-def center_world(cells: jnp.ndarray, field: jnp.ndarray, potential: jnp.ndarray, shift_idx: jnp.ndarray,
-                 axes) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+def center_world(
+    cells: jnp.ndarray,
+    field: jnp.ndarray,
+    potential: jnp.ndarray,
+    shift_idx: jnp.ndarray,
+    axes: Tuple[int, ...],
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    """Rool cells, field and potential
+
+    Args:
+        cells: Lenia state of shape ``[bs, other_axes...]``
+        field: Lenia field ``[bs, other_axes...]``
+        potential: Lenia potential ``[bs, other_axes...]``
+        shift_idx: Amount to roll of shape ``[bs, nb_axes]```
+        axes: Axes to roll
+
+    Returns:
+        Updated cells, field and potential
+    """
     cells = jnp.roll(cells, -shift_idx, axes)
     field = jnp.roll(field, -shift_idx, axes)
     potential = jnp.roll(potential, -shift_idx, axes)
@@ -217,6 +285,14 @@ def center_world(cells: jnp.ndarray, field: jnp.ndarray, potential: jnp.ndarray,
 
 
 def crop_zero(kernels: jnp.ndarray) -> jnp.ndarray:
+    """Crop zero values out for 3 and 4 dimensions array
+
+    Args:
+        kernels: A 3 or 4 dimension kernels
+
+    Returns:
+        The croppped kernels
+    """
     if len(kernels.shape) == 3:
         where_zero = kernels == 0
         kernels = kernels[:, ~jnp.all(where_zero, axis=(0, 2))]  # remove 0 columns
@@ -232,7 +308,15 @@ def crop_zero(kernels: jnp.ndarray) -> jnp.ndarray:
     return cropped_kernels
 
 
-def auto_center_cells(cells):
+def auto_center_cells(cells: jnp.ndarray) -> jnp.ndarray:
+    """Automatically center cells on its total mass centroid
+
+    Args:
+        cells: Lenia state
+
+    Returns:
+        The mass centered Lenia state
+    """
     world_size = cells.shape[1:]
     axes = tuple(range(-len(world_size), 0, 1))
 
@@ -256,7 +340,15 @@ def auto_center_cells(cells):
     return centered_cells[0]
 
 
-def center_and_crop_cells(cells):
+def center_and_crop_cells(cells: jnp.ndarray) -> jnp.ndarray:
+    """Automatically center cells on its total mass centroid and crop zeros values
+
+    Args:
+        cells: Lenia state
+
+    Returns:
+        The mass centered cropped Lenia state
+    """
     world_size = cells.shape[1:]
     axes = tuple(range(-len(world_size), 0, 1))
     midpoint = jnp.expand_dims(jnp.asarray([size // 2 for size in world_size]), axis=axes)
@@ -291,6 +383,16 @@ def center_and_crop_cells(cells):
 # VIZ
 ###
 def get_image(cells_buffer: np.ndarray, pixel_size: int, colormap) -> Image:
+    """Convert a numpy array into a PIL image
+
+    Args:
+        cells_buffer: A Lenia state
+        pixel_size: Size of each state pixels in the image
+        colormap: A matplotlib compatible colormap
+
+    Returns:
+        A PIL image
+    """
     nb_dims = len(cells_buffer.shape) - 1
 
     if pixel_size != 1:
@@ -320,14 +422,13 @@ def get_image(cells_buffer: np.ndarray, pixel_size: int, colormap) -> Image:
     return final_img
 
 
-def normalize(v: jnp.ndarray, vmin: float, vmax: float, is_square: bool = False, vmin2: float = 0, vmax2: float = 0):
-    if not is_square:
-        return (v - vmin) / (vmax - vmin)
-    else:
-        return (v - vmin) / max(vmax - vmin, vmax2 - vmin2)
-
-
 def plot_stats(save_dir: str, stats_dict: Dict):
+    """Plot Leniax statistics
+
+    Args:
+        save_dir: directory used to save assets.
+        stats_dict: Statistics dictionnary
+    """
     nb_steps = int(stats_dict['N'])
 
     all_keys = list(stats_dict.keys())
@@ -387,10 +488,17 @@ def plot_stats(save_dir: str, stats_dict: Dict):
 
 
 def generate_beta_faces(nb_betas: int, denominator: int) -> List[List[List[float]]]:
-    """
-        Generate a grid of all the valid beta values given a maximum number
+    """Generate a grid of all the valid beta values given a maximum number
         of beta values.
-        This function makes sense only if we normalize our kernels.
+
+    This function makes sense only if we normalize our kernels.
+
+    Args:
+        nb_betas: Maximum number of betas values
+        denominator: Denominator to construct the betas grid
+
+    Returns:
+        The list of possible list of beta values
     """
     all_values: List[List[float]] = []
     nb_val_per_column = denominator + 1
@@ -417,6 +525,11 @@ def generate_beta_faces(nb_betas: int, denominator: int) -> List[List[List[float
 # OS
 ###
 def check_dir(dir: str):
+    """Ensure a directory exist and is not a file
+
+    Args:
+        dir: Checked directory
+    """
     if not os.path.exists(dir):
         os.makedirs(dir)
     elif not os.path.isdir(dir):
@@ -424,6 +537,12 @@ def check_dir(dir: str):
 
 
 def save_config(save_dir: str, config: Dict):
+    """Save a configuration file
+
+    Args:
+        save_dir: directory used to save assets.
+        config: Leniax configuration
+    """
     check_dir(save_dir)
 
     config = copy.deepcopy(config)
@@ -435,6 +554,11 @@ def save_config(save_dir: str, config: Dict):
 
 
 def print_config(config: Dict):
+    """Pretty print a Leniax configuration
+
+    Args:
+        config: Leniax configuration
+    """
     printable_config = copy.deepcopy(config)
 
     if 'cells' in printable_config['run_params'].keys():
@@ -447,12 +571,26 @@ def print_config(config: Dict):
 
 
 def load_img(fullpath: str, resize: Tuple[int, int]) -> jnp.ndarray:
+    """Load an image as a np.array
+
+    Args:
+        fullpath: Absolute image path
+        resize: Resize factors for the image dimensions
+
+    Returns:
+        The image as a np.array
+    """
     img = Image.open(fullpath).resize(resize)
     img_np = np.rollaxis(np.array(img), -1)[np.newaxis] / 255.
     return jnp.array(img_np, dtype=jnp.float32)
 
 
-def set_log_level(config):
+def set_log_level(config: dict):
+    """Set the python logging root level
+
+    Args:
+        config: Leniax configuration
+    """
     numeric_level = config['other']['log_level'] if 'log_level' in config['other'] else 1
     if not isinstance(numeric_level, int):
         raise ValueError(f'Invalid log level: {numeric_level}')
@@ -462,7 +600,15 @@ def set_log_level(config):
 ###
 # Random
 ###
-def seed_everything(seed: int):
+def seed_everything(seed: int) -> jax.random.KeyArray:
+    """Seed all the depedencies used by Leniax
+
+    Args:
+        seed: A seed integer
+
+    Returns:
+        A JAX PRNG key
+    """
     random.seed(seed)
 
     npseed = random.randint(1, 1_000_000)
@@ -477,23 +623,19 @@ def seed_everything(seed: int):
     return rng_key
 
 
-def generate_mask(shape, max_h, max_w):
-    mask = np.ones(shape)
-
-    pad_h_before = (max_h - mask.shape[1]) // 2
-    pad_h_after = max_h - mask.shape[1] - pad_h_before
-    pad_w_before = (max_w - mask.shape[2]) // 2
-    pad_w_after = max_w - mask.shape[2] - pad_w_before
-    padding = [(0, 0), (pad_h_before, pad_h_after), (pad_w_before, pad_w_after)]
-    mask = np.pad(mask, padding, mode='constant')
-
-    return mask
-
-
 ###
 # Memory
 ###
-def get_needed_memory(config, nb_sols=1):
+def get_needed_memory(config: dict, nb_sols: int = 1):
+    """Compute an approximate of the needed memory by different kind of simulations
+
+    Args:
+        config: Leniax configuration
+        nb_sols: How many solutions will be simulated at the same time
+
+    Returns:
+        A dictionnary witth different memory requirements
+    """
     nb_init = config['run_params']['nb_init_search']
 
     kb_per_float = 4 / 1024

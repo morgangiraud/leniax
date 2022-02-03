@@ -86,7 +86,7 @@ def run(omegaConf: DictConfig) -> None:
     leniax_qd.save_metrics(metrics, save_dir)
     leniax_qd.save_heatmap(optimizer.archive, fitness_domain, f"{save_dir}/archive_heatmap.png")
     leniax_qd.save_parallel_axes_plot(optimizer.archive, fitness_domain, f"{save_dir}/archive_parralel_plot.png")
-    leniax_video.dump_qd_ribs_result(os.path.join(save_dir, 'qd_search.mp4'))
+    leniax_video.render_qd_search(os.path.join(save_dir, 'qd_search.mp4'))
 
 
 if __name__ == '__main__':

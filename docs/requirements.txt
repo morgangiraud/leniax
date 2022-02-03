@@ -17,5 +17,5 @@ docutils==0.16
 matplotlib
 sklearn
 
-# Must install flax itself for notebook execution and autodocs to work.
+# Must install leniax itself for notebook execution and autodocs to work.
 .

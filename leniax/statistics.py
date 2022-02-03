@@ -2,13 +2,23 @@ import functools
 import jax
 import jax.numpy as jnp
 from jax import jit
-from typing import List, Dict, Callable
+from typing import List, Dict, Callable, Tuple
 
 from .constant import EPSILON
 from .utils import center_world
 
 
 def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
+    """Construct the conpute_statistics function
+
+    Args:
+        world_params: World parameters dictrionnary.
+        render_params: Render parameters dictrionnary.
+
+    Returns:
+        The compute statistics function
+    """
+
     world_size = render_params['world_size']
     R = world_params['R']
     dt = 1. / world_params['T']
@@ -21,15 +31,25 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
     world_dims_idx = tuple(range(2, 1 + 1 + len(world_size), 1))
 
     @jit
-    def compute_stats(cells, field, potential, previous_total_shift_idx, previous_mass_centroid, previous_mass_angle):
-        """
-            Args:
-                - cells: jnp.ndarray[N, C, world_dims...]
-                - field: jnp.ndarray[N, C, world_dims...]
-                - potential: jnp.ndarray[N, C, world_dims...]
-                - previous_total_shift_idx: jnp.ndarray[N, 2]
-                - previous_mass_centroid: jnp.ndarray[2, N]
-                - previous_mass_angle: jnp.ndarray[2, N]
+    def compute_stats(
+        cells: jnp.ndarray,
+        field: jnp.ndarray,
+        potential: jnp.ndarray,
+        previous_total_shift_idx: jnp.ndarray,
+        previous_mass_centroid: jnp.ndarray,
+        previous_mass_angle: jnp.ndarray,
+    ) -> Tuple[Dict, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+        """Compute statistics of a Leniax simulation
+
+        Args:
+            cells: state of shape ``[N, C, world_dims...]``
+            field: state of shape ``[N, C, world_dims...]``
+            potential: state of shape ``[N, C, world_dims...]``
+            previous_total_shift_idx: state of shape ``[N, 2]``
+            previous_mass_centroid: state of shape ``[2, N]``
+            previous_mass_angle: state of shape ``[2, N]``
+
+        Returns
         """
         # cells: # [N, C, H, W]
         # field: # [N, C, H, W]
@@ -109,7 +129,7 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
 # Heuristics
 ###
 @functools.partial(jit, static_argnums=(1, ))
-def check_heuristics(stats: Dict[str, jnp.ndarray], R: float, dt: jnp.ndarray):
+def check_heuristics(stats: Dict[str, jnp.ndarray], R: float, dt: jnp.ndarray) -> jnp.ndarray:
     """Check heuristics on statistic data"""
     def fn(carry: Dict, stat_t: Dict[str, jnp.ndarray]):
         should_continue = carry['should_continue']
@@ -183,25 +203,25 @@ def init_counters(N: int) -> Dict[str, jnp.ndarray]:
     }
 
 
-def min_channel_mass_heuristic(epsilon: float, channel_mass: jnp.ndarray):
+def min_channel_mass_heuristic(epsilon: float, channel_mass: jnp.ndarray) -> jnp.ndarray:
     should_continue_cond = (channel_mass >= epsilon).all(axis=1)
 
     return should_continue_cond
 
 
-def max_channel_mass_heuristic(init_channel_mass: jnp.ndarray, channel_mass: jnp.ndarray):
+def max_channel_mass_heuristic(init_channel_mass: jnp.ndarray, channel_mass: jnp.ndarray) -> jnp.ndarray:
     should_continue_cond = (channel_mass <= 3 * init_channel_mass).all(axis=1)
 
     return should_continue_cond
 
 
-def min_mass_heuristic(epsilon: float, mass: jnp.ndarray):
+def min_mass_heuristic(epsilon: float, mass: jnp.ndarray) -> jnp.ndarray:
     should_continue_cond = mass >= epsilon
 
     return should_continue_cond
 
 
-def max_mass_heuristic(init_mass: jnp.ndarray, mass: jnp.ndarray):
+def max_mass_heuristic(init_mass: jnp.ndarray, mass: jnp.ndarray) -> jnp.ndarray:
     should_continue_cond = mass <= 3 * init_mass
 
     return should_continue_cond
@@ -210,7 +230,11 @@ def max_mass_heuristic(init_mass: jnp.ndarray, mass: jnp.ndarray):
 MONOTONIC_STOP_STEP = 128
 
 
-def monotonic_heuristic(sign: jnp.ndarray, previous_sign: jnp.ndarray, monotone_counter: jnp.ndarray):
+def monotonic_heuristic(
+    sign: jnp.ndarray,
+    previous_sign: jnp.ndarray,
+    monotone_counter: jnp.ndarray,
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
     sign_cond = (sign == previous_sign)
     monotone_counter = monotone_counter * sign_cond + 1
     should_continue_cond = monotone_counter <= MONOTONIC_STOP_STEP
@@ -226,7 +250,8 @@ MASS_VOLUME_THRESHOLD = 10.
 MASS_VOLUME_STOP_STEP = 128
 
 
-def mass_volume_heuristic(mass_volume: jnp.ndarray, mass_volume_counter: jnp.ndarray, R: float):
+def mass_volume_heuristic(mass_volume: jnp.ndarray, mass_volume_counter: jnp.ndarray,
+                          R: float) -> Tuple[jnp.ndarray, jnp.ndarray]:
     volume_cond = jnp.array(mass_volume > MASS_VOLUME_THRESHOLD)
     mass_volume_counter = mass_volume_counter * volume_cond + 1
     should_continue_cond = mass_volume_counter <= MASS_VOLUME_STOP_STEP

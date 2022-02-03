@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 import numpy as np
 from matplotlib.colors import ListedColormap
-from typing import List, Callable
+from typing import List, Callable, Dict
 from hilbertcurve.hilbertcurve import HilbertCurve
 
 # This might be cool? https://bottosson.github.io/misc/colorpicker/#ce7d96
@@ -181,7 +181,7 @@ class ExtendedColormap():
 
     Attributes:
         name: Colormap name
-        transparent_bg: Should the background be made transparent
+        transparent_bg: Set to ``True`` to make the background transparent.
     """
 
     name: str
@@ -192,7 +192,7 @@ class ExtendedColormap():
 
         Args:
             name: Colormap name
-            transparent_bg: Should the background be made transparent
+            transparent_bg: Set to ``True`` to make the background transparent.
         """
         self.name = name
         self.transparent_bg = transparent_bg
@@ -366,7 +366,7 @@ def hex_to_palette_rgba(hex_bg_color: str, hex_colors: List[str]) -> np.ndarray:
     return palette_rgba
 
 
-colormaps = {
+colormaps: Dict[str, Dict] = {
     'alizarin': {
         'name': 'alizarin',
         'hex_bg_color': "#d6c3c9",

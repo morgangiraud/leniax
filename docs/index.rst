@@ -43,8 +43,10 @@ For a quick introduction and short example snippets, see our `README <https://gi
 
    leniax.core
    leniax.runner
-   leniax.helpers
    leniax.growth_functions
    leniax.kernel_functions
+   leniax.helpers
+   leniax.utils
+   leniax.video
    leniax.colormaps
 

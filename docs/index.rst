@@ -44,9 +44,14 @@ For a quick introduction and short example snippets, see our `README <https://gi
    leniax.core
    leniax.runner
    leniax.growth_functions
+   leniax.kernels
    leniax.kernel_functions
+   leniax.statistics   
    leniax.helpers
    leniax.utils
+   leniax.loader
+   leniax.qd
+   leniax.lenia
    leniax.video
    leniax.colormaps
 

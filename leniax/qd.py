@@ -1,4 +1,3 @@
-import functools
 import os
 import psutil
 import time
@@ -47,19 +46,18 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, fitness_coef: floa
     )
     update_fn = leniax_helpers.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
     compute_stats_fn = build_compute_stats_fn(world_params, render_params)
-    run_fn: Callable = functools.partial(
-        leniax_runner.run_scan_mem_optimized,
-        max_run_iter=max_run_iter,
-        R=R,
-        update_fn=update_fn,
-        compute_stats_fn=compute_stats_fn,
-    )
 
     def eval_lenia_config_mem_optimized(leniax_sols: List[LeniaIndividual]) -> List[LeniaIndividual]:
         qd_config = leniax_sols[0].qd_config
 
         _, dynamic_args = get_dynamic_args(qd_config, leniax_sols, fft)
-        stats, _ = run_fn(*dynamic_args)
+        stats, _ = leniax_runner.run_scan_mem_optimized(
+            *dynamic_args,
+            max_run_iter,
+            R,
+            update_fn,
+            compute_stats_fn,
+        )
         stats['N'].block_until_ready()
 
         results = update_individuals(leniax_sols, stats, fitness_coef)

@@ -86,7 +86,7 @@ def run(
 
         mass_volume = stat_t['mass_volume']
         mass_volume_counter = counters['nb_max_volume_step']
-        cond, counters['nb_max_volume_step'] = leniax_stat.mass_volume_heuristic(mass_volume, mass_volume_counter, R)
+        cond, counters['nb_max_volume_step'] = leniax_stat.mass_volume_heuristic(mass_volume, mass_volume_counter)
         should_continue_cond *= cond
 
         should_continue *= should_continue_cond
@@ -147,7 +147,7 @@ def run_scan(
 
     _, ys = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
 
-    continue_stat = leniax_stat.check_heuristics(ys['stats'], R, 1. / T)
+    continue_stat = leniax_stat.check_heuristics(ys['stats'])
     ys['stats']['N'] = continue_stat.sum(axis=0)
 
     return ys['cells'], ys['field'], ys['potential'], ys['stats']
@@ -194,7 +194,7 @@ def run_scan_mem_optimized(
 
     final_cells = final_carry['fn_params'][0]
 
-    continue_stat = leniax_stat.check_heuristics(stats, R, 1. / T)
+    continue_stat = leniax_stat.check_heuristics(stats)
     stats['N'] = continue_stat.sum(axis=0)
 
     return stats, final_cells
@@ -244,7 +244,7 @@ def run_scan_mem_optimized_pmap(
 
     final_cells = final_carry['fn_params'][0]
 
-    continue_stat = leniax_stat.check_heuristics(stats, R, 1. / T)
+    continue_stat = leniax_stat.check_heuristics(stats)
     stats['N'] = continue_stat.sum(axis=0)
 
     return stats, final_cells

@@ -26,9 +26,10 @@ logging.set_verbosity(logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
+config_name = "config_qd_cmame"
 
 
-@hydra.main(config_path=config_path, config_name="config_qd_cmame")
+@hydra.main(config_path=config_path, config_name=config_name)
 def run(omegaConf: DictConfig) -> None:
     config = get_container(omegaConf, config_path)
     print(config)

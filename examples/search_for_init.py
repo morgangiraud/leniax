@@ -24,12 +24,12 @@ def launch(omegaConf: DictConfig) -> None:
     leniax_utils.set_log_level(config)
 
     # config['render_params']['pixel_size_power2'] = 0
-    config['render_params']['pixel_size'] = 1
+    # config['render_params']['pixel_size'] = 1
     # config['render_params']['size_power2'] = 7
-    config['render_params']['world_size'] = [256, 256]
+    # config['render_params']['world_size'] = [256, 256]
     # config['world_params']['scale'] = 1.
-    config['run_params']['max_run_iter'] = 512
-    config['run_params']['nb_init_search'] = 256
+    # config['run_params']['max_run_iter'] = 512
+    # config['run_params']['nb_init_search'] = 256
 
     leniax_utils.print_config(config)
 

@@ -1,6 +1,14 @@
 # Research
 Leniax is used extensively to search for stable local patterns in Lenia.
 
+## Motivation
+
+Why the family of CA should be a first class citizen of research?
+
+We believe the family of algorithms called Cellular automata, ranging from Conway's game of Life to continuous Cellular automata like Lenia and Neural Cellular automata is an efficient way to compute solutions to complex problems.
+
+Most people see them as toy problems which create interesting patterns but they can simulate and model phenomena in biology, chemistry, and physics. Their striking ressemblance to diffusion-reaction attest of this origin.
+
 ## Limitations
 
 ### The evaluation function

@@ -23,12 +23,14 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
     R = world_params['R']
     dt = 1. / world_params['T']
 
-    axes = tuple(range(-len(world_size), 0, 1))
-    midpoint = jnp.expand_dims(jnp.asarray([size // 2 for size in world_size]), axis=axes)
-    coords = jnp.indices(world_size)
-    centered_coords = coords - midpoint  # [nb_dims, H, W, ...]
-    non_batch_dims_idx = tuple(range(1, 1 + 1 + len(world_size), 1))
-    world_dims_idx = tuple(range(2, 1 + 1 + len(world_size), 1))
+    world_dims_axes = tuple(range(-len(world_size), 0, 1))
+    non_batch_dims_axes = tuple(range(-(1 + len(world_size)), 0, 1))
+    midpoint = jnp.expand_dims(
+        jnp.asarray([size // 2 for size in world_size]), axis=world_dims_axes
+    )  # [nb_dims, 1, 1, ...]
+    coords = jnp.indices(world_size)  # [nb_dims, H, W, ...]
+    # We expand our coordinate to control and take advantage of automatic broadcasting
+    centered_coords = jnp.expand_dims(coords - midpoint, axis=(1, 2))  # [nb_dims, 1, 1, H, W, ...]
 
     @jit
     def compute_stats(
@@ -49,7 +51,8 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
             previous_mass_centroid: state of shape ``[2, N]``
             previous_mass_angle: state of shape ``[2, N]``
 
-        Returns
+        Returns:
+            A tuple containing the statistics dictionnary and other carry informations
         """
         # cells: # [N, C, H, W]
         # field: # [N, C, H, W]
@@ -58,26 +61,26 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
         # https://en.wikipedia.org/wiki/Image_moment
         # To avoid weird behaviours when species are crossing the frontiers, we need to compute stats
         # from a centered world
-        centered_cells, centered_field, _ = center_world(cells, field, potential, previous_total_shift_idx, axes)
+        centered_cells, centered_field, _ = center_world(cells, field, potential, previous_total_shift_idx, world_dims_axes)
         positive_field = jnp.maximum(centered_field, 0)
 
-        m_00 = centered_cells.sum(axis=non_batch_dims_idx)
-        g_00 = positive_field.sum(axis=non_batch_dims_idx)
+        m_00 = centered_cells.sum(axis=non_batch_dims_axes)  # [N]
+        g_00 = positive_field.sum(axis=non_batch_dims_axes)  # [N]
 
-        potential_volume = (potential > EPSILON).sum(axis=non_batch_dims_idx) / R**2
+        potential_volume = (potential > EPSILON).sum(axis=non_batch_dims_axes) / R**2  # [N]
 
-        channel_mass = centered_cells.sum(axis=world_dims_idx) / R**2
+        channel_mass = centered_cells.sum(axis=world_dims_axes) / R**2  # [N, C]
         mass = m_00 / R**2
-        mass_volume = (centered_cells > EPSILON).sum(axis=non_batch_dims_idx) / R**2
+        mass_volume = (centered_cells > EPSILON).sum(axis=non_batch_dims_axes) / R**2  # [N]
         mass_density = mass / (mass_volume + EPSILON)
 
         growth = g_00 / R**2
-        growth_volume = (positive_field > EPSILON).sum(axis=non_batch_dims_idx) / R**2
+        growth_volume = (positive_field > EPSILON).sum(axis=non_batch_dims_axes) / R**2  # [N]
         growth_density = growth / (growth_volume + EPSILON)
 
-        AX = [centered_cells * coord for coord in centered_coords]  # [nb_world_dims, N, C, world_dims...]
-        MX = [ax.sum(axis=non_batch_dims_idx) for ax in AX]  # [nb_world_dims, N]
-        mass_centroid = jnp.array(MX) / (m_00 + EPSILON)
+        AX = centered_cells * centered_coords  # [nb_world_dims, N, C, world_dims...]
+        MX = AX.sum(axis=non_batch_dims_axes)  # [nb_world_dims, N]
+        mass_centroid = MX / (m_00 + EPSILON)
 
         delta_mass = mass_centroid - previous_mass_centroid  # [nb_world_dims, N]
         dist_m = jnp.linalg.norm(delta_mass, axis=0)  # [N]
@@ -87,13 +90,13 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
 
         mass_angle_speed = ((mass_angle - previous_mass_angle + 540) % 360 - 180) / dt  # [N]
 
-        GX = [(positive_field * coord).sum(axis=non_batch_dims_idx) for coord in centered_coords]
-        growth_centroid = jnp.array(GX) / (g_00 + EPSILON)
+        GX = (positive_field * centered_coords).sum(axis=non_batch_dims_axes)  # [nb_world_dims, N]
+        growth_centroid = GX / (g_00 + EPSILON)
         mass_growth_dist = jnp.linalg.norm(growth_centroid - mass_centroid, axis=0) / R
 
-        MX2 = [(ax * coord).sum(axis=non_batch_dims_idx) for ax, coord in zip(AX, centered_coords)]
-        MuX2 = [mx2 - mc * mx for mc, mx, mx2 in zip(mass_centroid, MX, MX2)]
-        mass2_centroid = jnp.array(MuX2) / (m_00**2 + EPSILON)
+        MX2 = (AX * centered_coords).sum(axis=non_batch_dims_axes)  # [nb_world_dims, N]
+        MuX2 = MX2 - mass_centroid * MX
+        mass2_centroid = MuX2 / (m_00**2 + EPSILON)
         inertia = mass2_centroid.sum(axis=0)
 
         stats = {
@@ -129,8 +132,15 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
 # Heuristics
 ###
 @functools.partial(jit, static_argnums=(1, ))
-def check_heuristics(stats: Dict[str, jnp.ndarray], R: float, dt: jnp.ndarray) -> jnp.ndarray:
-    """Check heuristics on statistic data"""
+def check_heuristics(stats: Dict[str, jnp.ndarray]) -> jnp.ndarray:
+    """Check heuristics on statistic data
+
+    Args:
+        stats: Simulation statistics dictionnary
+
+    Returns:
+        An array of boolean value indicating if the heuristics are valid for each timsteps
+    """
     def fn(carry: Dict, stat_t: Dict[str, jnp.ndarray]):
         should_continue = carry['should_continue']
         init_channel_mass = carry['init_channel_mass']
@@ -157,7 +167,7 @@ def check_heuristics(stats: Dict[str, jnp.ndarray], R: float, dt: jnp.ndarray) -
 
         mass_volume = stat_t['mass_volume']
         mass_volume_counter = counters['nb_max_volume_step']
-        cond, counters['nb_max_volume_step'] = mass_volume_heuristic(mass_volume, mass_volume_counter, R)
+        cond, counters['nb_max_volume_step'] = mass_volume_heuristic(mass_volume, mass_volume_counter)
         should_continue_cond *= cond
 
         should_continue *= should_continue_cond
@@ -196,6 +206,14 @@ def check_heuristics(stats: Dict[str, jnp.ndarray], R: float, dt: jnp.ndarray) -
 
 
 def init_counters(N: int) -> Dict[str, jnp.ndarray]:
+    """Initialize different counters used in heuristics decisions
+
+    Args:
+        N: Number of simulated timesteps
+
+    Returns:
+        Adictionnary of counters
+    """
     return {
         'nb_monotone_step': jnp.zeros(N),
         'nb_slow_mass_step': jnp.zeros(N),
@@ -204,24 +222,60 @@ def init_counters(N: int) -> Dict[str, jnp.ndarray]:
 
 
 def min_channel_mass_heuristic(epsilon: float, channel_mass: jnp.ndarray) -> jnp.ndarray:
+    """Check if a total mass per channel is below the threshold
+
+    Args:
+        epsilon: A very small value to avoid division by zero
+        channel_mass: Total mass per channel of shape ``[N, C]``
+
+    Returns:
+        A boolean array of shape ``[N]``
+    """
     should_continue_cond = (channel_mass >= epsilon).all(axis=1)
 
     return should_continue_cond
 
 
 def max_channel_mass_heuristic(init_channel_mass: jnp.ndarray, channel_mass: jnp.ndarray) -> jnp.ndarray:
+    """Check if a total mass per channel is above the threshold
+
+    Args:
+        init_channel_mass: Initial mass per channel of shape ``[N, C]``
+        channel_mass: Total mass per channel of shape ``[N, C]``
+
+    Returns:
+        A boolean array of shape ``[N]``
+    """
     should_continue_cond = (channel_mass <= 3 * init_channel_mass).all(axis=1)
 
     return should_continue_cond
 
 
 def min_mass_heuristic(epsilon: float, mass: jnp.ndarray) -> jnp.ndarray:
+    """Check if the total mass of the system is below the threshold
+
+    Args:
+        epsilon: A very small value to avoid division by zero
+        mass: Total mass of shape ``[N]``
+
+    Returns:
+        A boolean array of shape ``[N]``
+    """
     should_continue_cond = mass >= epsilon
 
     return should_continue_cond
 
 
 def max_mass_heuristic(init_mass: jnp.ndarray, mass: jnp.ndarray) -> jnp.ndarray:
+    """Check if a total mass per channel is above the threshold
+
+    Args:
+        init_mass: Initial mass per channel of shape ``[N]``
+        mass: Total mass per channel of shape ``[N]``
+
+    Returns:
+        A boolean array of shape ``[N]``
+    """
     should_continue_cond = mass <= 3 * init_mass
 
     return should_continue_cond
@@ -235,6 +289,16 @@ def monotonic_heuristic(
     previous_sign: jnp.ndarray,
     monotone_counter: jnp.ndarray,
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    """Check if the mass variation is being monotonic for too many timesteps
+
+    Args:
+        sign: Current sign of mass variation of shape ``[N]``
+        previous_sign: Previous sign of mass variation of shape ``[N]``
+        monotone_counter: Counter used to count number of timesteps with monotonic variations of shape ``[N]``
+
+    Returns:
+        A tuple representing a boolean array of shape ``[N]`` and the counter
+    """
     sign_cond = (sign == previous_sign)
     monotone_counter = monotone_counter * sign_cond + 1
     should_continue_cond = monotone_counter <= MONOTONIC_STOP_STEP
@@ -245,13 +309,23 @@ def monotonic_heuristic(
 # Those are 3200 pixels activated
 # This number comes from the early days when I set the threshold
 # at 10% of a 128*128 ~= 1600 pixels with a kernel radius of 13
-# Which gives a volume threshold of 1600 / 13^2 ~= 9.5
+# which gives a volume threshold of 1600 / 13^2 ~= 9.5
 MASS_VOLUME_THRESHOLD = 10.
 MASS_VOLUME_STOP_STEP = 128
 
 
-def mass_volume_heuristic(mass_volume: jnp.ndarray, mass_volume_counter: jnp.ndarray,
-                          R: float) -> Tuple[jnp.ndarray, jnp.ndarray]:
+def mass_volume_heuristic(mass_volume: jnp.ndarray,
+                          mass_volume_counter: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    """Check if the mass volume is above the threshold for too manye timesteps
+
+    Args:
+        mass_volume: Mass volume of shape ``[N]``
+        mass_volume_counter: Counter of shape ``[N]`` used to count number of timesteps with a volume above the threshold
+
+    Returns:
+        A tuple representing a boolean array of shape ``[N]`` and the counter
+    """
+
     volume_cond = jnp.array(mass_volume > MASS_VOLUME_THRESHOLD)
     mass_volume_counter = mass_volume_counter * volume_cond + 1
     should_continue_cond = mass_volume_counter <= MASS_VOLUME_STOP_STEP
@@ -263,6 +337,14 @@ def mass_volume_heuristic(mass_volume: jnp.ndarray, mass_volume_counter: jnp.nda
 # Utils
 ###
 def stats_list_to_dict(all_stats: List[Dict]) -> Dict[str, jnp.ndarray]:
+    """Change a list of dictionnary in a dictionnary of array
+
+    Args:
+        all_stats: List of 1-timestep statistics dictionary
+
+    Returns:
+        A dictionnary of N-timestep array.
+    """
     if len(all_stats) == 0:
         return {}
 

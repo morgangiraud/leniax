@@ -12,7 +12,16 @@ from typing import List, Any, Dict
 
 from .constant import NB_CHARS
 
+
 def make_array_compressible(cells: jnp.ndarray) -> jnp.ndarray:
+    """Round values so the array can be encoded using a subset of utf-8 characters
+
+    Args:
+        cells: Cells state.
+
+    Returns:
+        The rounded cells state
+    """
     max_val = NB_CHARS**2 - 1
 
     cells_int32 = jnp.array(jnp.round(cells * max_val), dtype=jnp.int32)
@@ -22,8 +31,26 @@ def make_array_compressible(cells: jnp.ndarray) -> jnp.ndarray:
 
 
 def compress_array(cells: jnp.ndarray) -> str:
+    """Compress a cells state into a base64 utf-8 string.
+
+    .. note::
+        The cells state in float32 is first encoded as int32.
+
+        That state is then flattened and converted into raw bytes of length 4 in little endian.
+
+        Finally we prepend the total number of bytes of the state and append the shape as bytes.
+
+        Finally, we compress the array using the gzip algorithm
+        and the resulting bytes are encoded as base64 in the utf-8 encoding.
+
+    Args:
+        cells: Cells state
+
+    Returns:
+        Cells state encoded as a string.
+    """
     max_val = NB_CHARS**2 - 1
-    cells_int32 = cells_int32 = jnp.array(jnp.round(cells * max_val), dtype=jnp.int32)
+    cells_int32 = jnp.array(jnp.round(cells * max_val), dtype=jnp.int32)
 
     cells_shape = cells_int32.shape
     cells_shape_bytes = bytes(0)
@@ -40,6 +67,15 @@ def compress_array(cells: jnp.ndarray) -> str:
 
 
 def decompress_array(string_cells: str, nb_dims: int = 0) -> jnp.ndarray:
+    """Best effort helpers which tries all existing decompress function built so far
+
+    Args:
+        string_cells: A string encoded cells state.
+        nb_dims: the number of dimensions in the cells state.
+
+    Returns:
+        The decoded cells state array.
+    """
     try:
         cells = decompress_array_gzip(string_cells)
     except Exception:
@@ -66,8 +102,16 @@ def decompress_array(string_cells: str, nb_dims: int = 0) -> jnp.ndarray:
     return jnp.array(cells, dtype=jnp.float32)
 
 
-def decompress_array_gzip(b64_str: str) -> jnp.ndarray:
-    gzip_bytes = codecs.decode(bytes(b64_str, 'utf-8'), 'base64')
+def decompress_array_gzip(string_cells: str) -> jnp.ndarray:
+    """Decompress string encoded cells state using the gzip algorithm
+
+    Args:
+        string_cells: A base64 string encoded cells state.
+
+    Returns:
+        The decoded cells state array.
+    """
+    gzip_bytes = codecs.decode(bytes(string_cells, 'utf-8'), 'base64')
 
     cells_int32_bytes = gzip.decompress(gzip_bytes)
     max_val = NB_CHARS**2 - 1
@@ -86,6 +130,14 @@ def decompress_array_gzip(b64_str: str) -> jnp.ndarray:
 
 
 def decompress_array_base64(string_cells: str) -> jnp.ndarray:
+    """Decompress string encoded cells state using only the base64 algorithm
+
+    Args:
+        string_cells: A base64 string encoded cells state.
+
+    Returns:
+        The decoded cells state array.
+    """
     serialized_cells = codecs.decode(string_cells.encode(), "base64")
     cells = pickle.loads(serialized_cells)
 
@@ -93,6 +145,14 @@ def decompress_array_base64(string_cells: str) -> jnp.ndarray:
 
 
 def ch2val(c: str) -> int:
+    """Map characters to integers
+
+    Args:
+        c: A character.
+
+    Returns:
+        An integer.
+    """
     assert len(c) == 2
     first_char = c[0]
     second_char = c[1]
@@ -115,6 +175,14 @@ def ch2val(c: str) -> int:
 
 
 def val2ch(v: int) -> str:
+    """Map integers to characters
+
+    Args:
+        v: An integer
+
+    Returns:
+        A character.
+    """
     first_char_idx = v // NB_CHARS
     second_char_idx = v % NB_CHARS
     # We do this trick to avoid the special characters between
@@ -135,10 +203,48 @@ def val2ch(v: int) -> str:
     return first_char + second_char
 
 
+def load_raw_cells(config: Dict, use_init_cells: bool = True) -> jnp.ndarray:
+    """Load and decompress cells state contained in a Leniax configuration.
+
+    Args:
+        config: Leniax configuration
+        use_init_cells: Set to ``True`` to use the ``init_cells`` configuration property.
+
+    Returns:
+        A Leniax cells state.
+    """
+    nb_dims = config['world_params']['nb_dims']
+    if use_init_cells is True:
+        if 'init_cells' not in config['run_params']:
+            # Backward compatibility
+            cells = config['run_params']['cells']
+        else:
+            cells = config['run_params']['init_cells']
+    else:
+        cells = config['run_params']['cells']
+    if type(cells) is str:
+        if cells == 'MISSING':
+            cells = jnp.array([], dtype=jnp.float32)
+        elif cells == 'last_frame.p':
+            with open(os.path.join(config['main_path'], 'last_frame.p'), 'rb') as f:
+                cells = jnp.array(pickle.load(f), dtype=jnp.float32)
+        else:
+            cells = decompress_array(cells, nb_dims + 1)  # we add the channel dim
+    elif type(cells) is list:
+        cells = jnp.array(cells, dtype=jnp.float32)
+
+    # We repair the missing channel in case of the single channel got squeezed out
+    if len(cells.shape) == nb_dims and config['world_params']['nb_channels'] == 1:
+        cells = jnp.expand_dims(cells, 0)
+
+    return cells
+
+
 ###
 # Deprecated, kept for backward compatibilities
 ###
 DIM_DELIM = {0: '', 1: '$', 2: '%', 3: '#', 4: '@A', 5: '@B', 6: '@C', 7: '@D', 8: '@E', 9: '@F'}
+
 
 def append_stack(list1: List, elem: Any, count, is_repeat=False):
     list1.append(elem)
@@ -176,6 +282,7 @@ def _recur_join_st(dim, lists, row_func, nb_dims: int):
         return DIM_DELIM[nb_dims - 1 - dim].join(_recur_join_st(dim + 1, e, row_func, nb_dims) for e in lists)
     else:
         return DIM_DELIM[nb_dims - 1 - dim].join(row_func(lists))
+
 
 def char2val_deprecated(ch: str) -> int:
     if ch in '.b':
@@ -239,33 +346,5 @@ def deprecated_decompress_array(cells_code: str, nb_dims: int) -> jnp.ndarray:
     recur_cubify(0, cells_l, max_lens, nb_dims)
 
     cells = jnp.array(cells_l, dtype=jnp.float32)
-
-    return cells
-
-
-def load_raw_cells(config: Dict, use_init_cells: bool = True) -> jnp.ndarray:
-    nb_dims = config['world_params']['nb_dims']
-    if use_init_cells is True:
-        if 'init_cells' not in config['run_params']:
-            # Backward compatibility
-            cells = config['run_params']['cells']
-        else:
-            cells = config['run_params']['init_cells']
-    else:
-        cells = config['run_params']['cells']
-    if type(cells) is str:
-        if cells == 'MISSING':
-            cells = jnp.array([], dtype=jnp.float32)
-        elif cells == 'last_frame.p':
-            with open(os.path.join(config['main_path'], 'last_frame.p'), 'rb') as f:
-                cells = jnp.array(pickle.load(f), dtype=jnp.float32)
-        else:
-            cells = decompress_array(cells, nb_dims + 1)  # we add the channel dim
-    elif type(cells) is list:
-        cells = jnp.array(cells, dtype=jnp.float32)
-
-    # We repair the missing channel in case of the single channel got squeezed out
-    if len(cells.shape) == nb_dims and config['world_params']['nb_channels'] == 1:
-        cells = jnp.expand_dims(cells, 0)
 
     return cells

@@ -524,13 +524,7 @@ def save_parallel_axes_plot(archive: ArchiveBase, fitness_domain: Tuple, fullpat
 
 
 def save_emitter_samples(
-    archive: ArchiveBase,
-    fitness_domain: Tuple,
-    sols: List,
-    fits: List,
-    bcs: List,
-    fullpath: str,
-    title: str
+    archive: ArchiveBase, fitness_domain: Tuple, sols: List, fits: List, bcs: List, fullpath: str, title: str
 ):
     """Save emitter sampling points.
 

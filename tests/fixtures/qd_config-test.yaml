@@ -44,7 +44,7 @@ kernels_params:
   - 4
   kf_slug: poly_quad
 other:
-  dump_bests: false
+  render_bests: false
   log_level: 30
 phenotype:
 - behaviours.mass_density

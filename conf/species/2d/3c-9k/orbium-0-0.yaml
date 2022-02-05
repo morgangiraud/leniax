@@ -160,7 +160,7 @@ kernels_params:
     s: 0.046844113
 main_path: ./experiments/015_3channels
 other:
-  dump_bests: true
+  render_bests: true
 phenotype:
 - behaviours.mass_density
 - behaviours.mass_volume

@@ -83,4 +83,4 @@ render_params:
 
 # Generic configuration parameters
 other:
-  dump_bests: true
+  render_bests: true

@@ -584,7 +584,7 @@ def load_img(fullpath: str, resize: Tuple[int, int]) -> jnp.ndarray:
     return jnp.array(img_np, dtype=jnp.float32)
 
 
-def set_log_level(config: dict):
+def set_log_level(config: Dict):
     """Set the python logging root level
 
     Args:
@@ -625,7 +625,7 @@ def seed_everything(seed: int) -> jax.random.KeyArray:
 ###
 # Memory
 ###
-def get_needed_memory(config: dict, nb_sols: int = 1):
+def get_needed_memory(config: Dict, nb_sols: int = 1):
     """Compute an approximate of the needed memory by different kind of simulations
 
     Args:

@@ -29,4 +29,4 @@ algo:
   sigma0: 0.5
 
 other:
-  dump_bests: True
+  render_bests: True

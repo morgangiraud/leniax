@@ -31,7 +31,15 @@ QDMetrics = Dict[str, Dict[str, list]]
 
 
 def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, fitness_coef: float = 1., fft: bool = True) -> Callable:
-    """Construct the
+    """Construct the evaluation function for the mem_optimized runner function
+
+    Args:
+        qd_config: QD configuration
+        fitness_coef: Multiply all returned fitness by this coefficient before ranking (mainly used to negate raw fitness values)
+        fft: Set to ``True`` to use FFT optimization
+
+    Returns:
+        The evaluation function.
     """
     max_run_iter = qd_config['run_params']['max_run_iter']
     world_params = qd_config['world_params']
@@ -78,10 +86,10 @@ def get_dynamic_args(
     Args:
         qd_config: Leniax QD configuration
         leniax_sols: Candidate Leniax solutions
-
+        fft: Set to ``True`` to use FFT optimization
 
     Returns:
-        A 5-tuple representing a batch of simulation parameters of shape
+        A 2-tuple representing a JAX PRNG key and a 5-tuple of the batch of simulation parameters of shape
         ``[N_sols, N_init, nb_channels, world_dims...]``
     """
     world_params = qd_config['world_params']
@@ -138,18 +146,20 @@ def get_dynamic_args(
     return rng_key, dynamic_args
 
 
-def update_individuals(inds: List[LeniaIndividual],
-                       stats: Dict[str, jnp.ndarray],
-                       fitness_coef=1.) -> List[LeniaIndividual]:
+def update_individuals(
+    inds: List[LeniaIndividual],
+    stats: Dict[str, jnp.ndarray],
+    fitness_coef=1.,
+) -> List[LeniaIndividual]:
     """Update Lenia individuals
 
     .. Warning::
-        In the statistics dictionnary. The ``N`` statistic is of shape ``[N_sols, N_init]``.
+        In the statistics dictionnary, the ``N`` statistic is of shape ``[N_sols, N_init]``.
 
     Args:
         inds: Evaluated Lenia individuals
         stats: ``Dict[str, [N_sols, nb_iter, N_init]]``
-        fitness_coef: Mainly used to change the sign
+        fitness_coef: Multiply all returned fitness by this coefficient before ranking (mainly used to negate raw fitness values)
 
     Returns:
         Lpdate Lenia individuals
@@ -189,9 +199,9 @@ def run_qd_search(
     """Run a Quality-diveristy search
 
     .. Warning::
-        n_workers == -1 means that your evaluation functions handles parallelism
-        n_workers == 0 means that you want to use a sinple python loop function
-        n_workers > 0 means that you want to use python spawn mechanism
+        - n_workers == -1 means that your evaluation functions handles parallelism
+        - n_workers == 0 means that you want to use a sinple python loop function
+        - n_workers > 0 means that you want to use python spawn mechanism
 
     Args:
         rng_key: jax PRNGKey
@@ -302,7 +312,15 @@ def run_qd_search(
 ###
 # QD Utils
 ###
-def load_qd_grid_and_config(grid_fullpath):
+def load_qd_grid_and_config(grid_fullpath: str) -> Tuple[ArchiveBase, Dict]:
+    """Helper function to load the QD grid and configuration
+
+    Args:
+        grid_fullpath: The absolute path the pickled grid.
+
+    Returns:
+        A 2-tuple representing the QD grid and configuration.
+    """
     with open(grid_fullpath, "rb") as f:
         data = pickle.load(f)
         if isinstance(data, ArchiveBase):
@@ -324,7 +342,13 @@ def load_qd_grid_and_config(grid_fullpath):
     return grid, qd_config
 
 
-def dump_best(grid: ArchiveBase, fitness_threshold: float):
+def render_best(grid: ArchiveBase, fitness_threshold: float):
+    """Helper function to render configurations above the threshold
+
+    Args:
+        grid: QD grid.
+        fitness_threshold: Threshold definie what is among the best fitness values
+    """
     qd_config = grid.qd_config
     seed = qd_config['run_params']['seed']
     rng_key = leniax_utils.seed_everything(seed)
@@ -346,6 +370,11 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
 
 
 def render_found_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
+    """Render one Lenia
+
+    Args:
+        enum_lenia: A 2-tuple representing and index and a Lenia individual.
+    """
     # This function is usually called in forked processes, before launching any JAX code
     # We silent it
     # Disable JAX logging https://abseil.io/docs/python/guides/logging
@@ -401,18 +430,21 @@ def render_found_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
 ###
 
 
-def save_ccdf(archive, fullpath):
+def save_ccdf(archive: ArchiveBase, fullpath: str):
     """Saves a CCDF showing the distribution of the archive's objective values.
 
-    CCDF = Complementary Cumulative Distribution Function (see
-    https://en.wikipedia.org/wiki/Cumulative_distribution_function#Complementary_cumulative_distribution_function_(tail_distribution)).
-    The CCDF plotted here is not normalized to the range (0,1). This may help
-    when comparing CCDF's among archives with different amounts of coverage
-    (i.e. when one archive has more cells filled).
+    .. note::
+        CCDF = `Complementary Cumulative Distribution Function
+        <https://en.wikipedia.org/wiki/Cumulative_distribution_function#Complementary_cumulative_distribution_function_(tail_distribution)>`_
+
+        The CCDF plotted here is not normalized to the range ``(0,1)``.
+
+        This may help when comparing CCDF's among archives with different amounts of coverage
+        (i.e. when one archive has more cells filled).
 
     Args:
-        archive (GridArchive): Archive with results from an experiment.
-        fullpath (str): Path to an image file.
+        archive: Archive containing the experiment results.
+        fullpath: Absolute path to an image file.
     """
     fig, ax = plt.subplots(figsize=(8, 6))
     ax.hist(
@@ -429,7 +461,13 @@ def save_ccdf(archive, fullpath):
     plt.close(fig)
 
 
-def save_metrics(metrics, save_dir):
+def save_metrics(metrics: QDMetrics, save_dir: str):
+    """Plot and save QD metrics.
+
+    Args:
+        metrics: Dictionnary of metrics.
+        save_dir: Absolute path of the saving directory.
+    """
     # Plots.
     for metric in metrics:
         fig, ax = plt.subplots()
@@ -444,7 +482,14 @@ def save_metrics(metrics, save_dir):
         json.dump(metrics, file, indent=2)
 
 
-def save_heatmap(archive, fitness_domain, fullpath):
+def save_heatmap(archive: ArchiveBase, fitness_domain: Tuple, fullpath: str):
+    """Save QD heatmap
+
+    Args:
+        archive: Archive containing the experiment results.
+        fitness_domain: Bounds of fitness values.
+        fullpath: Absolute path of the file.
+    """
     if isinstance(archive, GridArchive):
         fig, ax = plt.subplots(figsize=(8, 6))
         grid_archive_heatmap(archive, square=False, vmin=fitness_domain[0], vmax=fitness_domain[1], ax=ax)
@@ -461,7 +506,14 @@ def save_heatmap(archive, fitness_domain, fullpath):
     plt.close(fig)
 
 
-def save_parallel_axes_plot(archive, fitness_domain, fullpath):
+def save_parallel_axes_plot(archive: ArchiveBase, fitness_domain: Tuple, fullpath: str):
+    """Save parallel axes plot.
+
+    Args:
+        archive: Archive containing the experiment results.
+        fitness_domain: Bounds of fitness values.
+        fullpath: Absolute path of the file.
+    """
     fig, ax = plt.subplots(figsize=(8, 6))
 
     parallel_axes_plot(archive, vmin=fitness_domain[0], vmax=fitness_domain[1], ax=ax, sort_archive=True)
@@ -471,7 +523,26 @@ def save_parallel_axes_plot(archive, fitness_domain, fullpath):
     plt.close(fig)
 
 
-def save_emitter_samples(archive, fitness_domain, sols, fits, bcs, fullpath, title):
+def save_emitter_samples(
+    archive: ArchiveBase,
+    fitness_domain: Tuple,
+    sols: List,
+    fits: List,
+    bcs: List,
+    fullpath: str,
+    title: str
+):
+    """Save emitter sampling points.
+
+    Args:
+        archive: Archive containing the experiment results.
+        fitness_domain: Bounds of fitness values.
+        sols: Solutions parameters.
+        fits: Fitness measurements.
+        bcs: Behaviours measurements.
+        fullpath: Absolute path of the file.
+        title: Title of the image.
+    """
     fig, ax = plt.subplots(figsize=(8, 6))
 
     bcs_jnp = jnp.array(bcs)
@@ -493,7 +564,17 @@ def save_emitter_samples(archive, fitness_domain, sols, fits, bcs, fullpath, tit
     plt.close(fig)
 
 
-def save_all(current_iter: int, optimizer, fitness_domain, sols: List, fits: List, bcs: List):
+def save_all(current_iter: int, optimizer, fitness_domain: Tuple, sols: List, fits: List, bcs: List):
+    """Helper function to all kind of vizualisation for a QD iteration.
+
+    Args:
+        current_iter: Current QD iteration.
+        optimizer: Pyribs compatible optimizer.
+        fitness_domain: Bounds of fitness values.
+        sols: Solutions parameters.
+        fits: Fitness measurements.
+        bcs: Behaviours measurements.
+    """
     save_dir = os.getcwd()
     prefix_fullpath = os.path.join(save_dir, f"{str(current_iter).zfill(4)}-")
     save_ccdf(optimizer.archive, f"{prefix_fullpath}archive_ccdf.png")
@@ -528,7 +609,7 @@ def save_all(current_iter: int, optimizer, fitness_domain, sols: List, fits: Lis
 # QD Debug
 ###
 def rastrigin(pos: jnp.ndarray, A: float = 10.):
-    """Valu are expected to be between [0, 1]"""
+    """Values are expected to be between [0, 1]"""
     assert len(pos.shape) == 3
     assert pos.shape[-1] == 2
 
@@ -541,6 +622,7 @@ def rastrigin(pos: jnp.ndarray, A: float = 10.):
 
 
 def eval_debug(ind: LeniaIndividual, fitness_coef=1.):
+    """Debugging evaluation function """
     # This function is usually called in forked processes, before launching any JAX code
     # We silent it
     # Disable JAX logging https://abseil.io/docs/python/guides/logging

@@ -12,52 +12,6 @@ from typing import List, Any, Dict
 
 from .constant import NB_CHARS
 
-cdir = os.path.dirname(os.path.realpath(__file__))
-save_dir = os.path.join(cdir, 'save')
-image_ext = "png"
-
-
-###
-# Loader
-###
-def append_stack(list1: List, elem: Any, count, is_repeat=False):
-    list1.append(elem)
-    if count != '':
-        repeated = elem if is_repeat else []
-        list1.extend([repeated] * (int(count) - 1))
-
-
-def recur_get_max_lens(dim, list1, max_lens, nb_dims: int):
-    max_lens[dim] = max(max_lens[dim], len(list1))
-    if dim < nb_dims - 1:
-        for list2 in list1:
-            recur_get_max_lens(dim + 1, list2, max_lens, nb_dims)
-
-
-def recur_cubify(dim, list1, max_lens, nb_dims: int):
-    more = max_lens[dim] - len(list1)
-    if dim < nb_dims - 1:
-        list1.extend([[]] * more)
-        for list2 in list1:
-            recur_cubify(dim + 1, list2, max_lens, nb_dims)
-    else:
-        list1.extend([0] * more)
-
-
-def _recur_drill_list(dim, lists, row_func, nb_dims: int):
-    if dim < nb_dims - 1:
-        return [_recur_drill_list(dim + 1, e, row_func, nb_dims) for e in lists]
-    else:
-        return row_func(lists)
-
-
-def _recur_join_st(dim, lists, row_func, nb_dims: int):
-    if dim < nb_dims - 1:
-        return DIM_DELIM[nb_dims - 1 - dim].join(_recur_join_st(dim + 1, e, row_func, nb_dims) for e in lists)
-    else:
-        return DIM_DELIM[nb_dims - 1 - dim].join(row_func(lists))
-
-
 def make_array_compressible(cells: jnp.ndarray) -> jnp.ndarray:
     max_val = NB_CHARS**2 - 1
 
@@ -186,6 +140,42 @@ def val2ch(v: int) -> str:
 ###
 DIM_DELIM = {0: '', 1: '$', 2: '%', 3: '#', 4: '@A', 5: '@B', 6: '@C', 7: '@D', 8: '@E', 9: '@F'}
 
+def append_stack(list1: List, elem: Any, count, is_repeat=False):
+    list1.append(elem)
+    if count != '':
+        repeated = elem if is_repeat else []
+        list1.extend([repeated] * (int(count) - 1))
+
+
+def recur_get_max_lens(dim, list1, max_lens, nb_dims: int):
+    max_lens[dim] = max(max_lens[dim], len(list1))
+    if dim < nb_dims - 1:
+        for list2 in list1:
+            recur_get_max_lens(dim + 1, list2, max_lens, nb_dims)
+
+
+def recur_cubify(dim, list1, max_lens, nb_dims: int):
+    more = max_lens[dim] - len(list1)
+    if dim < nb_dims - 1:
+        list1.extend([[]] * more)
+        for list2 in list1:
+            recur_cubify(dim + 1, list2, max_lens, nb_dims)
+    else:
+        list1.extend([0] * more)
+
+
+def _recur_drill_list(dim, lists, row_func, nb_dims: int):
+    if dim < nb_dims - 1:
+        return [_recur_drill_list(dim + 1, e, row_func, nb_dims) for e in lists]
+    else:
+        return row_func(lists)
+
+
+def _recur_join_st(dim, lists, row_func, nb_dims: int):
+    if dim < nb_dims - 1:
+        return DIM_DELIM[nb_dims - 1 - dim].join(_recur_join_st(dim + 1, e, row_func, nb_dims) for e in lists)
+    else:
+        return DIM_DELIM[nb_dims - 1 - dim].join(row_func(lists))
 
 def char2val_deprecated(ch: str) -> int:
     if ch in '.b':

@@ -93,7 +93,7 @@ class TestQD(unittest.TestCase):
             omegaConf = compose(config_name="qd_config-test")
             qd_config = leniax_utils.get_container(omegaConf, fixture_dir)
             del qd_config['phenotype']
-            
+
         seed = qd_config['run_params']['seed']
         rng_key = leniax_utils.seed_everything(seed)
 

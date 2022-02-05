@@ -20,7 +20,7 @@ def run() -> None:
 
         os.chdir(subdir)
         max_val = qd_config['run_params']['max_run_iter']
-        leniax_qd.dump_best(grid, max_val)
+        leniax_qd.render_best(grid, max_val)
 
 
 if __name__ == '__main__':

@@ -87,9 +87,9 @@ def run(omegaConf: DictConfig) -> None:
     leniax_qd.save_parallel_axes_plot(optimizer.archive, fitness_domain, f"{save_dir}/archive_parralel_plot.png")
     leniax_video.render_qd_search(os.path.join(save_dir, 'qd_search.mp4'))
 
-    if config['other']['dump_bests'] is True:
+    if config['other']['render_bests'] is True:
         fitness_threshold = 0.7 * fitness_domain[1]
-        leniax_qd.dump_best(optimizer.archive, fitness_threshold)
+        leniax_qd.render_best(optimizer.archive, fitness_threshold)
 
 
 if __name__ == '__main__':

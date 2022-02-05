@@ -6,17 +6,26 @@ from . import utils as leniax_utils
 
 
 class LeniaIndividual(object):
-    """
-    The philosophy of the lib is to have parameters sampled from the same domain
-    And then scaled by custom functions before being used in the evaluation function
-    To sum up:
-      - All parameters are generated in the sampling_domain
-      - the dimension parameter is the number of parameter
-      - in the eval function:
-          1. You scale those parameters
-          2. You create the configuration from those parameters
-          3. You evaluate the configuration
-          4. you set fitness and features
+    """A Lenia individual used by QD algorithms
+
+    .. note::
+        The philosophy of the lib is to have parameters sampled from the same domain
+        And then scaled by custom functions before being used in the evaluation function
+        To sum up:
+            - All parameters are generated in the sampling_domain
+            - the dimension parameter is the number of parameter
+            - in the eval function:
+                1. You scale those parameters
+                2. You create the configuration from those parameters
+                3. You evaluate the configuration
+                4. you set fitness and features
+
+    Attributes:
+        fitness: QD fitness value
+        features: List of QD behaviour values
+        qd_config: QD configuration
+        rng_key: JAX PRNG key
+        params: A list of parameters to be updated by QD
     """
 
     fitness: float
@@ -43,9 +52,11 @@ class LeniaIndividual(object):
         self.qd_config['algo']['best_init_idxs'] = best_init_idxs
 
     def set_cells(self, cells: str):
+        """Set the cells in the QD configuration"""
         self.qd_config['run_params']['cells'] = cells
 
     def set_init_cells(self, init_cells: str):
+        """Set the initial cells in the QD configuration"""
         self.qd_config['run_params']['init_cells'] = init_cells
 
     def get_config(self) -> Dict:
@@ -66,8 +77,18 @@ class LeniaIndividual(object):
         return self.qd_config['genotype']
 
 
-def update_config(old_config, to_update):
-    new_config = copy.deepcopy(old_config)
+def update_config(config, to_update):
+    """Update a Leniax configuration with new values
+
+    Args:
+        config: Leniax configuration
+        to_update: An update dictionnary
+
+    Returns:
+        The udpated Leniax configuration
+    """
+    new_config = copy.deepcopy(config)
+
     if 'kernels_params' in to_update:
         for i, kernel in enumerate(to_update['kernels_params']):
             new_config['kernels_params'][i].update(kernel)
@@ -77,7 +98,16 @@ def update_config(old_config, to_update):
     return new_config
 
 
-def get_update_config(genotype: Dict, raw_values: list) -> Dict:
+def get_update_config(genotype: Dict, raw_values: List) -> Dict:
+    """Update the QD configuration using raw_values
+
+    Args:
+        genotype: A dictionnary of genotype value to be updated
+        raw_values: Raw values for the update
+
+    Returns:
+        A dictionnary mapping keys with updated values
+    """
     to_update: Dict = {}
     for gene, raw_val in zip(genotype, raw_values):
         key_str = gene['key']
@@ -99,12 +129,31 @@ def get_update_config(genotype: Dict, raw_values: list) -> Dict:
 
 
 def linear_scale(raw_value: float, domain: Tuple[float, float]) -> float:
+    """Scale linearly raw_value in domain
+
+    Args:
+        raw_value: a value in ``[0, 1]``
+        domain: Domain bounding the final value
+
+    Returns:
+        The scaled value
+    """
     val = domain[0] + (domain[1] - domain[0]) * raw_value
 
     return val
 
 
-# def log_scale(raw_value: float, domain: Tuple[float, float]) -> float:
-#     val = domain[0] * (domain[1] / domain[0])**raw_value
+def log_scale(raw_value: float, domain: Tuple[float, float]) -> float:
+    """Scale logarithmically raw_value in domain
 
-#     return val
+    Args:
+        raw_value: a value in ``[0, 1]``
+        domain: Domain bounding the final value
+
+    Returns:
+        The scaled value
+    """
+
+    val = domain[0] * (domain[1] / domain[0])**raw_value
+
+    return val

@@ -198,7 +198,7 @@ def staircase(params: jnp.ndarray, X: jnp.ndarray):
     out += 1 * (X >= m - s / 2) * (X <= m + s / 2)
     out += 0.5 * (X > m + s / 2) * (X <= m + s)
 
-    return out
+    return 2 * out - 1
 
 
 def triangle(params: jnp.ndarray, X: jnp.ndarray):
@@ -240,7 +240,7 @@ def triangle(params: jnp.ndarray, X: jnp.ndarray):
     out = (X >= left) * (X < m) * (X - left) / (m - left)
     out += (X >= m) * (X <= right) * (X - right) / (m - right)
 
-    return out
+    return 2 * out - 1
 
 
 register = {

@@ -114,14 +114,14 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
             'potential_volume': potential_volume,
         }
 
-        shift_idx = mass_centroid.astype(int).T
+        shift_idx = mass_centroid.astype(jnp.int32).T
         world_shape = jnp.array(cells.shape[2:])
         total_shift_idx = (previous_total_shift_idx + shift_idx) % world_shape
 
         # Since we will center the world before computing stats
         # The mass_centroid will also be shifted, so here we make sure we avoid the
         # shifting errors
-        mass_centroid = mass_centroid - mass_centroid.astype(int)
+        mass_centroid = mass_centroid - mass_centroid.astype(jnp.int32)
 
         return (stats, total_shift_idx, mass_centroid, mass_angle)
 

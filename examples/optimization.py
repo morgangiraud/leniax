@@ -2,6 +2,7 @@ import functools
 import time
 import os
 import copy
+import logging
 from absl import logging as absl_logging
 from omegaconf import DictConfig
 import hydra
@@ -90,7 +91,7 @@ def run(omegaConf: DictConfig) -> None:
     ###
     config_target = copy.deepcopy(config)
 
-    print("Creating training set init_cells")
+    logging.info("Creating training set init_cells")
     nb_init_search = config_target['run_params']['nb_init_search']
     world_params = config_target['world_params']
     nb_channels = world_params['nb_channels']
@@ -105,14 +106,16 @@ def run(omegaConf: DictConfig) -> None:
     all_init_cells = noises.reshape([nb_init_search, 1] + world_size)
     config_target['run_params']['init_cells'] = all_init_cells
 
-    print("Rendering target: start")
+    logging.info("Rendering target: start")
     start_time = time.time()
     all_cells_target, all_fields_target, all_potentials_target, _ = leniax_helpers.init_and_run(
         config_target, use_init_cells=True, with_jit=True, fft=True, stat_trunc=False
     )  # [nb_max_iter, N=1, C, world_dims...]
     total_time = time.time() - start_time
     nb_iter_done = len(all_cells_target)
-    print(f"Rendering target: {nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
+    logging.info(
+        f"Rendering target: {nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps"
+    )
 
     nb_steps_to_train = 1
     training_data_shape = [-1, nb_channels] + world_size
@@ -184,7 +187,7 @@ def run(omegaConf: DictConfig) -> None:
             K_params_neg_grad = -grads[0]
             gf_params_neg_grad = -grads[1]
 
-            print(i, error, gf_params, gf_params_neg_grad)
+            logging.info(i, error, gf_params, gf_params_neg_grad)
 
             np.save(f"{save_dir}/K.npy", K_params, allow_pickle=True, fix_imports=True)
 

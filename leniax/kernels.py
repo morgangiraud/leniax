@@ -9,55 +9,87 @@ from .kernel_functions import register as kf_register
 
 @dataclass()
 class KernelMapping(object):
+    """Explicit mapping of the computation graph
+
+    Attributes:
+        cin_kernels: list of kernel indexes grouped by channel of shape ``[nb_channels, max_nb_kernels]``
+        cin_k_params: list of kernel parameters grouped by channel of shape ``[nb_channels, max_nb_kernels]``
+        cin_kfs: list of kernel functions grouped by channel of shape ``[nb_channels, max_nb_kernels]``
+        cin_gfs: list of growth function slugs grouped by channel of shape ``[nb_channels, max_nb_kernels]``
+        gf_params: list of growth function slug grouped by channel of shape ``[nb_channels, max_nb_kernels]``
+        kernels_weight_per_channel: list of weights grouped by channel of shape ``[nb_channels, nb_kernels]``
+    """
     cin_kernels: List[List[int]]
-    cin_growth_fns: List[List[str]]
-    gf_params: List[List]
-    cin_kf: List[List[str]]
-    k_params: List[List]
+    cin_k_params: List[List]
+    cin_kfs: List[List[str]]
+    cin_gfs: List[List[str]]
+    cin_gf_params: List[List]
     kernels_weight_per_channel: List[List[float]]
     true_channels: jnp.ndarray
 
     def __init__(self, nb_channels: int, nb_kernels: int):
         self.cin_kernels = [[] for _ in range(nb_channels)]
-        self.cin_growth_fns = [[] for _ in range(nb_channels)]
-        self.gf_params = [[] for _ in range(nb_channels)]
-        self.cin_kf = [[] for _ in range(nb_channels)]
-        self.k_params = [[] for _ in range(nb_channels)]
+        self.cin_k_params = [[] for _ in range(nb_channels)]
+        self.cin_kfs = [[] for _ in range(nb_channels)]
+        self.cin_gfs = [[] for _ in range(nb_channels)]
+        self.cin_gf_params = [[] for _ in range(nb_channels)]
         self.kernels_weight_per_channel = [[0.] * nb_kernels for _ in range(nb_channels)]
 
     def get_k_params(self) -> jnp.ndarray:
-        flat_k_params = [item for sublist in self.k_params for item in sublist]
+        """Get all kernel params, flattened
+
+        Returns:
+            An array of shape ``[nb_kernels, kernel_params_shape...]``
+        """
+        flat_k_params = [item for sublist in self.cin_k_params for item in sublist]
         return jnp.array(flat_k_params, dtype=jnp.float32)
 
     def get_gf_params(self) -> jnp.ndarray:
-        flat_gf_params = [item for sublist in self.gf_params for item in sublist]
+        """Get all growth function params, flattened
+
+        Returns:
+            An array of shape ``[nb_kernels, gf_params_shape...]``
+        """
+        flat_gf_params = [item for sublist in self.cin_gf_params for item in sublist]
         return jnp.array(flat_gf_params, dtype=jnp.float32)
 
     def get_kernels_weight_per_channel(self) -> jnp.ndarray:
+        """Get all growth function params, flattened
+
+        Returns:
+            An array of shape ``[nb_channels, nb_kernels]``
+        """
+
         return jnp.array(self.kernels_weight_per_channel, dtype=jnp.float32)
 
 
-def get_kernels_and_mapping(kernels_params: List,
-                            world_size: List[int],
-                            nb_channels: int,
-                            R: float,
-                            fft: bool = True) -> Tuple[jnp.ndarray, KernelMapping]:
-    """
-        Build the kernel and the mapping used in the update function by JAX.
-        To take advantages of JAX vmap and conv_generalized function, we stack all kernels
-        and keep track of the kernel graph in mapping:
-        - Each kernel is applied to one channel and the result is added to one other channel
+def get_kernels_and_mapping(
+    kernels_params: List,
+    world_size: List[int],
+    nb_channels: int,
+    R: float,
+    fft: bool = True,
+) -> Tuple[jnp.ndarray, KernelMapping]:
+    """Contruxt the kernel array and the associated mapping
+
+    Build the kernel and the mapping used in the update function by JAX.
+    To take advantages of JAX vmap and conv_generalized function, we stack all kernels
+    and keep track of the kernel graph in mapping:
+    - Each kernel is applied to one channel and the result is added to one other channel
+
+    Args:
+        kernels_params: Kernels parameters.
+        world_size: World size.
+        nb_channels: Number of channels.
+        R: World radius.
+        fft: Set to ``True`` to compute a FFT kernel.
     """
     kernels_list = []
     mapping = KernelMapping(nb_channels, len(kernels_params))
     # We need to sort those kernels_params to make sure kernels_weight_per_channel is in the right order
     kernels_params.sort(key=lambda d: d['c_in'])
     for kernel_idx, param in enumerate(kernels_params):
-        if param['k_slug'] == 'raw':
-            k = jnp.array(param['k_params'])
-            assert k.shape[0] == 1, 'Kernel shape should be like [1, world_dims...]'
-        else:
-            k = register[param['k_slug']](param['k_params'], param['kf_slug'], param['kf_params'])
+        k = register[param['k_slug']](R, param['k_params'], param['kf_slug'], param['kf_params'])
         padding = [[0, 0]]
         for ws, ks in zip(world_size, k.shape[1:]):
             pad_needed = ws - ks
@@ -70,10 +102,10 @@ def get_kernels_and_mapping(kernels_params: List,
 
         channel_in = param["c_in"]
         mapping.cin_kernels[channel_in].append(kernel_idx)
-        mapping.cin_growth_fns[channel_in].append(param["gf_slug"])
-        mapping.gf_params[channel_in].append(param["gf_params"])
-        mapping.cin_kf[channel_in].append(param["kf_slug"])
-        mapping.k_params[channel_in].append(param["k_params"])
+        mapping.cin_gfs[channel_in].append(param["gf_slug"])
+        mapping.cin_gf_params[channel_in].append(param["gf_params"])
+        mapping.cin_kfs[channel_in].append(param["kf_slug"])
+        mapping.cin_k_params[channel_in].append(param["k_params"])
 
         channel_out = param["c_out"]
         mapping.kernels_weight_per_channel[channel_out][kernel_idx] = param["h"]
@@ -119,11 +151,35 @@ def get_kernels_and_mapping(kernels_params: List,
     return K, mapping
 
 
-def circle_2d(k_params: List, kf_slug: str, kf_params: jnp.ndarray) -> jnp.ndarray:
-    """ Build one kernel """
+def raw(R, k_params: List, kf_slug: str, kf_params: jnp.ndarray) -> jnp.ndarray:
+    """Returns k_params as an array
+
+    Args:
+        R: World radius **(not used)**
+        k_params: Kernel parameters
+        kf_slug: Kernel function slug
+        kf_params: Kernel function params
+
+    Returns:
+        A kernel of shape ``k_params``
+    """
+    return jnp.array(k_params, dtype=jnp.float32)
+
+
+def circle_2d(R, k_params: List, kf_slug: str, kf_params: jnp.ndarray) -> jnp.ndarray:
+    """Build a circle kernel
+
+    Args:
+        R: World radius
+        k_params: Kernel parameters
+        kf_slug: Kernel function slug
+        kf_params: Kernel function params
+
+    Returns:
+        A kernel of shape ``[1, world_dims...]``
+    """
     r = k_params[0]
-    R = k_params[1]
-    bs = jnp.array(k_params[2])
+    bs = jnp.array(k_params[1], dtype=jnp.float32)
     k_radius_px = math.ceil(r * R)
 
     midpoint = jnp.array([k_radius_px, k_radius_px])
@@ -149,4 +205,7 @@ def circle_2d(k_params: List, kf_slug: str, kf_params: jnp.ndarray) -> jnp.ndarr
     return kernel
 
 
-register: Dict[str, Callable] = {'circle_2d': circle_2d}
+register: Dict[str, Callable] = {
+    'raw': raw,
+    'circle_2d': circle_2d,
+}

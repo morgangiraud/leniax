@@ -56,7 +56,8 @@ def perlin(
     res = [world_size[0] // (kernel_radius * 3), world_size[1] // (kernel_radius * 2)]
     min_mean_bound = gf_params[0]
     max_mean_bound = min(1, 3 * min_mean_bound)
-    scaling = jnp.array([min_mean_bound + i / nb_init * (max_mean_bound - min_mean_bound) for i in range(nb_init)])
+    scaling = jnp.array([min_mean_bound + i / nb_init * (max_mean_bound - min_mean_bound) for i in range(nb_init)],
+                        dtype=jnp.float32)
     scaling = scaling[:, jnp.newaxis, jnp.newaxis]
 
     rng_key, subkey = jax.random.split(rng_key)

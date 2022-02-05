@@ -118,7 +118,7 @@ class TestRunner(unittest.TestCase):
 
         cells2 = jnp.ones(cells.shape) * 0.5
         K2 = jnp.ones(K.shape) * 0.5
-        mapping.gf_params[0][0][0] = .3
+        mapping.cin_gf_params[0][0][0] = .3
         gf_params2 = mapping.get_gf_params()
         kernels_weight_per_channel2 = mapping.get_kernels_weight_per_channel()
 

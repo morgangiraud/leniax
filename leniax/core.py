@@ -186,7 +186,7 @@ def weighted_mean(fields: jnp.ndarray, weights: jnp.ndarray) -> jnp.ndarray:
     return fields_normalized
 
 
-def update_cells(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp.ndarray:
+def update_state(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp.ndarray:
     """Compute the new cells state using the original Lenia formula
 
     Args:
@@ -210,7 +210,7 @@ def update_cells(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp
     return out
 
 
-def update_cells_v2(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp.ndarray:
+def update_state_v2(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp.ndarray:
     """Compute the new cells state using the asymptotic Lenia formula
 
     Args:
@@ -224,6 +224,29 @@ def update_cells_v2(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> 
     Reference:
         https://direct.mit.edu/isal/proceedings/isal/91/102916
     """
-    cells_new = jnp.array(cells * (1 - dt) + dt * field)
+    cells_new = cells * (1 - dt) + dt * field
 
     return cells_new
+
+
+def update_state_simple(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp.ndarray:
+    """Compute the new cells state by simply adding the field directly
+
+    Args:
+        cells: Current cells state ``[N, nb_channels, world_dims...]``
+        field: Current field``[N, nb_channels, world_dims...]``
+        dt: Update rate ``[N]`` **(not used)**
+
+    Returns:
+        The new cells state
+    """
+    cells_new = cells + field
+
+    return cells_new
+
+
+update_register = {
+    'v1': update_state,
+    'v2': update_state_v2,
+    'simple': update_state_simple,
+}

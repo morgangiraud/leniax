@@ -12,5 +12,5 @@ leniax.core package
 .. autofunction:: get_field
 .. autofunction:: weighted_sum
 .. autofunction:: weighted_mean
-.. autofunction:: update_cells
-.. autofunction:: update_cells_v2
+.. autofunction:: update_state
+.. autofunction:: update_state_v2

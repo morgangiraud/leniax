@@ -1,78 +1,74 @@
-world_params:
-  nb_dims: 2
-  nb_channels: 1
-  R: 5
-  T: 10
-render_params:
-  pixel_size_power2: 2
-  size_power2: 6
-  pixel_border_size: 0
-  world_size: MISSING
-  pixel_size: MISSING
-run_params:
-  code: "O2u"
-  name: "Orbium unicaudatus"
-  cname: "球虫(單尾)"
-  seed: 1
-  max_run_iter: 4
-  nb_init_search: 3
-kernels_params:
-  k:
-    - k_id: 0
-      q: 4
-      r: 1
-      b: '1'
-      gf_id: 0
-      m: 0.17
-      s: 0.015
-      h: 1
-      c_in: 0
-      c_out: 0
-    - k_id: 0
-      q: 4
-      r: 1
-      b: '1'
-      gf_id: 1
-      m: 0.2
-      s: 0.02
-      h: 0.5
-      c_in: 0
-      c_out: 0
-
+algo:
+  batch_size: 2
+  budget: 16
+  init_param: []
+  init_slug: perlin
+  mut_sigma0: 0.01
+  sampling_domain:
+  - 0.0
+  - 1.0
+  sigma0: 0.15
 genotype:
-  - key: kernels_params.k.0.m
-    domain: 
-      - .1
-      - .5
-    type: float
-  - key: kernels_params.k.0.s
-    domain: 
-      - 0.
-      - .1
-    type: float
-
-phenotype:
-  - kernels_params.k.0.m
-  - kernels_params.k.0.s
-
+- domain:
+  - 0.1
+  - 0.6
+  key: kernels_params.0.gf_params.0
+  type: float
+- domain:
+  - 0.0
+  - 0.1
+  key: kernels_params.0.gf_params.1
+  type: float
 grid:
   features_domain:
-    - - .1
-      - .5
-    - - 0.
-      - .1
-  shape: [25, 25]
-  
-algo:
-  # Generic
-  budget: 2048
-  batch_size: 8
-  sampling_domain:
-    - 0.
-    - 1.
-  # cmaes
-  mut_sigma0: 0.01
-  sigma0: 0.15
-
+  - - 0.0
+    - 1.0
+  - - 0.0
+    - 1.0
+  shape:
+  - 16
+  - 16
+kernels_params:
+- c_in: 0
+  c_out: 0
+  gf_params:
+  - 0.17
+  - 0.015
+  gf_slug: poly_quad4
+  h: 1
+  k_params:
+  - 1
+  - - 1.0
+  k_slug: circle_2d
+  kf_params:
+  - 4
+  kf_slug: poly_quad
 other:
-  dump_bests: True
+  dump_bests: false
+  log_level: 30
+phenotype:
+- behaviours.mass_density
+- behaviours.mass_speed
+render_params:
+  pixel_border_size: 0
+  pixel_size: 1
+  pixel_size_power2: 2
+  size_power2: 6
+  world_size:
+  - 64
+  - 64
+run_params:
+  cells: MISSING
+  code: MISSING
+  max_run_iter: 20
+  nb_init_search: 3
+  seed: 1
+version: 2
+world_params:
+  R: 13
+  T: 10
+  nb_channels: 1
+  nb_dims: 2
+  scale: 1.0
+  update_fn_version: v1
+  weighted_average: true

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import numpy as np
+import logging
 from matplotlib.colors import ListedColormap
 from typing import List, Callable, Dict
 from hilbertcurve.hilbertcurve import HilbertCurve
@@ -79,7 +80,7 @@ class PerceptualGradientColormap():
 
     def print_uint8_rgb_colors(self):
         """Print the list of colors contained in the colormap"""
-        print(np.array(np.array(self.cmap.colors) * 255, dtype=np.int32)[:, :3].tolist())
+        logging.info(np.array(np.array(self.cmap.colors) * 255, dtype=np.int32)[:, :3].tolist())
 
 
 class Hilbert2d3dColormap():

@@ -1,9 +1,9 @@
 import time
 import os
 import logging
+from absl import logging as absl_logging
 import psutil
 from multiprocessing import get_context
-from absl import logging as absl_logging
 from omegaconf import DictConfig
 import hydra
 import copy
@@ -12,6 +12,7 @@ import leniax.utils as leniax_utils
 import leniax.video as leniax_video
 import leniax.helpers as leniax_helpers
 import leniax.colormaps as leniax_colormaps
+import leniax.loader as leniax_loader
 
 absl_logging.set_verbosity(absl_logging.ERROR)
 
@@ -20,6 +21,8 @@ cdir = os.path.dirname(os.path.realpath(__file__))
 
 def render(tuple_input):
     res, scale, ori_config = tuple_input
+    leniax_utils.set_log_level(ori_config)
+
     config = copy.deepcopy(ori_config)
     config["render_params"]["world_size"] = res
     config["render_params"]["pixel_size"] = 1
@@ -41,13 +44,11 @@ def render(tuple_input):
     leniax_utils.check_dir(save_dir)
 
     logging.info("Compressing")
-    config['run_params']['init_cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[0]))
-    config['run_params']['cells'] = leniax_utils.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
+    config['run_params']['init_cells'] = leniax_loader.compress_array(all_cells[0])
+    config['run_params']['cells'] = leniax_loader.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
     leniax_utils.save_config(save_dir, config)
     logging.info(f"Compressing done in {total_time} seconds")
 
-    if 'dry_run' in config['other'] and config['other']['dry_run'] is True:
-        exit()
     logging.info("Dumping assets")
     colormaps = [
         # leniax_colormaps.get('alizarin'),
@@ -75,30 +76,6 @@ config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
 config_name = "orbium"
 
 stat_trunc = True
-resolutions = [
-    [128, 128],  # Optim Lenia world
-    [256, 256],
-    [512, 512],  # Default Lenia NFT size
-    [768, 768],  # Twitter
-    [720, 1280],  # HD landscape
-    [1280, 720],  # HD
-    [1000, 1000],  # Tablette
-    [1600, 800],  # Mobile
-    [1080, 1920],  # FULLHD landscape
-    [1920, 1080],  # FULLHD
-]
-scales = [
-    1,
-    2,
-    4,
-    6,
-    6,
-    6,
-    8,
-    8,
-    8,
-    8,
-]
 
 
 @hydra.main(config_path=config_path, config_name=config_name)
@@ -107,8 +84,33 @@ def run(omegaConf: DictConfig) -> None:
     leniax_utils.set_log_level(ori_config)
 
     if 'dry_run' in ori_config['other'] and ori_config['other']['dry_run'] is True:
-        resolutions = [[128, 128], [256, 256]]
+        resolutions = [[64, 64], [128, 128]]
         scales = [1, 2]
+    else:
+        resolutions = [
+            [128, 128],  # Optim Lenia world
+            [256, 256],
+            [512, 512],  # Default Lenia NFT size
+            [768, 768],  # Twitter
+            [720, 1280],  # HD landscape
+            [1280, 720],  # HD
+            [1000, 1000],  # Tablette
+            [1600, 800],  # Mobile
+            [1080, 1920],  # FULLHD landscape
+            [1920, 1080],  # FULLHD
+        ]
+        scales = [
+            1,
+            2,
+            4,
+            6,
+            6,
+            6,
+            8,
+            8,
+            8,
+            8,
+        ]
 
     configs = [copy.deepcopy(ori_config) for _ in range(len(scales))]
 

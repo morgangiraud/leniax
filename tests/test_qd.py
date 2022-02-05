@@ -72,13 +72,13 @@ class TestQD(unittest.TestCase):
         rng_key, dynamic_args = leniax_qd.get_dynamic_args(qd_config, leniax_sols, fft=False)
 
         assert len(dynamic_args) == 5
-        all_cells_0_jnp = dynamic_args[0]
+        all_cells0_jnp = dynamic_args[0]
         all_Ks_jnp = dynamic_args[1]
         all_gf_params_jnp = dynamic_args[2]
         all_kernels_weight_per_channel_jnp = dynamic_args[3]
         all_Ts_jnp = dynamic_args[4]
 
-        np.testing.assert_array_equal(all_cells_0_jnp.shape, [2, 3, nb_channels] + world_size)
+        np.testing.assert_array_equal(all_cells0_jnp.shape, [2, 3, nb_channels] + world_size)
         np.testing.assert_array_equal(all_Ks_jnp.shape, [2, nb_channels * nb_kernels, 1, R * 2 - 1, R * 2 - 1])
         np.testing.assert_array_equal(all_gf_params_jnp.shape, [2, nb_kernels, 2])
         np.testing.assert_array_equal(all_kernels_weight_per_channel_jnp.shape, [2, 1, nb_kernels])
@@ -92,12 +92,16 @@ class TestQD(unittest.TestCase):
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="qd_config-test")
             qd_config = leniax_utils.get_container(omegaConf, fixture_dir)
+            del qd_config['phenotype']
+            
         seed = qd_config['run_params']['seed']
         rng_key = leniax_utils.seed_everything(seed)
 
         inds = [LeniaIndividual(qd_config, rng_key, [0.2, 0.02]), LeniaIndividual(qd_config, rng_key, [0.3, 0.03])]
 
-        stats = {'N': jnp.array([[1, 2, 3], [1, 3, 4]])}
+        stats = {
+            'N': jnp.array([[1, 2, 3], [1, 3, 4]]),
+        }
 
         new_inds = leniax_qd.update_individuals(inds, stats)
 

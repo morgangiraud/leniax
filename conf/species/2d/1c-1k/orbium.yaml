@@ -11,7 +11,6 @@ kernels_params:
   h: 1
   k_params:
   - 1
-  - 13
   - - 1.0
   k_slug: circle_2d
   kf_params:

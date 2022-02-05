@@ -12,11 +12,8 @@ import leniax.helpers as leniax_helpers
 absl_logging.set_verbosity(absl_logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
-# config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
-# config_name = "config_init_search"
-
-config_path = os.path.join(cdir, '..', 'outputs', 'collection-01', '000-hope', '0060')
-config_name = "config"
+config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
+config_name = "config_init_search"
 
 
 @hydra.main(config_path=config_path, config_name=config_name)

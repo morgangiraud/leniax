@@ -158,7 +158,7 @@ def init_and_run(
     update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
     weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
     R = config['world_params']['R']
-    T = jnp.array(config['world_params']['T'])
+    T = jnp.array(config['world_params']['T'], dtype=jnp.float32)
 
     max_run_iter = config['run_params']['max_run_iter']
 
@@ -239,7 +239,6 @@ def search_for_mutation(
             total_iter_done += stats_dict['N']
 
         # Current_max at all scale
-        # print(f'total_iter_done: {total_iter_done}')
         if current_max < total_iter_done:
             current_max = total_iter_done
             best_run = {
@@ -251,8 +250,6 @@ def search_for_mutation(
 
         if total_iter_done >= max_run_iter * nb_scale_for_stability:
             break
-
-        # print(t1 - t0, nb_iter_done)
 
     return rng_key, (best_run, i)
 
@@ -278,7 +275,7 @@ def search_for_init(
     update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
     weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
     R = world_params['R']
-    T = jnp.array(world_params['T'])
+    T = jnp.array(world_params['T'], dtype=jnp.float32)
 
     render_params = config['render_params']
     world_size = render_params['world_size']
@@ -303,17 +300,14 @@ def search_for_init(
     )
     init_noises = noises.reshape([nb_init_search, nb_channels] + world_size)
 
-    all_cells_0_jnp = jnp.array([
-        create_init_cells(world_size, nb_channels, [init_noises[i]]) for i in range(nb_init_search)
-    ])
+    all_cells0_l = [create_init_cells(world_size, nb_channels, [init_noises[i]]) for i in range(nb_init_search)]
+    all_cells0_jnp = jnp.array(all_cells0_l, dtype=jnp.float32)
 
     best_run = {}
     current_max = 0
     for i in range(nb_init_search):
-        # t0 = time.time()
-
         all_cells, _, _, all_stats = leniax_runner.run_scan(
-            all_cells_0_jnp[i],
+            all_cells0_jnp[i],
             K,
             gf_params,
             kernels_weight_per_channel,
@@ -326,8 +320,6 @@ def search_for_init(
         # https://jax.readthedocs.io/en/latest/async_dispatch.html
         all_stats['N'].block_until_ready()
 
-        # t1 = time.time()
-
         nb_iter_done = all_stats['N']
         if current_max < nb_iter_done:
             current_max = nb_iter_done
@@ -335,8 +327,6 @@ def search_for_init(
 
         if nb_iter_done >= max_run_iter:
             break
-
-        # print(t1 - t0, nb_iter_done)
 
     return rng_key, (best_run, i)
 
@@ -365,13 +355,8 @@ def build_update_fn(
         A Leniax update function
     """
     get_potential_fn = build_get_potential_fn(kernel_shape, mapping.true_channels, fft)
-    get_field_fn = build_get_field_fn(mapping.cin_growth_fns, average_weight)
-    if update_fn_version == 'v1':
-        update_fn = leniax_core.update_cells
-    elif update_fn_version == 'v2':
-        update_fn = leniax_core.update_cells_v2
-    else:
-        raise ValueError(f"version {update_fn_version} does not exist")
+    get_field_fn = build_get_field_fn(mapping.cin_gfs, average_weight)
+    update_fn = leniax_core.update_register[update_fn_version]
 
     return functools.partial(
         leniax_core.update, get_potential_fn=get_potential_fn, get_field_fn=get_field_fn, update_fn=update_fn
@@ -411,20 +396,20 @@ def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: jnp.nda
         return functools.partial(leniax_core.get_potential, padding=padding, true_channels=true_channels)
 
 
-def build_get_field_fn(cin_growth_fns: List[List[str]], average: bool = True) -> Callable:
+def build_get_field_fn(cin_gfs: List[List[str]], average: bool = True) -> Callable:
     """Construct an Leniax field function
 
     A field function allows one to compute the field from a Lenia potential.
 
     Args:
-        cin_growth_fns: List of growth functions per channel.
+        cin_gfs: List of growth functions per channel.
         average: Set to ``True`` to average instead of summing input channels
 
     Returns:
         A Leniax field function
     """
     growth_fn_l = []
-    for growth_fns_per_channel in cin_growth_fns:
+    for growth_fns_per_channel in cin_gfs:
         for gf_slug in growth_fns_per_channel:
             growth_fn = gf_register[gf_slug]
             growth_fn_l.append(growth_fn)
@@ -580,10 +565,7 @@ def plot_kernels(save_dir: str, config: Dict):
     all_kfs = []
     all_gfs = []
     for param in config['kernels_params']:
-        if param['k_slug'] == 'raw':
-            k = jnp.array(param['k_params'])
-        else:
-            k = leniax_kernels.register[param['k_slug']](param['k_params'], param['kf_slug'], param['kf_params'])
+        k = leniax_kernels.register[param['k_slug']](R, param['k_params'], param['kf_slug'], param['kf_params'])
         all_ks.append(k)
         all_kfs.append(kf_register[param['kf_slug']](param['kf_params'], x))
         all_gfs.append(gf_register[param['gf_slug']](param["gf_params"], x) * param['h'])

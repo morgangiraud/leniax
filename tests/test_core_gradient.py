@@ -58,11 +58,11 @@ class TestCore(unittest.TestCase):
         nb_kernels = 3
         mapping = leniax_kernels.KernelMapping(nb_channels, nb_kernels)
         mapping.kernels_weight_per_channel = [[.5, .4, .0], [0., 0., .2]]
-        mapping.cin_growth_fns = [['poly_quad4', 'poly_quad4'], ['poly_quad4']]
-        mapping.gf_params = [[[0.1, 0.1], [0.2, 0.2]], [[0.3, 0.3]]]
+        mapping.cin_gfs = [['poly_quad4', 'poly_quad4'], ['poly_quad4']]
+        mapping.cin_gf_params = [[[0.1, 0.1], [0.2, 0.2]], [[0.3, 0.3]]]
         average_weight = True
 
-        get_field = leniax_helpers.build_get_field_fn(mapping.cin_growth_fns, average_weight)
+        get_field = leniax_helpers.build_get_field_fn(mapping.cin_gfs, average_weight)
 
         def apply_update(potential, gf_params, kernels_weight_per_channel, target):
             out = get_field(potential, gf_params, kernels_weight_per_channel)
@@ -129,16 +129,16 @@ class TestCore(unittest.TestCase):
         out_grad = weighted_mean_weightsgrad(field, weights, target)
         assert float(jnp.sum(out_grad)) != 0.
 
-    def test_update_cells_v1_grad(self):
+    def test_update_state_v1_grad(self):
         def apply_update(cells, field, dt, target):
-            cells = leniax_core.update_cells(cells, field, dt)
-            out = leniax_core.update_cells(cells, field, dt)
+            cells = leniax_core.update_state(cells, field, dt)
+            out = leniax_core.update_state(cells, field, dt)
             error = jnp.sum((out - target)**2)
 
             return error
 
-        update_cells_grad = jax.grad(apply_update, argnums=0)
-        update_cells_fieldgrad = jax.grad(apply_update, argnums=1)
+        update_state_grad = jax.grad(apply_update, argnums=0)
+        update_state_fieldgrad = jax.grad(apply_update, argnums=1)
 
         world_shape = [2, 2]
         cells = jnp.ones(world_shape) * .5
@@ -147,23 +147,23 @@ class TestCore(unittest.TestCase):
         dt = jnp.array(1. / 3.)
         target = jnp.ones(world_shape) * 0.7
 
-        # out = leniax_core.update_cells(cells, field, dt)
-        out_grad = update_cells_grad(cells, field, dt, target)
+        # out = leniax_core.update_state(cells, field, dt)
+        out_grad = update_state_grad(cells, field, dt, target)
         assert float(jnp.sum(out_grad)) != 0.
 
-        out_grad = update_cells_fieldgrad(cells, field, dt, target)
+        out_grad = update_state_fieldgrad(cells, field, dt, target)
         assert float(jnp.sum(out_grad)) != 0.
 
-    def test_update_cells_v2_grad(self):
+    def test_update_state_v2_grad(self):
         def apply_update(cells, field, dt, target):
-            cells = leniax_core.update_cells_v2(cells, field, dt)
-            out = leniax_core.update_cells_v2(cells, field, dt)
+            cells = leniax_core.update_state_v2(cells, field, dt)
+            out = leniax_core.update_state_v2(cells, field, dt)
             error = jnp.sum((out - target)**2)
 
             return error
 
-        update_cells_cellsgrad = jax.grad(apply_update, argnums=0)
-        update_cells_fieldgrad = jax.grad(apply_update, argnums=1)
+        update_state_cellsgrad = jax.grad(apply_update, argnums=0)
+        update_state_fieldgrad = jax.grad(apply_update, argnums=1)
 
         world_shape = [2, 2]
         cells = jnp.ones(world_shape) * .5
@@ -171,9 +171,9 @@ class TestCore(unittest.TestCase):
         dt = jnp.array(1. / 3.)
         target = jnp.ones(world_shape) * 0.7
 
-        # out = leniax_core.update_cells_v2(cells, field, dt)
-        out_grad = update_cells_cellsgrad(cells, field, dt, target)
+        # out = leniax_core.update_state_v2(cells, field, dt)
+        out_grad = update_state_cellsgrad(cells, field, dt, target)
         assert float(jnp.sum(out_grad)) != 0.
 
-        out_grad = update_cells_fieldgrad(cells, field, dt, target)
+        out_grad = update_state_fieldgrad(cells, field, dt, target)
         assert float(jnp.sum(out_grad)) != 0.

@@ -71,7 +71,7 @@ def get_container(omegaConf: DictConfig, main_path: str) -> Dict:
     if "log_level" not in config["other"]:
         config["other"]["log_level"] = 20
 
-    if 'version' not in config:
+    if 'version' not in config or config['version'] == 1:
         # we are dealing with a V1 config
         config = update_config_v1_v2(config)
 
@@ -102,7 +102,6 @@ def update_config_v1_v2(config: Dict) -> Dict:
             'k_slug': 'circle_2d',
             'k_params': [
                 kernel_params['r'] if 'r' in kernel_params else 1.,
-                config['world_params']['R'],
                 bs,
             ],
             'kf_slug': old_k_register[kernel_params['k_id']],

@@ -39,7 +39,7 @@ class TestCore(unittest.TestCase):
 
         cells2 = jnp.ones(cells.shape) * 0.5
         K2 = jnp.ones(K.shape) * 0.5
-        mapping.gf_params[0][0][0] = .3
+        mapping.cin_gf_params[0][0][0] = .3
         gf_params2 = mapping.get_gf_params()
         kernels_weight_per_channel2 = mapping.get_kernels_weight_per_channel()
 
@@ -105,11 +105,11 @@ class TestCore(unittest.TestCase):
         nb_kernels = 3
         mapping = leniax_kernels.KernelMapping(nb_channels, nb_kernels)
         mapping.kernels_weight_per_channel = [[.5, .4, .0], [0., 0., .2]]
-        mapping.cin_growth_fns = [['poly_quad4', 'poly_quad4'], ['poly_quad4']]
-        mapping.gf_params = [[[0.1, 0.1], [0.2, 0.2]], [[0.3, 0.3]]]
+        mapping.cin_gfs = [['poly_quad4', 'poly_quad4'], ['poly_quad4']]
+        mapping.cin_gf_params = [[[0.1, 0.1], [0.2, 0.2]], [[0.3, 0.3]]]
         average_weight = True
 
-        get_field = leniax_helpers.build_get_field_fn(mapping.cin_growth_fns, average_weight)
+        get_field = leniax_helpers.build_get_field_fn(mapping.cin_gfs, average_weight)
         jit_fn = jax.jit(get_field)
 
         potential1 = jnp.ones([1, nb_kernels, 25, 25]) * .5
@@ -121,7 +121,7 @@ class TestCore(unittest.TestCase):
         delta_t = time.time() - t0
 
         potential2 = jnp.ones([1, nb_kernels, 25, 25]) * .5
-        mapping.gf_params = [[[0.2, 0.5], [0.3, 0.6]], [[0.4, 0.7]]]
+        mapping.cin_gf_params = [[[0.2, 0.5], [0.3, 0.6]], [[0.4, 0.7]]]
         gf_params2 = mapping.get_gf_params()
         kernels_weight_per_channel2 = mapping.get_kernels_weight_per_channel()
 
@@ -154,8 +154,8 @@ class TestCore(unittest.TestCase):
 
         assert delta_t_compiled < 1 / 100 * delta_t
 
-    def test_update_cells_v1_jit_perf(self):
-        jit_fn = jax.jit(leniax_core.update_cells)
+    def test_update_state_v1_jit_perf(self):
+        jit_fn = jax.jit(leniax_core.update_state)
 
         world_shape = [25, 25]
 
@@ -181,8 +181,8 @@ class TestCore(unittest.TestCase):
         np.testing.assert_array_almost_equal(out1, jnp.ones(world_shape))
         np.testing.assert_array_almost_equal(out2, jnp.ones(world_shape) * .7)
 
-    def test_update_cells_v2_jit_perf(self):
-        jit_fn = jax.jit(leniax_core.update_cells_v2)
+    def test_update_state_v2_jit_perf(self):
+        jit_fn = jax.jit(leniax_core.update_state_v2)
 
         world_shape = [25, 25]
 

@@ -6,6 +6,7 @@ import json
 import math
 import matplotlib.pyplot as plt
 from multiprocessing import get_context
+import logging
 from absl import logging as absl_logging
 from typing import Dict, Callable, List, Tuple
 import jax
@@ -95,7 +96,7 @@ def get_dynamic_args(
 
     init_slug = qd_config['algo']['init_slug']
 
-    all_cells_0 = []
+    all_cells0 = []
     all_Ks = []
     all_gf_params = []
     all_kernels_weight_per_channel = []
@@ -112,22 +113,22 @@ def get_dynamic_args(
         rng_key, noises = leniax_init.register[init_slug](
             ind.rng_key, nb_init, world_size, R, kernels_params[0]['gf_params']
         )
-        cells_0 = noises.reshape([nb_init_search, nb_channels] + world_size)
+        cells0 = noises.reshape([nb_init_search, nb_channels] + world_size)
 
-        all_cells_0.append(cells_0)
+        all_cells0.append(cells0)
         all_Ks.append(K)
         all_gf_params.append(gf_params)
         all_kernels_weight_per_channel.append(kernels_weight_per_channel)
         all_Ts.append(config['world_params']['T'])
 
-    all_cells_0_jnp = jnp.stack(all_cells_0)  # add a dimension
+    all_cells0_jnp = jnp.stack(all_cells0)  # add a dimension
     all_Ks_jnp = jnp.stack(all_Ks)
     all_gf_params_jnp = jnp.stack(all_gf_params)
     all_kernels_weight_per_channel_jnp = jnp.stack(all_kernels_weight_per_channel)
     all_Ts_jnp = jnp.stack(all_Ts)
 
     dynamic_args = (
-        all_cells_0_jnp,
+        all_cells0_jnp,
         all_Ks_jnp,
         all_gf_params_jnp,
         all_kernels_weight_per_channel_jnp,
@@ -206,9 +207,9 @@ def run_qd_search(
     """
     DEBUG = False
     if DEBUG is True:
-        print('!!!! DEBUGGING MODE !!!!')
+        logging.info('!!!! DEBUGGING MODE !!!!')
         if n_workers >= 0:
-            print('!!!! n_workers set to 0 !!!!')
+            logging.info('!!!! n_workers set to 0 !!!!')
             n_workers == 0
 
     metrics: QDMetrics = {
@@ -229,7 +230,9 @@ def run_qd_search(
             "y": [0.0],
         },
     }
-    print(f"{'iter':>6}{'coverage':>30}{'mean':>20}{'std':>20}{'min':>16}{'max':>16}{'QD Score':>20}{'Duration':>20}")
+    logging.info(
+        f"{'iter':>6}{'coverage':>30}{'mean':>20}{'std':>20}{'min':>16}{'max':>16}{'QD Score':>20}{'Duration':>20}"
+    )
 
     nb_total_bins = optimizer.archive._bins
     nb_iter = qd_config['algo']['budget'] // (qd_config['algo']['batch_size'] * len(optimizer._emitters))
@@ -287,7 +290,7 @@ def run_qd_search(
                 if optimizer.archive._objective_values[idx] >= fitness_domain[1]:
                     nb_best += 1
             nb_best_str = f"({nb_best}) - "
-            print(
+            logging.info(
                 f"{itr:>4}/{nb_iter:<4} {nb_best_str + str(len(df)):>22}/{nb_total_bins:<6}{mean_score:>20.4f}"
                 f"{std_score:>20.4f}{min_score:>16.4f}{max_score:>16.4f}{qd_score:>16.4f}"
                 f"{time.time() - t0:>20.4f}"
@@ -333,7 +336,7 @@ def dump_best(grid: ArchiveBase, fitness_threshold: float):
             lenia = LeniaIndividual(grid._metadata[idx], subkey, grid._solutions[idx])
             real_bests.append(lenia)
 
-    print(f"Found {len(real_bests)} beast!")
+    logging.info(f"Found {len(real_bests)} beast!")
 
     nb_cpus = psutil.cpu_count(logical=False) - 1
     with get_context("spawn").Pool(processes=nb_cpus) as pool:
@@ -368,7 +371,7 @@ def render_found_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
         for idx in config['algo']['best_init_idxs']:
             save_dir = os.path.join(os.getcwd(), f"c-{padded_id}", str(idx).zfill(2))
             if os.path.isdir(save_dir):
-                print(f"Folder for id: {padded_id}, alreaady exist. Passing")
+                logging.info(f"Folder for id: {padded_id}, alreaady exist. Passing")
                 # If the lenia folder already exists at that path, we consider the work alreayd done
                 continue
             leniax_utils.check_dir(save_dir)
@@ -380,7 +383,7 @@ def render_found_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
             total_time = time.time() - start_time
 
             nb_iter_done = len(all_cells)
-            print(
+            logging.info(
                 f"[{padded_id}] - {nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps"
             )
             config['run_params']['cells'] = leniax_loader.compress_array(

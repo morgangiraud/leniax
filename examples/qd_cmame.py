@@ -1,7 +1,7 @@
 import os
 import math
 import pickle
-from absl import logging
+from absl import logging as absl_logging
 from omegaconf import DictConfig
 import hydra
 import jax.numpy as jnp
@@ -10,26 +10,25 @@ from ribs.archives import GridArchive, CVTArchive
 from ribs.emitters import GaussianEmitter, ImprovementEmitter, OptimizingEmitter, RandomDirectionEmitter
 from ribs.optimizers import Optimizer
 
-from leniax.utils import get_container
 from leniax import qd as leniax_qd
 from leniax import utils as leniax_utils
 from leniax import video as leniax_video
 
 # Disable JAX logging https://abseil.io/docs/python/guides/logging
-logging.set_verbosity(logging.ERROR)
+absl_logging.set_verbosity(absl_logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 
-# config_path = os.path.join(cdir, '..', 'conf')
-# config_name="config_qd_cmame"
-config_path = os.path.join(cdir, '..', 'experiments', '017_hashtagk')
-config_name = "config"
+config_path = os.path.join(cdir, '..', 'conf')
+config_name = "config_qd_cmame"
 
 
 @hydra.main(config_path=config_path, config_name=config_name)
 def run(omegaConf: DictConfig) -> None:
-    config = get_container(omegaConf, config_path)
-    print(config)
+    config = leniax_utils.get_container(omegaConf, config_path)
+    leniax_utils.set_log_level(config)
+
+    leniax_utils.print_config(config)
 
     # Seed
     seed = config['run_params']['seed']
@@ -53,7 +52,6 @@ def run(omegaConf: DictConfig) -> None:
     sampling_bounds = [sampling_domain for _ in range(genotype_dims)]
     initial_model = jnp.array([bounds[0] + 0.5 * (bounds[1] - bounds[0])
                                for bounds in sampling_bounds])  # start the CMA-ES algorithm
-
     batch_size = config['algo']['batch_size']
     mut_sigma0 = config['algo']['mut_sigma0']
     sigma0 = config['algo']['sigma0']

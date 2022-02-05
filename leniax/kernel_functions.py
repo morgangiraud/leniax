@@ -134,6 +134,39 @@ def gauss(params: jnp.ndarray, X: jnp.ndarray):
     return out
 
 
+def threshold(params: jnp.ndarray, X: jnp.ndarray):
+    r"""Threshold function
+
+    .. math::
+        y =
+        \begin{cases}
+            1 ,& \text{if } X \geq q
+            0 ,& \text{otherwise}
+        \end{cases}
+
+    .. plot::
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from leniax.kernel_functions import step
+        x = np.linspace(0., 1., 100)
+        q = 0.3
+        params = np.array([q])
+        y = step(params, x)
+        plt.plot(x, y)
+        plt.axhline(y=0, color='grey', linestyle='dotted')
+        plt.title(r'Threshold: q=%.2f'%(q))
+        plt.show()
+
+    Args:
+        params: Kernel function parameters
+        X: Raw kernel
+    """
+    q = params[0]
+
+    return X >= q
+
+
 def staircase(params: jnp.ndarray, X: jnp.ndarray):
     r"""Staircase function
 
@@ -220,8 +253,9 @@ def triangle(params: jnp.ndarray, X: jnp.ndarray):
 register: Dict[str, Callable] = {
     'poly_quad': poly_quad,
     'gauss_bump': gauss_bump,
-    'step': step,
     'gauss': gauss,
+    'step': step,
+    'threshold': threshold,
     'staircase': staircase,
     'triangle': triangle,
 }

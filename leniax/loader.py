@@ -241,7 +241,6 @@ def deprecated_decompress_array(cells_code: str, nb_dims: int) -> jnp.ndarray:
                 for d in range(dim):
                     append_stack(stacks[d + 1], stacks[d], count, is_repeat=False)
                     stacks[d] = []
-                # print('{0}[{1}] {2}'.format(last+ch, count, [np.asarray(s).shape for s in stacks]))
             last, count = '', ''
 
     cells_l = stacks[nb_dims - 1]
@@ -266,7 +265,7 @@ def load_raw_cells(config: Dict, use_init_cells: bool = True) -> jnp.ndarray:
         cells = config['run_params']['cells']
     if type(cells) is str:
         if cells == 'MISSING':
-            cells = jnp.array([])
+            cells = jnp.array([], dtype=jnp.float32)
         elif cells == 'last_frame.p':
             with open(os.path.join(config['main_path'], 'last_frame.p'), 'rb') as f:
                 cells = jnp.array(pickle.load(f), dtype=jnp.float32)

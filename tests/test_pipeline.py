@@ -25,7 +25,8 @@ class TestPipeline(unittest.TestCase):
             true_last_frame = pickle.load(f)
 
         all_cells, _, _, _ = init_and_run(config, with_jit=False)
-        last_frame = all_cells[-1, 0]
+        all_cells = all_cells[:, 0]
+        last_frame = all_cells[-1]
 
         assert len(all_cells) == 128
         np.testing.assert_array_almost_equal(true_last_frame, last_frame, decimal=4)
@@ -40,7 +41,8 @@ class TestPipeline(unittest.TestCase):
             true_last_frame = pickle.load(f)
 
         all_cells, _, _, _ = init_and_run(config, with_jit=True)
-        last_frame = all_cells[-1, 0]
+        all_cells = all_cells[:, 0]
+        last_frame = all_cells[-1]
 
         assert len(all_cells) == 128
         np.testing.assert_array_almost_equal(true_last_frame, last_frame, decimal=4)
@@ -55,7 +57,8 @@ class TestPipeline(unittest.TestCase):
             true_last_frame = pickle.load(f)
 
         all_cells, _, _, _ = init_and_run(config, with_jit=True)
-        last_frame = all_cells[-1, 0]
+        all_cells = all_cells[:, 0]
+        last_frame = all_cells[-1]
 
         assert len(all_cells) == 128
         np.testing.assert_array_almost_equal(true_last_frame, last_frame, decimal=4)
@@ -70,7 +73,8 @@ class TestPipeline(unittest.TestCase):
             true_last_frame = pickle.load(f)
 
         all_cells, _, _, _ = init_and_run(config, with_jit=True, fft=True)
-        last_frame = all_cells[-1, 0]
+        all_cells = all_cells[:, 0]
+        last_frame = all_cells[-1]
 
         assert len(all_cells) == 128
         np.testing.assert_array_almost_equal(true_last_frame, last_frame, decimal=4)
@@ -85,7 +89,8 @@ class TestPipeline(unittest.TestCase):
             true_last_frame = pickle.load(f)
 
         all_cells, _, _, _ = init_and_run(config, with_jit=True)
-        last_frame = all_cells[-1, 0]
+        all_cells = all_cells[:, 0]
+        last_frame = all_cells[-1]
 
         assert len(all_cells) == 32
         np.testing.assert_array_almost_equal(true_last_frame, last_frame, decimal=3)
@@ -100,7 +105,8 @@ class TestPipeline(unittest.TestCase):
             true_last_frame = pickle.load(f)
 
         all_cells, _, _, _ = init_and_run(config, with_jit=True, fft=True)
-        last_frame = all_cells[-1, 0]
+        all_cells = all_cells[:, 0]
+        last_frame = all_cells[-1]
 
         assert len(all_cells) == 32
         np.testing.assert_array_almost_equal(true_last_frame, last_frame, decimal=3)

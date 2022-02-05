@@ -46,24 +46,33 @@ endif
 
 .PHONY: install export_env
 
+
+docs: ## generate Sphinx HTML documentation, including API docs
+	$(MAKE) -C docs clean
+	$(MAKE) -C docs html
+.PHONY: docs
+
 ##
 # CI
 ###
 yapf:
-	yapf --style tox.ini -r -i leniax/. tests/. scripts/. tools/.
+	yapf --style tox.ini -r -i leniax/. tests/. examples/. tools/.
 
 lint:
-	flake8 leniax/. tests/. scripts/. tools/.
+	flake8 leniax/. tests/. examples/. tools/.
 
 typecheck:
-	mypy $(CURRENT_DIR)/leniax $(CURRENT_DIR)/scripts
+	mypy $(CURRENT_DIR)/leniax $(CURRENT_DIR)/examples
 
 test:
 	pytest --disable-pytest-warnings .
 
-ci: lint typecheck test
+test-examples: ## test examples are working
+	bash tests/examples.sh
 
-.PHONY: typecheck yapf lint test ci
+ci: lint typecheck test test-examples
+
+.PHONY: typecheck yapf lint test test-examples ci
 
 ###
 # Deploy

@@ -1,6 +1,7 @@
 import os
 import pickle
 import matplotlib.pyplot as plt
+import jax
 import jax.numpy as jnp
 from typing import Dict, List
 
@@ -9,6 +10,7 @@ from ribs.archives import ArchiveBase, GridArchive
 from leniax import qd as leniax_qd
 from leniax import utils as leniax_utils
 from leniax import helpers as leniax_helpers
+from leniax.lenia import LeniaIndividual
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
@@ -51,16 +53,13 @@ def run() -> None:
 
         seed = qd_config['run_params']['seed']
         rng_key = leniax_utils.seed_everything(seed)
-        generator_builder = leniax_qd.genBaseIndividual(qd_config, rng_key)
-        lenia_generator = generator_builder()
 
+        fitness_threshold = qd_config['run_params']['max_run_iter']
         real_bests = []
-        max_val = qd_config['run_params']['max_run_iter']
         for idx in grid._occupied_indices:
-            if abs(grid._objective_values[idx]) >= max_val:
-                lenia = next(lenia_generator)
-                lenia.qd_config = grid._metadata[idx]
-                lenia[:] = grid._solutions[idx]
+            if abs(grid._objective_values[idx]) >= fitness_threshold:
+                rng_key, subkey = jax.random.split(rng_key)
+                lenia = LeniaIndividual(grid._metadata[idx], subkey, grid._solutions[idx])
                 real_bests.append(lenia)
 
         print(f"Found {len(real_bests)} beast in {file_path}")

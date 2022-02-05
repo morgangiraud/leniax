@@ -2,7 +2,7 @@ import os
 import math
 
 cdir = os.path.dirname(os.path.realpath(__file__))
-collection_dir = os.path.join(cdir, '..', '..', 'outputs', 'collection-01')
+collection_dir = os.path.join(cdir, '..', '..', 'outputs', 'collection-test')
 config_filename = 'config.yaml'
 
 for mp4_size in [128, 256, 512]:
@@ -72,6 +72,6 @@ for mp4_size in [128, 256, 512]:
                 )
                 input_overlays += "[tmp{}]{}".format(index, text)
 
-        video_fullpath = os.path.join(cdir, f"{family_dir_name}-{mp4_size}.mp4")
+        video_fullpath = os.path.join(collection_dir, family_dir_name, f"mosaic-{mp4_size}.mp4")
         complete_command = f"ffmpeg -y{input_videos} -filter_complex \"{input_setpts}{input_overlays}\" -c:v libx264 {video_fullpath}"  # noqa: E501
         os.system(complete_command)

@@ -1,5 +1,6 @@
 import time
 import os
+import logging
 import matplotlib.pyplot as plt
 import jax
 from jax.nn import sigmoid
@@ -215,7 +216,7 @@ if __name__ == '__main__':
         if itr % 64 == 0:
             params = optimizer.get_optimized_params()
             loss = model.loss_func(params, data)
-            print(i, loss)
+            logging.info(i, loss)
 
     params = optimizer.get_optimized_params()
     model.update_net_params(params)

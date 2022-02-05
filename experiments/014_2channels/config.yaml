@@ -127,4 +127,4 @@ algo:
   sigma0: 0.15
 
 other:
-  dump_bests: True
+  render_bests: True

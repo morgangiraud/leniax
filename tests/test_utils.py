@@ -10,18 +10,12 @@ fixture_dir = os.path.join(cfd, 'fixtures')
 
 
 class TestUtils(unittest.TestCase):
-    def test_get_unit_distances(self):
-        world_size = [3, 3]
+    def test_st2fracs2float(self):
+        fracs = '1/2,2/3'
+        out = leniax_utils.st2fracs2float(fracs)
 
-        unit_distances = leniax_utils.get_unit_distances(world_size)
-
-        true_unit_distances = [
-            [1.414, 1., 1.414],
-            [1., 0., 1.],
-            [1.414, 1., 1.414],
-        ]
-
-        np.testing.assert_almost_equal(unit_distances, true_unit_distances, decimal=3)
+        assert out[0] == .5
+        assert out[1] == 2 / 3
 
     def test_crop_zero(self):
 

@@ -1,24 +1,63 @@
+"""Leniax colormaps
+"""
+
+from __future__ import annotations
+
 import json
 import numpy as np
-import jax.numpy as jnp
+import logging
 from matplotlib.colors import ListedColormap
-from typing import List, Callable
+from typing import List, Callable, Dict
 from hilbertcurve.hilbertcurve import HilbertCurve
 
 # This might be cool? https://bottosson.github.io/misc/colorpicker/#ce7d96
 
 
-class LeniaColormap():
-    def __init__(self, name, hex_bg_color, hex_colors) -> None:
+class PerceptualGradientColormap():
+    """Perceptual gradient colormap
+
+    Attributes:
+        name: Colormap name
+        hex_bg_color: Background color (in hexadecimal)
+        hex_colors: List of colors used to create the perceptual gradient
+        cmap: Matplotlib ``ListedColormap``
+    """
+
+    name: str
+    hex_bg_color: str
+    hex_colors: List[str]
+    cmap: ListedColormap
+
+    def __init__(self, name: str, hex_bg_color: str, hex_colors: List[str]) -> None:
+        """Initialize the perceptual colormap
+
+        Args:
+            name: Colormap name
+            hex_bg_color: Background color (in hexadecimal)
+            hex_colors: List of colors used to create the perceptual gradient
+        """
         self.name = name
         self.hex_bg_color = hex_bg_color
         self.hex_colors = hex_colors
         self.cmap = ListedColormap(hex_to_palette_rgba(hex_bg_color, hex_colors))
 
-    def __call__(self, data):
+    def __call__(self, data: np.ndarray) -> np.ndarray:
+        """Apply the colormap
+
+        Args:
+            data: 1-channel data
+
+        Returns:
+            RGBA data of shape [nb_dims..., 1, C=4] and dtype float32
+        """
         return self.cmap(data)
 
-    def save(self):
+    def save(self) -> str:
+        """Serialize the colormap
+
+        Returns:
+            A JSON string representing the colormap
+        """
         return json.dumps({
             'name': self.name,
             'hex_bg_color': self.hex_bg_color,
@@ -26,77 +65,167 @@ class LeniaColormap():
         })
 
     @staticmethod
-    def load(self, json_string: str):
+    def load(self, json_string: str) -> PerceptualGradientColormap:
+        """Load a colormap
+
+        Args:
+            json_string: A JSON string representing the colormap
+
+        Returns:
+            The corresponding PerceptualGradientColormap
+        """
         raw_obj = json.loads(json_string)
 
-        return LeniaColormap(raw_obj['name'], raw_obj['hex_bg_color'], raw_obj['hex_colors'])
+        return PerceptualGradientColormap(raw_obj['name'], raw_obj['hex_bg_color'], raw_obj['hex_colors'])
 
     def print_uint8_rgb_colors(self):
-        print(jnp.array(jnp.array(self.cmap.colors) * 255, dtype=jnp.int32)[:, :3].tolist())
+        """Print the list of colors contained in the colormap"""
+        logging.info(np.array(np.array(self.cmap.colors) * 255, dtype=np.int32)[:, :3].tolist())
 
 
 class Hilbert2d3dColormap():
-    def __init__(self, name: str, p_pixels: int = 7, p_colors: int = 12):
+    """Colormap using Hilbert curves
+
+    This Colormap use Hilbert curves to map a 2 channel image to a 3 channel one.
+
+    Attributes:
+        name: Colormap name
+        nb_pixels_power2: Number of pixels defined as a power of 2
+        nb_colors_power2: Number of colors defined as a power of 2
+    """
+
+    name: str
+    nb_pixels_power2: int
+    nb_colors_power2: int
+
+    def __init__(self, name: str, nb_pixels_power2: int = 7, nb_colors_power2: int = 12):
+        """Initialize the Hilbert 2d->3d mapping colormap
+
+        Args:
+            name: Colormap name
+            nb_pixels_power2: Number of pixels defined as a power of 2
+            nb_colors_power2: Number of colors defined as a power of 2
+        """
         self.name = name
+        self.nb_pixels_power2 = nb_pixels_power2
+        self.nb_colors_power2 = nb_colors_power2
 
-        H = 2**p_pixels
-        W = 2**p_pixels
-        self.nb_pixels = H * W
-        self.mapping = np.zeros([H, W, 4])
+        self._populate()
 
-        self.nb_colors = (2**p_colors)**2
+    def set_nb_pixels_power2(self, nb_pixels_power2: int = 7):
+        """Set the number of pixels as a power of 2
 
-        self.pixel_colors_step_size = (2**(p_colors - p_pixels))**2
+        Args:
+            nb_pixels_power2: Number of pixels defined as a power of 2
+        """
 
-        self.hilbert2d = HilbertCurve(p_pixels, 2)
-        self.hilbert3d = HilbertCurve(p_colors, 3)
+        self.nb_pixels_power2 = nb_pixels_power2
 
-        self.populate()
+        self._populate()
 
-    def populate(self):
-        for i in range(self.nb_pixels):
-            rgb = self.hilbert3d.point_from_distance(self.pixel_colors_step_size * i)
-            px_pos = self.hilbert2d.point_from_distance(i)
+    def set_nb_colors_power2(self, nb_colors_power2: int = 12):
+        """Set the number of colors as a power of 2
 
-            self.mapping[px_pos[0], px_pos[1]] = np.array(list(rgb) + [255]) / 255
+        Args:
+            nb_colors_power2: Number of pixels defined as a power of 2
+        """
+        self.nb_colors_power2 = nb_colors_power2
 
-    def __call__(self, data):
+        self._populate()
+
+    def _populate(self):
+        H = W = 2**self.nb_pixels_power2
+        nb_pixels = H * W
+        pixel_colors_step_size = (2**(self.nb_colors_power2 - self.nb_pixels_power2))**2
+        hilbert2d = HilbertCurve(self.nb_pixels_power2, n=2)
+        hilbert3d = HilbertCurve(self.nb_colors_power2, n=3)
+
+        self._rgba_mapping = np.zeros([H, W, 4], dtype=np.float32)
+        self._max_h = self._rgba_mapping.shape[0] - 1
+        self._max_w = self._rgba_mapping.shape[1] - 1
+
+        for i in range(nb_pixels):
+            px_pos = hilbert2d.point_from_distance(i)
+            rgb = hilbert3d.point_from_distance(pixel_colors_step_size * i)
+
+            self._rgba_mapping[px_pos[0], px_pos[1]] = np.array(list(rgb) + [255]) / 255
+
+    def __call__(self, data: np.ndarray):
+        """Apply the colormap
+
+        Args:
+            data: data of shape [nb_dims..., C=2] and dtype float32
+
+        Returns:
+            RGBA data of shape [nb_dims..., 1, C=4] and dtype float32
+        """
+
         assert data.shape[-1] == 2
+
         ori_shape = data.shape
+        # Map data as 2d coordinates
         data = data.reshape(-1, 2)
-
-        max_h = self.mapping.shape[0] - 1
-        max_w = self.mapping.shape[1] - 1
-
-        data[:, 0] = (data[:, 0] * max_h).round()
-        data[:, 1] = (data[:, 1] * max_w).round()
+        data[:, 0] = (data[:, 0] * self._max_h).round()
+        data[:, 1] = (data[:, 1] * self._max_w).round()
         data = data.astype(np.uint8)
 
-        data = self.mapping[data[:, 0], data[:, 1]]
+        # Gather RGBA values
+        data = self._rgba_mapping[data[:, 0], data[:, 1]]
 
         return data.reshape(list(ori_shape[:-1]) + [1, 4])
 
 
 class ExtendedColormap():
-    def __init__(self, name: str):
+    """Extended colormap
+
+    This colormaps simply extends less than 3 channels data into 4 channels RGBA data
+
+    Attributes:
+        name: Colormap name
+        transparent_bg: Set to ``True`` to make the background transparent.
+    """
+
+    name: str
+    transparent_bg: bool
+
+    def __init__(self, name: str, transparent_bg: bool = False):
+        """Initialize the perceptual colormap
+
+        Args:
+            name: Colormap name
+            transparent_bg: Set to ``True`` to make the background transparent.
+        """
         self.name = name
+        self.transparent_bg = transparent_bg
 
     def __call__(self, data):
+        """Apply the colormap
+
+        Args:
+            data: 1-channel data
+
+        Returns:
+            RGBA data of shape [nb_dims..., 1, C=4] and dtype float32
+        """
+
         c = data.shape[-1]
+
+        if self.transparent_bg is True:
+            a_layer = data.sum(axis=-1, keepdims=True)
+            a_layer[a_layer > 0.25] = 1
+        else:
+            a_layer = np.ones(list(data.shape[:-1]) + [1])
+
         if c == 1:
             g_layer = np.zeros(list(data.shape[:-1]) + [1])
             b_layer = np.zeros(list(data.shape[:-1]) + [1])
-            a_layer = np.ones(list(data.shape[:-1]) + [1])
 
             data = np.concatenate([data, g_layer, b_layer, a_layer], axis=-1)
         elif c == 2:
             b_layer = np.zeros(list(data.shape[:-1]) + [1])
-            a_layer = np.ones(list(data.shape[:-1]) + [1])
 
             data = np.concatenate([data, b_layer, a_layer], axis=-1)
         elif c == 3:
-            a_layer = np.ones(list(data.shape[:-1]) + [1])
-
             data = np.concatenate([data, a_layer], axis=-1)
         else:
             raise ValueError(f"This colormap can't handle more than 3 channels. Current value {c}")
@@ -216,7 +345,7 @@ def hex_to_rgba_uint8(hex: str) -> List[int]:
     return [int(hex[i:i + 2], 16) for i in (0, 2, 4)] + [255]
 
 
-def hex_to_palette_rgba(hex_bg_color: str, hex_colors: List[str]) -> jnp.ndarray:
+def hex_to_palette_rgba(hex_bg_color: str, hex_colors: List[str]) -> np.ndarray:
     steps = 254 // (len(hex_colors) - 1)
     palette_rgb_uint8 = []
     for i in range(0, len(hex_colors) - 1):
@@ -231,58 +360,83 @@ def hex_to_palette_rgba(hex_bg_color: str, hex_colors: List[str]) -> jnp.ndarray
     else:
         bg_rgba_uint8 = hex_to_rgba_uint8(hex_bg_color)
 
-    bg_rgba = jnp.array([bg_rgba_uint8]) / 255.
-    fg_palette_rgba = jnp.array(fg_palette_rgba_uint8) / 255.
-    palette_rgba = jnp.vstack([bg_rgba, fg_palette_rgba])
+    bg_rgba = np.array([bg_rgba_uint8]) / 255.
+    fg_palette_rgba = np.array(fg_palette_rgba_uint8) / 255.
+    palette_rgba = np.vstack([bg_rgba, fg_palette_rgba])
 
     return palette_rgba
 
 
-colormaps = {
-    'alizarin':
-    LeniaColormap(
-        'alizarin', "d6c3c9", ['f9c784', 'e7e7e7', '485696', '19180a', '3f220f', '772014', 'af4319', 'e71d36']
-    ),
-    'black-white':
-    LeniaColormap(
-        'black-white', '000000', ['ffffff', 'd9dbe1', 'b6b9c1', '9497a1', '737780', '555860', '393b41', '1f2123'][::-1]
-    ),
-    'carmine-blue':
-    LeniaColormap('carmine-blue', '#006eb8', ['#006eb8', '#fff200', '#cc1236']),
-    'cinnamon':
-    LeniaColormap('cinnamon', '#a7d4e4', ['#a7d4e4', '#71502f', '#fdc57e']),
-    'city':
-    LeniaColormap(
-        'city', 'F93943', ['ffa600', 'fff6e6', 'ffca66', '004b63', 'e6f9ff', '66daff', '3a0099', '23005c'][::-1]
-    ),
-    'golden':
-    LeniaColormap('golden', '#b6bfc1', ['#b6bfc1', '#253122', '#f3a257']),
-    'laurel':
-    LeniaColormap(
-        'laurel', '381d2a', ['ffbfd7', 'ffe6ef', 'ff80b0', '71bf60', 'eaffe6', '96ff80', 'bffbff', '60b9bf'][::-1]
-    ),
-    'msdos':
-    LeniaColormap('msdos', '#0c0786', ['#0c0786', '#7500a8', '#c03b80', '#f79241', '#fcfea4']),
-    'pink-beach':
-    LeniaColormap(
-        'pink-beach', 'f4777f', ['00429d', '4771b2', '73a2c6', 'a5d5d8', 'ffffe0', 'ffbcaf', 'cf3759', '93003a'][::-1]
-    ),
-    'rainbow':
-    LeniaColormap('rainbow', '#000000', ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF']),
-    'rainbow_transparent':
-    LeniaColormap(
-        'rainbow_transparent', '', ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF']
-    ),
-    'river-Leaf':
-    LeniaColormap(
-        'river-Leaf', "80ab82", ["4c5b5c", "ff715b", "f9cb40", "bced09", "2f52e0", "99f7ab", "c5d6d8", "7dcd85"][::-1]
-    ),
-    'salvia':
-    LeniaColormap('salvia', '#b6bfc1', ['#b6bfc1', '#051230', '#97acc8']),
-    'summer':
-    LeniaColormap(
-        'summer', 'ffe000', ['003dc7', '002577', 'e6edff', '6695ff', 'ff9400', '995900', 'fff4e6', 'ffbf66'][::-1]
-    ),
-    'white-black':
-    LeniaColormap('white-black', '#ffffff', ['#ffffff', '#000000'])
+colormaps: Dict[str, Dict] = {
+    'alizarin': {
+        'name': 'alizarin',
+        'hex_bg_color': "#d6c3c9",
+        'hex_colors': ['f9c784', 'e7e7e7', '485696', '19180a', '3f220f', '772014', 'af4319', 'e71d36']
+    },
+    'black-white': {
+        'name': 'black-white',
+        'hex_bg_color': '#000000',
+        'hex_colors': ['ffffff', 'd9dbe1', 'b6b9c1', '9497a1', '737780', '555860', '393b41', '1f2123'][::-1]
+    },
+    'carmine-blue': {
+        'name': 'carmine-blue', 'hex_bg_color': '#006eb8', 'hex_colors': ['#006eb8', '#fff200', '#cc1236']
+    },
+    'cinnamon': {
+        'name': 'cinnamon', 'hex_bg_color': '#a7d4e4', 'hex_colors': ['#a7d4e4', '#71502f', '#fdc57e']
+    },
+    'city': {
+        'name': 'city',
+        'hex_bg_color': '#F93943',
+        'hex_colors': ['ffa600', 'fff6e6', 'ffca66', '004b63', 'e6f9ff', '66daff', '3a0099', '23005c'][::-1]
+    },
+    'golden': {
+        'name': 'golden', 'hex_bg_color': '#b6bfc1', 'hex_colors': ['#b6bfc1', '#253122', '#f3a257']
+    },
+    'laurel': {
+        'name': 'laurel',
+        'hex_bg_color': '#381d2a',
+        'hex_colors': ['ffbfd7', 'ffe6ef', 'ff80b0', '71bf60', 'eaffe6', '96ff80', 'bffbff', '60b9bf'][::-1]
+    },
+    'msdos': {
+        'name': 'msdos',
+        'hex_bg_color': '#0c0786',
+        'hex_colors': ['#0c0786', '#7500a8', '#c03b80', '#f79241', '#fcfea4']
+    },
+    'pink-beach': {
+        'name': 'pink-beach',
+        'hex_bg_color': '#f4777f',
+        'hex_colors': ['00429d', '4771b2', '73a2c6', 'a5d5d8', 'ffffe0', 'ffbcaf', 'cf3759', '93003a'][::-1]
+    },
+    'rainbow': {
+        'name': 'rainbow',
+        'hex_bg_color': '#000000',
+        'hex_colors': ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF']
+    },
+    'rainbow_transparent': {
+        'name': 'rainbow_transparent#',
+        'hex_bg_color': '#000000',
+        'hex_colors': ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF']
+    },
+    'river-Leaf': {
+        'name': 'river-Leaf',
+        'hex_bg_color': "#80ab82",
+        'hex_colors': ['4c5b5c', "ff715b", "f9cb40", "bced09", "2f52e0", "99f7ab", "c5d6d8", "7dcd85"][::-1]
+    },
+    'salvia': {
+        'name': 'salvia', 'hex_bg_color': '#b6bfc1', 'hex_colors': ['#b6bfc1', '#051230', '#97acc8']
+    },
+    'summer': {
+        'name': 'summer',
+        'hex_bg_color': '#ffe000',
+        'hex_colors': ['003dc7', '002577', 'e6edff', '6695ff', 'ff9400', '995900', 'fff4e6', 'ffbf66'][::-1]
+    },
+    'white-black': {
+        'name': 'white-black', 'hex_bg_color': '#ffffff', 'hex_colors': ['#ffffff', '#000000']
+    }
 }
+
+
+def get(name: str) -> PerceptualGradientColormap:
+    assert name in colormaps, f"Colormap {name} does not exist"
+
+    return PerceptualGradientColormap(**colormaps[name])  # type: ignore

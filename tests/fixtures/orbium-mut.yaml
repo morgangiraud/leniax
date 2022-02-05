@@ -1,0 +1,121 @@
+hydra:
+  run:
+    dir: tests/hydra_tmp/${now:%H-%M-%S}
+algo:
+  init_param: []
+  init_slug: perlin
+kernels_params:
+- c_in: 0
+  c_out: 0
+  gf_params:
+  - 0.15
+  - 0.015
+  gf_slug: poly_quad4
+  h: 1
+  k_params:
+  - 1
+  - - 1.0
+  k_slug: circle_2d
+  kf_params:
+  - 4
+  kf_slug: poly_quad
+other:
+  log_level: 20
+render_params:
+  pixel_border_size: 0
+  pixel_size: 4
+  pixel_size_power2: 2
+  size_power2: 7
+  world_size:
+  - 128
+  - 128
+run_params:
+  cells: 'H4sIAHJX+WEC/52UX0hTYRjGn7nczKMr3ZpYWWssbP1ZQmAKYoTQRZRlqTcVXhRFfyDKIKi0LpKg
+
+    EkwkM8gwhLwRSSqbelEXQfQHMopBYGHlRRAhEkQF1U8mnOXO5ujAw/ed837v8z7v833fabEp6bOD
+
+    +K4k8aG5Svlpd0iVhtQMLjilT3YpkC6FwEbm21nzOys1rsesr82WbuVK1R5p/3wpjJb2DGk9OAsa
+
+    wTe4I9nJuTpA/RypNYd+8qRDYIB5hG/VadJ14iOgh5qVmZJ3eWKuJ/hVSG8TaNkzT9rklorRNkBf
+
+    B9Otc44SHzTM9x/TYwU4ANdu+uhAy0/QQv2T9PMSeJJ4VbLSnHud0dFN/Vq4NqSZsUl0/qJ+BR6O
+
+    guEca758+hi3m+9O8kKg2/7vujIXZ8YrPVuId4ul74z+BH2Xe815a4H0NjN+TS4eXl4kvVkmGfj+
+
+    PICPBdZ8zW5z/pU+Oo34NffR+9SH/qD0fpX0ag2+MH62WFtEL4dj7ofPb133JrpqQtKfIhNXLc7I
+
+    B2r0xXj/KGjNt2WpydO52pyHY/amHp5J+HbG8I3hVb8znu+Ex+R4iK531B1Ebyk+vuY82DhXI+St
+
+    ha9tRm5DXjxfiH0KoKsfji/sxyi4USidQXcdGmvgGQO+jPjczXh6bMb3Hs6Hf4l0Z4X0MRDd624Q
+
+    5vzUoT1Czmn4ttqt/XpBvNERs2+OaF4IPeOgBO5LnKF79FLK/6KLe9PrSHx3buNpE/X2cr4v4kuQ
+
+    fu9yR1xT+fl4yHhkAX3S63m4yllTNct/tAzOK/Q9AdcQOX1o7oJzGxxVjE3c52JiLnRds6X+T23D
+
+    k3XUb4B7H3pd4AHvBjxZxE7p/57j4Bw6ekFwFj1TYc80/gIz3/7hUAYAAA==
+
+    '
+  cname: "\u7403\u866B(\u55AE\u5C3E)"
+  code: O2u
+  init_cells: 'H4sIAHFX+WEC/+3dXWjNcRzH8c+eznb2wNnOpj0b9mCetl24IMnjBaEkD3koruTKBUuJuEJuPISS
+
+    doVWilAiCmW7oFCSuFAiKVxooYjm++131mbnbPf/0/tVv35n//07F9/f7/f9ff+//2paJAAAAAAA
+
+    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY16FcqX+c3x8tIUbZ6m5M6iiWtluL
+
+    50vdedIz6wdTn7vsnoOlxCkbzbcxLi+TDpRLLyuk2wlpXlwqsra3KPSXre8skGrLiVc2OWNtWV4Y
+
+    15WTpLfWLtoc2Gj54LVdv2F7QtL6Hzb2pyw3nJtKzLLFvZwwzr6+fc0/SYb1/8pywbFY+v1rbC6c
+
+    t3uaE8QuqrpSfX9qz19aFMZ6h63vOtvfl9jYvysNtUAmP60tn0Eco2qohve6zvd2z/FDnloemDNR
+
+    SlgOWGztzhj1vu8T1wuJZVT5Xu4539f8SL72Byqlx9XSulrpd/XY37GthjhG1Yv6UMsdz/n/utf8
+
+    32xcmyZLu6eEdqIy83cMVBLHqKquy3yWs8nmw9ZGqapFamyXPlg72xae+0bzGtHPBxBNcxsyX7/S
+
+    JL2x+i7ZIfV0Sr3W769Lv++75Y8vMeIYVb6+M/G9v9vGfLBzuPXPki6VDd/TZnniUXHmZ0REZw/o
+
+    zUu/vj4xPO7xVO85YEVdqPn9HUGf7QefS8K5IaLJa79PVenX/Zz3ZnsY9+czw7P+PmsfJ4e5cSEe
+
+    ascNNv5fc4hjlD20Gv70qNrOf/YasNjGfvN0aUGrtLZZ+mX1wp+ktGtCeFdQUUT8os7PfnxNj9wH
+
+    PLf7vCi1Z78t06SF1t+3+fCgJpwP+/mQ137JPOKXDXwdXyuVVheGsfczwSM2J3ZWhz3/Vm347M/7
+
+    ft33/b4C4pZN6gvDfu5nAj4XTtoajyVDHpht7Wq59Nfyfov9vjUW3gEgu/jfePi7IB/jVTYH9pSF
+
+    Zz6fDz43PE/05DP22e59bng35O+F/fnec73XCQ25xAYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+
+    AAAAAAAAAAAAAAAAAABAZv6vjQ+n2j93hQqYEAABAA==
+
+    '
+  max_run_iter: 1024
+  name: Orbium unicaudatus
+  seed: 1
+version: 2
+world_params:
+  R: 13
+  T: 10
+  nb_channels: 1
+  nb_dims: 2
+  scale: 1.0
+genotype:
+  - key: kernels_params.0.gf_params.0
+    domain: 
+      - .1
+      - .5
+    type: float
+  - key: kernels_params.0.gf_params.1
+    domain: 
+      - 0.
+      - .1
+    type: float
+phenotype:
+  - kernels_params.0.gf_params.0
+  - kernels_params.0.gf_params.1
+grid:
+  features_domain:
+    - - .1
+      - .5
+    - - 0.
+      - .1
+  shape: [25, 25]

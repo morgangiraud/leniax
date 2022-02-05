@@ -8,9 +8,6 @@
 
 * Generally, prefer duplicating code over adding options to functions.
 
-* Comment-driven design: If it's hard to document your code, consider
-  changing the design.
-
 * Unit test-driven design: If it's hard to test your code, consider
   changing the design.
 

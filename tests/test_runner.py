@@ -10,7 +10,8 @@ from leniax import runner as leniax_runner
 from leniax import statistics as leniax_stat
 from leniax import utils as leniax_utils
 from leniax.utils import get_container
-from leniax.helpers import get_mem_optimized_inputs, build_update_fn, init
+from leniax.qd import get_dynamic_args
+from leniax.helpers import build_update_fn, init
 from leniax.lenia import LeniaIndividual
 from leniax.kernels import get_kernels_and_mapping
 
@@ -31,30 +32,28 @@ class TestRunner(unittest.TestCase):
 
         nb_lenia = 4
 
-        lenia_sols1 = []
+        leniax_sols1 = []
         for _ in range(nb_lenia):
             rng_key, subkey = jax.random.split(rng_key)
-            len = LeniaIndividual(qd_config, subkey)
-            len[:] = [random.random(), random.random()]
-            lenia_sols1.append(len)
+            len = LeniaIndividual(qd_config, subkey, [random.random(), random.random()])
+            leniax_sols1.append(len)
 
-        (rng_key, run_scan_mem_optimized_parameters1) = get_mem_optimized_inputs(qd_config, lenia_sols1)
+        (rng_key, dynamic_args1) = get_dynamic_args(qd_config, leniax_sols1)
 
-        lenia_sols2 = []
+        leniax_sols2 = []
         for _ in range(nb_lenia):
             rng_key, subkey = jax.random.split(rng_key)
-            len = LeniaIndividual(qd_config, subkey)
-            len[:] = [random.random(), random.random()]
-            lenia_sols2.append(len)
+            len = LeniaIndividual(qd_config, subkey, [random.random(), random.random()])
+            leniax_sols2.append(len)
 
-        (rng_key, run_scan_mem_optimized_parameters2) = get_mem_optimized_inputs(qd_config, lenia_sols2)
+        (rng_key, dynamic_args2) = get_dynamic_args(qd_config, leniax_sols2)
 
         max_run_iter = qd_config['run_params']['max_run_iter']
         world_params = qd_config['world_params']
         update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
         weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
         render_params = qd_config['render_params']
-        kernels_params = qd_config['kernels_params']['k']
+        kernels_params = qd_config['kernels_params']
         K, mapping = get_kernels_and_mapping(
             kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R']
         )
@@ -65,7 +64,7 @@ class TestRunner(unittest.TestCase):
 
         t0 = time.time()
         stats1, _ = leniax_runner.run_scan_mem_optimized(
-            *run_scan_mem_optimized_parameters1,
+            *dynamic_args1,
             max_run_iter,
             R,
             update_fn,
@@ -76,7 +75,7 @@ class TestRunner(unittest.TestCase):
 
         t0 = time.time()
         stats2, _ = leniax_runner.run_scan_mem_optimized(
-            *run_scan_mem_optimized_parameters2,
+            *dynamic_args2,
             max_run_iter,
             R,
             update_fn,
@@ -107,25 +106,25 @@ class TestRunner(unittest.TestCase):
 
         cells1 = jnp.ones(cells.shape) * 0.2
         K1 = jnp.ones(K.shape) * 0.3
-        gfn_params1 = mapping.get_gfn_params()
+        gf_params1 = mapping.get_gf_params()
         kernels_weight_per_channel1 = mapping.get_kernels_weight_per_channel()
 
         t0 = time.time()
         out1, _, _, _ = leniax_runner.run_scan(
-            cells1, K1, gfn_params1, kernels_weight_per_channel1, T, max_run_iter, R, update_fn, compute_stats_fn
+            cells1, K1, gf_params1, kernels_weight_per_channel1, T, max_run_iter, R, update_fn, compute_stats_fn
         )
         out1.block_until_ready()
         delta_t = time.time() - t0
 
         cells2 = jnp.ones(cells.shape) * 0.5
         K2 = jnp.ones(K.shape) * 0.5
-        mapping.gfn_params[0][0][0] = .3
-        gfn_params2 = mapping.get_gfn_params()
+        mapping.cin_gf_params[0][0][0] = .3
+        gf_params2 = mapping.get_gf_params()
         kernels_weight_per_channel2 = mapping.get_kernels_weight_per_channel()
 
         t0 = time.time()
         out2, _, _, _ = leniax_runner.run_scan(
-            cells2, K2, gfn_params2, kernels_weight_per_channel2, T, max_run_iter, R, update_fn, compute_stats_fn
+            cells2, K2, gf_params2, kernels_weight_per_channel2, T, max_run_iter, R, update_fn, compute_stats_fn
         )
         out2.block_until_ready()
         delta_t_compiled = time.time() - t0

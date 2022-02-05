@@ -1,5 +1,4 @@
 import os
-import psutil
 from absl import logging
 from omegaconf import DictConfig
 import hydra
@@ -27,20 +26,19 @@ logging.set_verbosity(logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf')
+config_name = "config_qd_cmame"
 
 
-@hydra.main(config_path=config_path, config_name="config_qd_cmame")
+@hydra.main(config_path=config_path, config_name=config_name)
 def run(omegaConf: DictConfig) -> None:
     config = get_container(omegaConf, config_path)
-    config['algo']['budget'] *= 2
     print(config)
 
+    # Seed
     seed = config['run_params']['seed']
     rng_key = leniax_utils.seed_everything(seed)
-    generator_builder = leniax_qd.genBaseIndividual(config, rng_key)
-    lenia_generator = generator_builder()
 
-    fitness_domain = [-65, 0]  # negative rastrigin domain in(to maximise)
+    fitness_domain = (-65, 0)  # negative rastrigin domain in(to maximise)
     features_domain = [[-4, 4], [-4, 4]]
     grid_shape = config['grid']['shape']
     assert len(grid_shape) == len(features_domain)
@@ -49,6 +47,7 @@ def run(omegaConf: DictConfig) -> None:
     archive = CVTArchive(bins, features_domain, seed=seed, use_kd_tree=True)
     archive.qd_config = config
 
+    # Emitters
     genotype_dims = len(config['genotype'])
     sampling_domain = config['algo']['sampling_domain']
     sampling_bounds = [sampling_domain for _ in range(genotype_dims)]
@@ -56,7 +55,6 @@ def run(omegaConf: DictConfig) -> None:
                                for bounds in sampling_bounds])  # start the CMA-ES algorithm
 
     batch_size = config['algo']['batch_size']
-    log_freq = 1
     mut_sigma0 = config['algo']['mut_sigma0']
     sigma0 = config['algo']['sigma0']
     emitters = [
@@ -71,15 +69,13 @@ def run(omegaConf: DictConfig) -> None:
         ),
         ImprovementEmitter(
             archive, initial_model.flatten(), sigma0, batch_size=batch_size, seed=seed + 4, bounds=sampling_bounds
-        ),
+        )
     ]
     optimizer = Optimizer(archive, emitters)
+    eval_fn = functools.partial(leniax_qd.eval_debug, fitness_coef=-1.)
 
-    # See https://stackoverflow.com/questions/40217873/multiprocessing-use-only-the-physical-cores
-    n_workers = psutil.cpu_count(logical=False) - 1
-    nb_iter = config['algo']['budget'] // (batch_size * len(emitters))
-    eval_fn = functools.partial(leniax_qd.eval_debug, neg_fitness=True)
-    metrics = leniax_qd.run_qd_search(eval_fn, nb_iter, lenia_generator, optimizer, fitness_domain, log_freq, n_workers)
+    # QD search
+    rng_key, metrics = leniax_qd.run_qd_search(rng_key, config, optimizer, fitness_domain, eval_fn, log_freq=1, n_workers=0)
 
     # Save results
     save_dir = os.getcwd()
@@ -91,7 +87,7 @@ def run(omegaConf: DictConfig) -> None:
     leniax_qd.save_metrics(metrics, save_dir)
     leniax_qd.save_heatmap(optimizer.archive, fitness_domain, f"{save_dir}/archive_heatmap.png")
     leniax_qd.save_parallel_axes_plot(optimizer.archive, fitness_domain, f"{save_dir}/archive_parralel_plot.png")
-    leniax_video.dump_qd_ribs_result(os.path.join(save_dir, 'qd_search.mp4'))
+    leniax_video.render_qd_search(os.path.join(save_dir, 'qd_search.mp4'))
 
 
 if __name__ == '__main__':

@@ -39,7 +39,7 @@ kernels_params:
     r: 1
     s: 0.030879801532350055
 other:
-  dump_bests: true
+  render_bests: true
 phenotype:
 - kernels_params.k.0.m
 - kernels_params.k.0.s

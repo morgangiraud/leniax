@@ -23,7 +23,7 @@ config_name = "config"
 @hydra.main(config_path=config_path, config_name=config_name)
 def launch(omegaConf: DictConfig) -> None:
     base_config = leniax_utils.get_container(omegaConf, config_path)
-    base_config['kernels_params']['k'] = []
+    base_config['kernels_params'] = []
 
     base_save_dir = os.getcwd()
 
@@ -40,13 +40,13 @@ def launch(omegaConf: DictConfig) -> None:
             # - `r` values
 
             tmp_config = copy.deepcopy(base_config)
-            tmp_config['kernels_params']['k'].append(lenia_one_kernels_params)
-            tmp_config['kernels_params']['k'].append(lenia_two_kernels_params)
+            tmp_config['kernels_params'].append(lenia_one_kernels_params)
+            tmp_config['kernels_params'].append(lenia_two_kernels_params)
 
             rng_key = leniax_utils.seed_everything(tmp_config['run_params']['seed'])
 
             t0 = time.time()
-            _, best, nb_init_done = leniax_helpers.search_for_init(rng_key, tmp_config, fft=True)
+            _, (best, nb_init_done) = leniax_helpers.search_for_init(rng_key, tmp_config, fft=True)
             print(f"Init search done in {time.time() - t0} (nb_inits done: {nb_init_done})")
 
             all_cells = best['all_cells'][:int(best['N']), 0]

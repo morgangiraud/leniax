@@ -22,7 +22,7 @@ class TestStatistics(unittest.TestCase):
         ])
 
         should_continue_cond, mass_volume_counter_next = leniax_stat.mass_volume_heuristic(
-            mass_volume, mass_volume_counter, R
+            mass_volume, mass_volume_counter
         )
 
         np.testing.assert_array_equal(should_continue_cond, [True, True, True, False])

@@ -36,7 +36,7 @@ class TestUtils(unittest.TestCase):
 
         np.testing.assert_array_almost_equal(cells, cells_out, decimal=4)
 
-        new_st = leniax_loader.compress_array(cells)
+        new_st = leniax_loader.compress_array(cells_out)
 
         assert st == new_st
 
@@ -48,9 +48,9 @@ class TestUtils(unittest.TestCase):
 
         np.testing.assert_array_almost_equal(compressible_cells, cells_out, decimal=9)
 
-    def test_compress_decompress_compress_yaml(self):
+    def test_compress_decompress_compress_yaml_gzip(self):
         max_val = NB_CHARS**2 - 1
-        cells = jnp.array(np.arange(0, NB_CHARS**2, 10, dtype=np.int32) / max_val)
+        cells = jnp.array(np.arange(0, NB_CHARS**2, 8, dtype=np.int32) / max_val).reshape(32, 49)
         yaml_fullpath = os.path.join(fixture_dir, 'compress_yaml.yaml')
 
         st = leniax_loader.compress_array(cells)
@@ -59,7 +59,7 @@ class TestUtils(unittest.TestCase):
         with open(yaml_fullpath, 'r') as f:
             st_loads = yaml.safe_load(f)['cells']
         os.remove(yaml_fullpath)
-        cells_out = leniax_loader.decompress_array(st_loads, 1)
+        cells_out = leniax_loader.decompress_array(st_loads)
 
         np.testing.assert_array_almost_equal(cells, cells_out, decimal=4)
 

@@ -11,7 +11,7 @@ from typing import Callable, Tuple
 def update(
     cells: jnp.ndarray,
     K: jnp.ndarray,
-    gfn_params: jnp.ndarray,
+    gf_params: jnp.ndarray,
     kernels_weight_per_channel: jnp.ndarray,
     dt: jnp.ndarray,
     get_potential_fn: Callable,
@@ -20,10 +20,13 @@ def update(
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Update the cells state
 
+    Jitted function with static argnums. Use functools.partial to set the different function.
+    Avoid changing non-static argument shape for performance.
+
     Args:
-        cells: cells state ``([N, nb_channels, world_dims...])``
+        cells: cells state ``[N, nb_channels, world_dims...]``
         K: Kernel ``[K_o=nb_channels * max_k_per_channel, K_i=1, kernel_dims...]``
-        gfn_params: Growth function parmaeters ``[nb_kernels, params_shape...]``
+        gf_params: Growth function parmaeters ``[nb_kernels, params_shape...]``
         kernels_weight_per_channel: Kernels weight used in the averaginf function ``[nb_channels, nb_kernels]``
         dt: Update rate ``[N]``
         get_potential_fn: **(jit static arg)** Function used to compute the potential
@@ -32,13 +35,10 @@ def update(
 
     Returns:
         A tuple of arrays representing the updated cells state, the used potential and used field.
-
-    Jitted function with static argnums. Use functools.partial to set the different function.
-    Avoid changing non-static argument shape for performance.
     """
 
     potential = get_potential_fn(cells, K)
-    field = get_field_fn(potential, gfn_params, kernels_weight_per_channel)
+    field = get_field_fn(potential, gf_params, kernels_weight_per_channel)
     cells = update_fn(cells, field, dt)
 
     return cells, field, potential
@@ -50,9 +50,11 @@ def get_potential_fft(
     true_channels: jnp.ndarray,
     max_k_per_channel: int,
     C: int,
-    wdims_axes: Tuple[int]
+    wdims_axes: Tuple[int, ...]
 ) -> jnp.ndarray:
     """Compute the potential using FFT
+
+    The first dimension of cells and K is the vmap dimension
 
     Args:
         cells: cells state ``[N, nb_channels, world_dims...]``
@@ -64,8 +66,6 @@ def get_potential_fft(
 
     Returns:
         An array containing the potential
-
-    The first dimension of cells and K is the vmap dimension
     """
     fft_cells = jnp.fft.fftn(cells, axes=wdims_axes)[:, :, jnp.newaxis, ...]  # [N, nb_channels, 1, world_dims...]
     fft_out = fft_cells * K
@@ -83,6 +83,8 @@ def get_potential_fft(
 def get_potential(cells: jnp.ndarray, K: jnp.ndarray, padding: jnp.ndarray, true_channels: jnp.ndarray) -> jnp.ndarray:
     """Compute the potential using lax.conv_general_dilated
 
+    The first dimension of cells and K is the vmap dimension
+
     Args:
         cells: cells state ``[N, nb_channels, world_dims...]``
         K: Kernels ``[K_o=nb_channels * max_k_per_channel, K_i=1, kernel_dims...]``
@@ -91,8 +93,6 @@ def get_potential(cells: jnp.ndarray, K: jnp.ndarray, padding: jnp.ndarray, true
 
     Returns:
         An array containing the potential
-
-    The first dimension of cells and K is the vmap dimension
     """
     padded_cells = jnp.pad(cells, padding, mode='wrap')
     nb_channels = cells.shape[1]
@@ -107,33 +107,33 @@ def get_potential(cells: jnp.ndarray, K: jnp.ndarray, padding: jnp.ndarray, true
 @functools.partial(jit, static_argnums=(3, 4))
 def get_field(
     potential: jnp.ndarray,
-    gfn_params: jnp.ndarray,
+    gf_params: jnp.ndarray,
     kernels_weight_per_channel: jnp.ndarray,
-    growth_fn_t: Tuple[Callable],
+    growth_fn_t: Tuple[Callable, ...],
     weighted_fn: Callable
 ) -> jnp.ndarray:
     """Compute the field
 
+    Jitted function with static argnums. Use functools.partial to set the different function.
+    Avoid changing non-static argument shape for performance.
+
     Args:
         potential: ``[N, nb_kernels, world_dims...]``
-        gfn_params: ``[nb_kernels, 2]``
+        gf_params: ``[nb_kernels, nb_gf_params]``
         kernels_weight_per_channel: Kernels weight used in the averaginf function ``[nb_channels, nb_kernels]``
         growth_fn_t: **(jit static arg)** Tuple of growth functions. ``length: nb_kernels``
         weighted_fn: **(jit static arg)** Function used to merge fields linked to the same channel
 
     Returns:
         An array containing the field
-
-    Jitted function with static argnums. Use functools.partial to set the different function.
-    Avoid changing non-static argument shape for performance.
     """
     fields = []
     for i in range(len(growth_fn_t)):
         sub_potential = potential[:, i]
-        current_gfn_params = gfn_params[i]
+        current_gf_params = gf_params[i]
         growth_fn = growth_fn_t[i]
 
-        sub_field = growth_fn(current_gfn_params, sub_potential)
+        sub_field = growth_fn(current_gf_params, sub_potential)
 
         fields.append(sub_field)
     fields_jnp = jnp.stack(fields, axis=1)  # [N, nb_kernels, world_dims...]
@@ -186,7 +186,7 @@ def weighted_mean(fields: jnp.ndarray, weights: jnp.ndarray) -> jnp.ndarray:
     return fields_normalized
 
 
-def update_cells(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp.ndarray:
+def update_state(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp.ndarray:
     """Compute the new cells state using the original Lenia formula
 
     Args:
@@ -201,16 +201,16 @@ def update_cells(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp
         https://arxiv.org/abs/1812.05433
     """
     cells_new = cells + dt * field
-    clipped_cells = jnp.clip(cells_new, 0., 1.)
 
     # Straight-through estimator
+    clipped_cells = jnp.clip(cells_new, 0., 1.)
     zero = cells_new - lax.stop_gradient(cells_new)
     out = zero + lax.stop_gradient(clipped_cells)
 
     return out
 
 
-def update_cells_v2(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp.ndarray:
+def update_state_v2(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp.ndarray:
     """Compute the new cells state using the asymptotic Lenia formula
 
     Args:
@@ -224,6 +224,29 @@ def update_cells_v2(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> 
     Reference:
         https://direct.mit.edu/isal/proceedings/isal/91/102916
     """
-    cells_new = jnp.array(cells * (1 - dt) + dt * field)
+    cells_new = cells * (1 - dt) + dt * field
 
     return cells_new
+
+
+def update_state_simple(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp.ndarray:
+    """Compute the new cells state by simply adding the field directly
+
+    Args:
+        cells: Current cells state ``[N, nb_channels, world_dims...]``
+        field: Current field``[N, nb_channels, world_dims...]``
+        dt: Update rate ``[N]`` **(not used)**
+
+    Returns:
+        The new cells state
+    """
+    cells_new = cells + field
+
+    return cells_new
+
+
+update_register = {
+    'v1': update_state,
+    'v2': update_state_v2,
+    'simple': update_state_simple,
+}

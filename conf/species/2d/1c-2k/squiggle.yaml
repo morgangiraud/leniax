@@ -69,7 +69,7 @@ kernels_params:
     r: 1
     s: 0.038333802678982704
 other:
-  dump_bests: true
+  render_bests: true
 phenotype:
 - behaviours.mass_density
 - behaviours.mass_speed

@@ -1,7 +1,8 @@
-include scripts/*.py
+include examples/*.py
 
 include conf/*.yaml
 include conf/**/*.yaml
+include conf/species/**/*
 
 include experiments/**/*.yaml
 include experiments/013_descendants/official_all_metadata.json

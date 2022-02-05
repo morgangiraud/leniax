@@ -1,7 +1,10 @@
+"""
+.. highlight:: python
+"""
 import functools
 from jax import vmap, pmap, lax, jit
 import jax.numpy as jnp
-from typing import Callable, Dict, Tuple
+from typing import Callable, Dict, Tuple, Optional
 
 from . import statistics as leniax_stat
 from .constant import EPSILON, START_CHECK_STOP
@@ -10,7 +13,7 @@ from .constant import EPSILON, START_CHECK_STOP
 def run(
     cells: jnp.ndarray,
     K: jnp.ndarray,
-    gfn_params: jnp.ndarray,
+    gf_params: jnp.ndarray,
     kernels_weight_per_channel: jnp.ndarray,
     T: jnp.ndarray,
     max_run_iter: int,
@@ -18,6 +21,26 @@ def run(
     update_fn: Callable,
     compute_stats_fn: Callable
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
+    """Simulate a single configuration
+
+    It uses a python ``for`` loop under the hood.
+
+    Args:
+        cells: Initial cells state ``[N_init=1, nb_channels, world_dims...]``
+        K: Stacked Kernels (shape depends on convolution implementation)
+        gf_params: Growth function parameters ``[nb_kernels, params_shape...]``
+        kernels_weight_per_channel: Kernels weight used in the average function ``[nb_channels, nb_kernels]``
+        dt: Update rate ``[1]``
+        max_run_iter: Maximum number of simulation iterations
+        R: Main kernel Resolution
+        update_fn: Function used to compute the new cell state
+        compute_stats_fn: Function used to compute the statistics
+
+    Returns:
+        A tuple of arrays representing the updated cells state, the used potential
+        and used field and current statistics
+    """
+
     assert max_run_iter > 0, f"max_run_iter must be positive, value given: {max_run_iter}"
     assert cells.shape[0] == 1
     # cells shape: [N=1, C, dims...]
@@ -38,7 +61,7 @@ def run(
     mass_centroid = jnp.zeros([nb_world_dims, N])
     mass_angle = jnp.zeros([N])
     for current_iter in range(max_run_iter):
-        new_cells, field, potential = update_fn(cells, K, gfn_params, kernels_weight_per_channel, 1. / T)
+        new_cells, field, potential = update_fn(cells, K, gf_params, kernels_weight_per_channel, 1. / T)
 
         stat_t, total_shift_idx, mass_centroid, mass_angle = compute_stats_fn(
             cells, field, potential, total_shift_idx, mass_centroid, mass_angle
@@ -63,7 +86,7 @@ def run(
 
         mass_volume = stat_t['mass_volume']
         mass_volume_counter = counters['nb_max_volume_step']
-        cond, counters['nb_max_volume_step'] = leniax_stat.mass_volume_heuristic(mass_volume, mass_volume_counter, R)
+        cond, counters['nb_max_volume_step'] = leniax_stat.mass_volume_heuristic(mass_volume, mass_volume_counter)
         should_continue_cond *= cond
 
         should_continue *= should_continue_cond
@@ -89,7 +112,7 @@ def run(
 def run_scan(
     cells0: jnp.ndarray,
     K: jnp.ndarray,
-    gfn_params: jnp.ndarray,
+    gf_params: jnp.ndarray,
     kernels_weight_per_channel: jnp.ndarray,
     T: jnp.ndarray,
     max_run_iter: int,
@@ -97,60 +120,34 @@ def run_scan(
     update_fn: Callable,
     compute_stats_fn: Callable
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict[str, jnp.ndarray]]:
+    """Simulate a single configuration
+
+    This function is jitted, it uses jax.lax.scan function under the hood.
+    It can be used to simulate a single configuration with multiple initialization.
+
+    Args:
+        cells0: Initial cells state ``[N_init, nb_channels, world_dims...]``
+        K: Stacked Kernels ``[kernel_shape...]``
+        gf_params: Growth function parameters ``[nb_kernels, params_shape...]``
+        kernels_weight_per_channel: Kernels weight used in the average function ``[nb_channels, nb_kernels]``
+        dt: Update rate ``[1]``
+        max_run_iter: Maximum number of simulation iterations
+        R: Main kernel Resolution
+        update_fn: Function used to compute the new cell state
+        compute_stats_fn: Function used to compute the statistics
+
+    Returns:
+        A 4-tuple of arrays representing the updated cells state, the used potential
+        and used field and simulations statistics
     """
-        Args:
-            - cells0:                       jnp.ndarray[N_init, nb_channels, world_dims...]
-            - K:
-                - fft:                      jnp.ndarray[1, nb_channels, max_k_per_channel, K_dims...]
-                - raw:                      jnp.ndarray[nb_channels * max_k_per_channel, 1, K_dims...]
-            - gfn_params:                   jnp.ndarray[nb_kernels, nb_gfn_params]
-            - kernels_weight_per_channel:   jnp.ndarray[nb_channels, nb_kernels]
-            - T:                            jnp.ndarray[]
-    """
-
-    N = cells0.shape[0]
-    nb_world_dims = cells0.ndim - 2
-
-    def fn(carry, x):
-        cells, K, gfn_params, kernels_weight_per_channel, T = carry['fn_params']
-        new_cells, field, potential = update_fn(cells, K, gfn_params, kernels_weight_per_channel, 1. / T)
-
-        stat_props = carry['stats_properties']
-        total_shift_idx = stat_props['total_shift_idx']
-        mass_centroid = stat_props['mass_centroid']
-        mass_angle = stat_props['mass_angle']
-        stats, total_shift_idx, mass_centroid, mass_angle = compute_stats_fn(
-            cells, field, potential, total_shift_idx, mass_centroid, mass_angle
-        )
-
-        y = {'cells': cells, 'field': field, 'potential': potential, 'stats': stats}
-
-        new_carry = {
-            'fn_params': (new_cells, K, gfn_params, kernels_weight_per_channel, T),
-            'stats_properties': {
-                'total_shift_idx': total_shift_idx,
-                'mass_centroid': mass_centroid,
-                'mass_angle': mass_angle,
-            }
-        }
-
-        return new_carry, y
-
-    total_shift_idx = jnp.zeros([N, nb_world_dims], dtype=jnp.int32)
-    mass_centroid = jnp.zeros([nb_world_dims, N])
-    mass_angle = jnp.zeros([N])
-    init_carry = {
-        'fn_params': (cells0, K, gfn_params, kernels_weight_per_channel, T),
-        'stats_properties': {
-            'total_shift_idx': total_shift_idx,
-            'mass_centroid': mass_centroid,
-            'mass_angle': mass_angle,
-        }
-    }
+    init_carry = _get_init_carry(cells0, K, gf_params, kernels_weight_per_channel, T)
+    fn: Callable = functools.partial(
+        _scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_simu_data=True
+    )
 
     _, ys = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
 
-    continue_stat = leniax_stat.check_heuristics(ys['stats'], R, 1. / T)
+    continue_stat = leniax_stat.check_heuristics(ys['stats'])
     ys['stats']['N'] = continue_stat.sum(axis=0)
 
     return ys['cells'], ys['field'], ys['potential'], ys['stats']
@@ -161,7 +158,7 @@ def run_scan(
 def run_scan_mem_optimized(
     cells0: jnp.ndarray,
     K: jnp.ndarray,
-    gfn_params: jnp.ndarray,
+    gf_params: jnp.ndarray,
     kernels_weight_per_channel: jnp.ndarray,
     T: jnp.ndarray,
     max_run_iter: int,
@@ -169,59 +166,35 @@ def run_scan_mem_optimized(
     update_fn: Callable,
     compute_stats_fn: Callable
 ) -> Tuple[Dict[str, jnp.ndarray], jnp.ndarray]:
+    """Simulate multiple configurations
+
+    This function is jitted, it uses jax.lax.scan function under the hood.
+    It can be used to simulate multiple configurations with multiple initialization.
+
+    Args:
+        cells0: Initial cells state ``[N_sols, N_init, nb_channels, world_dims...]``
+        K: Stacked Kernels ``[N_sols, kernel_shape...]``
+        gf_params: Growth function parameters ``[N_sols, nb_kernels, params_shape...]``
+        kernels_weight_per_channel: Kernels weight used in the average function ``[N_sols, nb_channels, nb_kernels]``
+        T: Update rate ``[N_sols]``
+        max_run_iter: Maximum number of simulation iterations
+        R: Main kernel Resolution
+        update_fn: Function used to compute the new cell state
+        compute_stats_fn: Function used to compute the statistics
+
+    Returns:
+        A 2-tuple containing simulations statistics and final cells states
     """
-        Args:
-            - cells0:                       jnp.ndarray[N_sols, N_init, nb_channels, world_dims...]
-            - K:
-                fft:                        jnp.ndarray[N_sols, 1, nb_channels, max_k_per_channel, K_dims...]
-                raw:                        jnp.ndarray[N_sols, nb_channels * max_k_per_channel, 1, K_dims...]
-            - gfn_params:                   jnp.ndarray[N_sols, nb_kernels, nb_gfn_params]
-            - kernels_weight_per_channel:   jnp.ndarray[N_sols, nb_channels, nb_kernels]
-            - T:                            jnp.ndarray[N_sols]
-    """
-    N = cells0.shape[0]
-    nb_world_dims = cells0.ndim - 2
-
-    def fn(carry, x):
-        cells, K, gfn_params, kernels_weight_per_channel, T = carry['fn_params']
-        new_cells, field, potential = update_fn(cells, K, gfn_params, kernels_weight_per_channel, 1. / T)
-
-        stat_props = carry['stats_properties']
-        total_shift_idx = stat_props['total_shift_idx']
-        mass_centroid = stat_props['mass_centroid']
-        mass_angle = stat_props['mass_angle']
-        stats, total_shift_idx, mass_centroid, mass_angle = compute_stats_fn(
-            cells, field, potential, total_shift_idx, mass_centroid, mass_angle
-        )
-
-        new_carry = {
-            'fn_params': (new_cells, K, gfn_params, kernels_weight_per_channel, T),
-            'stats_properties': {
-                'total_shift_idx': total_shift_idx,
-                'mass_centroid': mass_centroid,
-                'mass_angle': mass_angle,
-            }
-        }
-
-        return new_carry, stats
-
-    total_shift_idx = jnp.zeros([N, nb_world_dims], dtype=jnp.int32)
-    mass_centroid = jnp.zeros([nb_world_dims, N])
-    mass_angle = jnp.zeros([N])
-    init_carry = {
-        'fn_params': (cells0, K, gfn_params, kernels_weight_per_channel, T),
-        'stats_properties': {
-            'total_shift_idx': total_shift_idx,
-            'mass_centroid': mass_centroid,
-            'mass_angle': mass_angle,
-        }
-    }
+    init_carry = _get_init_carry(cells0, K, gf_params, kernels_weight_per_channel, T)
+    fn: Callable = functools.partial(
+        _scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_simu_data=False
+    )
 
     final_carry, stats = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
 
     final_cells = final_carry['fn_params'][0]
 
-    continue_stat = leniax_stat.check_heuristics(stats, R, 1. / T)
+    continue_stat = leniax_stat.check_heuristics(stats)
     stats['N'] = continue_stat.sum(axis=0)
 
     return stats, final_cells
@@ -234,7 +207,7 @@ def run_scan_mem_optimized(
 def run_scan_mem_optimized_pmap(
     cells0: jnp.ndarray,
     K: jnp.ndarray,
-    gfn_params: jnp.ndarray,
+    gf_params: jnp.ndarray,
     kernels_weight_per_channel: jnp.ndarray,
     T: jnp.ndarray,
     max_run_iter: int,
@@ -242,47 +215,85 @@ def run_scan_mem_optimized_pmap(
     update_fn: Callable,
     compute_stats_fn: Callable
 ) -> Tuple[Dict[str, jnp.ndarray], jnp.ndarray]:
+    """Simulate multiple configurations on multiple devices
+
+    This function is jitted, it uses jax.lax.scan function under the hood.
+    It can be used to simulate multiple configurations with multiple initialization
+    on multiple devices.
+
+    Args:
+        cells0: Initial cells state ``[N_device, N_sols, N_init, nb_channels, world_dims...]``
+        K: Stacked Kernels ``[N_device, N_sols, kernel_shape...]``
+        gf_params: Growth function parameters ``[N_device, N_sols, nb_kernels, params_shape...]``
+        kernels_weight_per_channel: Kernels weight used in the average function ``[N_device, N_sols, nb_channels, nb_kernels]``
+        T: Update rate ``[N_device, N_sols]``
+        max_run_iter: Maximum number of simulation iterations
+        R: Main kernel Resolution
+        update_fn: Function used to compute the new cell state
+        compute_stats_fn: Function used to compute the statistics
+
+    Returns:
+        A 2-tuple containing simulations statistics and final cells states
     """
-        Args:
-            - cells0:                       jnp.ndarray[N_device, N_sols, N_init, nb_channels, world_dims...]
-            - K:
-                fft:                        jnp.ndarray[N_device, N_sols, 1, nb_channels, max_k_per_channel, K_dims...]
-                raw:                        jnp.ndarray[N_device, N_sols, nb_channels * max_k_per_channel, 1, K_dims...]
-            - gfn_params:                   jnp.ndarray[N_device, N_sols, nb_kernels, nb_gfn_params]
-            - kernels_weight_per_channel:   jnp.ndarray[N_device, N_sols, nb_channels, nb_kernels]
-            - T:                            jnp.ndarray[N_device, N_sols]
-    """
+    init_carry = _get_init_carry(cells0, K, gf_params, kernels_weight_per_channel, T)
+    fn: Callable = functools.partial(
+        _scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_simu_data=False
+    )
+
+    final_carry, stats = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
+
+    final_cells = final_carry['fn_params'][0]
+
+    continue_stat = leniax_stat.check_heuristics(stats)
+    stats['N'] = continue_stat.sum(axis=0)
+
+    return stats, final_cells
+
+
+def _get_init_carry(
+    cells0: jnp.ndarray,
+    K: jnp.ndarray,
+    gf_params: jnp.ndarray,
+    kernels_weight_per_channel: jnp.ndarray,
+    T: jnp.ndarray
+) -> Dict:
     N = cells0.shape[0]
     nb_world_dims = cells0.ndim - 2
-
-    def fn(carry, x):
-        cells, K, gfn_params, kernels_weight_per_channel, T = carry['fn_params']
-        new_cells, field, potential = update_fn(cells, K, gfn_params, kernels_weight_per_channel, 1. / T)
-
-        stat_props = carry['stats_properties']
-        total_shift_idx = stat_props['total_shift_idx']
-        mass_centroid = stat_props['mass_centroid']
-        mass_angle = stat_props['mass_angle']
-        stats, total_shift_idx, mass_centroid, mass_angle = compute_stats_fn(
-            cells, field, potential, total_shift_idx, mass_centroid, mass_angle
-        )
-
-        new_carry = {
-            'fn_params': (new_cells, K, gfn_params, kernels_weight_per_channel, T),
-            'stats_properties': {
-                'total_shift_idx': total_shift_idx,
-                'mass_centroid': mass_centroid,
-                'mass_angle': mass_angle,
-            }
-        }
-
-        return new_carry, stats
-
-    total_shift_idx = jnp.zeros([N, nb_world_dims], dtype=jnp.int32)
-    mass_centroid = jnp.zeros([nb_world_dims, N])
-    mass_angle = jnp.zeros([N])
     init_carry = {
-        'fn_params': (cells0, K, gfn_params, kernels_weight_per_channel, T),
+        'fn_params': (cells0, K, gf_params, kernels_weight_per_channel, T),
+        'stats_properties': {
+            'total_shift_idx': jnp.zeros([N, nb_world_dims], dtype=jnp.int32),
+            'mass_centroid': jnp.zeros([nb_world_dims, N]),
+            'mass_angle': jnp.zeros([N]),
+        }
+    }
+
+    return init_carry
+
+
+@functools.partial(jit, static_argnums=(2, 3, 4))
+def _scan_fn(
+    carry: Dict,
+    x: Optional[jnp.ndarray],
+    update_fn: Callable,
+    compute_stats_fn: Callable,
+    keep_simu_data: bool = False
+) -> Tuple[Dict, Dict]:
+    """Update function used in the scan implementation"""
+
+    cells, K, gf_params, kernels_weight_per_channel, T = carry['fn_params']
+    new_cells, field, potential = update_fn(cells, K, gf_params, kernels_weight_per_channel, 1. / T)
+
+    stat_props = carry['stats_properties']
+    total_shift_idx = stat_props['total_shift_idx']
+    mass_centroid = stat_props['mass_centroid']
+    mass_angle = stat_props['mass_angle']
+    stats, total_shift_idx, mass_centroid, mass_angle = compute_stats_fn(
+        cells, field, potential, total_shift_idx, mass_centroid, mass_angle
+    )
+
+    new_carry = {
+        'fn_params': (new_cells, K, gf_params, kernels_weight_per_channel, T),
         'stats_properties': {
             'total_shift_idx': total_shift_idx,
             'mass_centroid': mass_centroid,
@@ -290,11 +301,67 @@ def run_scan_mem_optimized_pmap(
         }
     }
 
-    final_carry, stats = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
+    if keep_simu_data is True:
+        y = {'cells': cells, 'field': field, 'potential': potential, 'stats': stats}
+    else:
+        y = stats
 
-    final_cells = final_carry['fn_params'][0]
+    return new_carry, y
 
-    continue_stat = leniax_stat.check_heuristics(stats, R, 1. / T)
-    stats['N'] = continue_stat.sum(axis=0)
 
-    return stats, final_cells
+###
+# Differentiable functions
+###
+def run_diff(
+    cells: jnp.ndarray,
+    K_params: jnp.ndarray,
+    gf_params: jnp.ndarray,
+    kernels_weight_per_channel: jnp.ndarray,
+    T: jnp.ndarray,
+    target: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray], Optional[jnp.ndarray]],
+    nb_steps: int,
+    K_fn: Callable,
+    update_fn: Callable,
+    error_fn: Callable
+) -> jnp.ndarray:
+    """Simulate a single configuration
+
+    It uses a python for loop under the hood.
+    Compute the error using the provided `error_fn`::
+
+        def error_fn(...):
+            ...
+
+        run_fn = functools.partial(
+            leniax_runner.run_diff,
+            nb_steps=nb_steps,
+            K_fn=K_fn,
+            update_fn=update_fn,
+            error_fn=error_fn
+        )
+        run_fn_value_and_grads = jax.value_and_grad(run_fn, argnums=(1))
+
+    Args:
+        cells: Initial cells state ``[N_init=1, nb_channels, world_dims...]``
+        K_params: Kernel parameters used to generate the final kernels
+        gf_params: Growth function parameters ``[nb_kernels, params_shape...]``
+        kernels_weight_per_channel: Kernels weight used in the average function ``[nb_channels, nb_kernels]``
+        dt: Update rate ``[N]``
+        target: 3-tuple of optionnal true cells, potential and field values
+        nb_steps: Maximum number of simulation iterations
+        K_fn: Function used to compute the kernels
+        update_fn: Function used to compute the new cell state
+        error_fn: Function used to compute the error
+
+    Returns:
+        The error value.
+    """
+    K = K_fn(K_params)
+    dt = jnp.array(1. / T, dtype=jnp.float32)
+    for _ in range(nb_steps):
+        cells, field, potential = update_fn(cells, K, gf_params, kernels_weight_per_channel, dt)
+
+    preds = (cells, field, potential)
+    error = error_fn(preds, target)
+
+    return error

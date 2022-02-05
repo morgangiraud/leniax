@@ -1,6 +1,7 @@
 import time
 import os
-from absl import logging
+import logging
+from absl import logging as absl_logging
 import jax
 from omegaconf import DictConfig
 import hydra
@@ -11,7 +12,7 @@ import leniax.loader as leniax_loader
 import leniax.helpers as leniax_helpers
 import leniax.qd as leniax_qd
 
-logging.set_verbosity(logging.ERROR)
+absl_logging.set_verbosity(absl_logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
@@ -22,29 +23,30 @@ config_name = "config_init_search"
 @hydra.main(config_path=config_path, config_name=config_name)
 def launch(omegaConf: DictConfig) -> None:
     config = leniax_utils.get_container(omegaConf, config_path)
+    leniax_utils.set_log_level(config)
+
     # config['run_params']['nb_init_search'] = 16
     # config['run_params']['max_run_iter'] = 512
 
     leniax_utils.print_config(config)
 
     rng_key = leniax_utils.seed_everything(config['run_params']['seed'])
-    lenia_sols = []
-    for _ in range(1):
-        rng_key, subkey = jax.random.split(rng_key)
-        lenia_sols.append(LeniaIndividual(config, subkey))
 
-    eval_fn = leniax_qd.build_eval_lenia_config_mem_optimized_fn(config)
+    # We are looking at multiple inits for one configuration
+    nb_sols = 1
+    rng_key, *subkeys = jax.random.split(rng_key, 1 + nb_sols)
+    leniax_sols = [LeniaIndividual(config, subkey, []) for subkey in subkeys]
 
     t0 = time.time()
-    results = eval_fn(lenia_sols)
-    print(f"Init search done in {time.time() - t0}")
+    results = leniax_qd.build_eval_lenia_config_mem_optimized_fn(config)(leniax_sols)
+    logging.info(f"Init search done in {time.time() - t0}")
 
     for id_best, best in enumerate(results):
-        print(f"best run length: {best.fitness}")
+        logging.info(f"best run length: {best.fitness}")
         config = best.get_config()
 
-        all_cells, _, _, stats_dict = leniax_helpers.init_and_run(config, with_jit=True)
-        all_cells = all_cells[:int(stats_dict['N']), 0]
+        all_cells, _, _, stats_dict = leniax_helpers.init_and_run(config, with_jit=True, stat_trunc=True)
+        all_cells = all_cells[:, 0]
 
         save_dir = os.path.join(os.getcwd(), f"{str(id_best).zfill(4)}")  # changed by hydra
         leniax_utils.check_dir(save_dir)
@@ -55,7 +57,7 @@ def launch(omegaConf: DictConfig) -> None:
         config['run_params']['cells'] = leniax_loader.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
         leniax_utils.save_config(save_dir, config)
 
-        print("Dumping assets")
+        logging.info("Dumping assets")
         leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict)
 
 

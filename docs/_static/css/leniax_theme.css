@@ -1,1 +1,5 @@
 @import url("theme.css");
+
+.wy-side-nav-search {
+    background-color: #0C0786;
+}

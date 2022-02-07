@@ -112,7 +112,7 @@ def render_gif(video_fullpath):
 
         ffmpeg
             -i $video_fullpath
-            -vf "fps=10,scale=width:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse"
+            -vf "fps=30,scale=width:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse"
             -loop 0
            \$video_fullpath.gif
 
@@ -125,7 +125,7 @@ def render_gif(video_fullpath):
     video_stream = next((stream for stream in probe['streams'] if stream['codec_type'] == 'video'), None)
     width = int(video_stream['width'])
 
-    split = ffmpeg.input(video_fullpath).filter('scale', width, -1, flags='lanczos').filter('fps', fps=24).split()
+    split = ffmpeg.input(video_fullpath).filter('scale', width, -1, flags='lanczos').filter('fps', fps=30).split()
 
     palette = split[0].filter('palettegen')
 

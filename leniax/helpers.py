@@ -49,7 +49,6 @@ def init(
     nb_channels = config['world_params']['nb_channels']
     world_size = config['render_params']['world_size']
     kernels_params = config['kernels_params']
-    R = config['world_params']['R']
     assert len(world_size) == nb_dims
     assert nb_channels > 0
 
@@ -57,8 +56,11 @@ def init(
 
     scale = config['world_params']['scale']
     if scale != 1.:
-        raw_cells = jnp.array([scipy.ndimage.zoom(raw_cells[i], scale, order=0) for i in range(nb_channels)],
-                              dtype=jnp.float32)
+        raw_cells = jnp.array(
+            [scipy.ndimage.zoom(raw_cells[i], scale, order=0) for i in range(nb_channels)],
+            dtype=jnp.float32,
+        )
+        # We update the configuration here, the new R value will be used in the statistics
         config['world_params']['R'] *= scale
 
     # assert cells.shape[1] * 2.2 < config['render_params']['world_size'][0]
@@ -79,7 +81,7 @@ def init(
         init_cells = create_init_cells(world_size, nb_channels, raw_cells)
     else:
         init_cells = create_init_cells(world_size, nb_channels, [raw_cells])
-    K, mapping = leniax_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)
+    K, mapping = leniax_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, config['world_params']['R'], fft)
 
     return init_cells, K, mapping
 
@@ -146,7 +148,7 @@ def init_and_run(
 
     Returns:
         A tuple of `[nb_iter, nb_init, nb_channels, world_dims...]` shaped
-        cells, fields, potentials and statistics of the simulation
+        cells, fields, potentials and statistics of the simulation.
     """
     config = copy.deepcopy(config)
 
@@ -559,13 +561,14 @@ def plot_kernels(save_dir: str, config: Dict):
     """
 
     R = config['world_params']['R']
+    scale = config['world_params']['scale']
 
     x = jnp.linspace(0, 1, 1000)
     all_ks = []
     all_kfs = []
     all_gfs = []
     for param in config['kernels_params']:
-        k = leniax_kernels.register[param['k_slug']](R, param['k_params'], param['kf_slug'], param['kf_params'])
+        k = leniax_kernels.register[param['k_slug']](R * scale, param['k_params'], param['kf_slug'], param['kf_params'])
         all_ks.append(k)
         all_kfs.append(kf_register[param['kf_slug']](param['kf_params'], x))
         all_gfs.append(gf_register[param['gf_slug']](param["gf_params"], x) * param['h'])
@@ -622,7 +625,7 @@ def plot_kernels(save_dir: str, config: Dict):
     elif len(Ks.shape) == 4:
         ax[1].plot(range(K_size), Ks[:, K_mid, K_mid, :].T)
     ax[1].title.set_text('Ks cross-sections')
-    ax[1].set_xlim([K_mid - R - 3, K_mid + R + 3])
+    ax[1].set_xlim([K_mid - 3 - R * scale, K_mid + 3 + R * scale])
 
     ax[2].plot(x, jnp.asarray(all_gfs).T)
     ax[2].axhline(y=0, color='grey', linestyle='dotted')

@@ -415,7 +415,6 @@ def build_get_field_fn(cin_gfs: List[List[str]], average: bool = True) -> Callab
         for gf_slug in growth_fns_per_channel:
             growth_fn = gf_register[gf_slug]
             growth_fn_l.append(growth_fn)
-
     growth_fn_t = tuple(growth_fn_l)
 
     if average:

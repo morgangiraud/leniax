@@ -228,7 +228,8 @@ class ExtendedColormap():
         elif c == 3:
             data = np.concatenate([data, a_layer], axis=-1)
         else:
-            raise ValueError(f"This colormap can't handle more than 3 channels. Current value {c}")
+            # In that case, we only keep the first 3 channels
+            data = np.concatenate([data[..., :3], a_layer], axis=-1)
 
         return np.expand_dims(data, axis=-2)
 

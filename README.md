@@ -102,13 +102,14 @@ Check the [website](https://quality-diversity.github.io/) for more information a
 - [Quality-Diversity Optimization: a novel branch of stochastic optimization](https://arxiv.org/abs/2012.04322)
 - [Lenia - Biology of Artificial Life](https://arxiv.org/abs/1812.05433)
 - [Lenia and Expanded Universe](https://arxiv.org/abs/2005.03742)
+- [Growing Neural Cellular Automata](https://distill.pub/2020/growing-ca/)
 
 # Citing Leniax
 To cite this repository:
 ```
 @software{leniax2022github,
   author = {Morgan Giraud},
-  title = {{Leniax}: efficient and differentiable Lenia simulators},
+  title = {{Leniax}: efficient and differentiable Lenia simulator},
   url = {http://github.com/morgangiraud/leniax},
   version = {1.0.0},
   year = {2022},

@@ -530,7 +530,7 @@ def dump_frame(
         colormap: A  matplotlib compatible colormap.
     """
     if center_and_crop is True:
-        cells = leniax_utils.center_and_crop_cells(cells)
+        cells = leniax_utils.center_and_crop(cells)
     if colormap is None:
         colormap = plt.get_cmap('plasma')
 

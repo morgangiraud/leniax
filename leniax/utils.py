@@ -313,7 +313,7 @@ def crop_zero(kernels: jnp.ndarray) -> jnp.ndarray:
     return cropped_kernels
 
 
-def auto_center_cells(cells: jnp.ndarray) -> jnp.ndarray:
+def auto_center(cells: jnp.ndarray) -> jnp.ndarray:
     """Automatically center cells on its total mass centroid
 
     Args:
@@ -345,7 +345,7 @@ def auto_center_cells(cells: jnp.ndarray) -> jnp.ndarray:
     return centered_cells[0]
 
 
-def center_and_crop_cells(cells: jnp.ndarray) -> jnp.ndarray:
+def center_and_crop(cells: jnp.ndarray) -> jnp.ndarray:
     """Automatically center cells on its total mass centroid and crop zeros values
 
     Args:
@@ -375,7 +375,7 @@ def center_and_crop_cells(cells: jnp.ndarray) -> jnp.ndarray:
     )
     cells = cells[0]
 
-    centered_cells = auto_center_cells(cells)
+    centered_cells = auto_center(cells)
     cells = crop_zero(centered_cells)
 
     if 0 in cells.shape:

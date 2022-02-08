@@ -18,7 +18,6 @@ python examples/search_for_init.py -cp $FIXTURES_DIR -cn orbium-test render_para
 python examples/search_for_init_mem_optimized.py -cp $FIXTURES_DIR -cn orbium-test render_params.pixel_size=1 run_params.max_run_iter=40 ++run_params.nb_init_search=3 ++other.log_level=30
 python examples/search_for_mutation.py -cp $FIXTURES_DIR -cn orbium-mut render_params.pixel_size=1 run_params.max_run_iter=40 ++run_params.nb_mut_search=3 ++other.log_level=30
 python examples/qd_cmame.py -cp $FIXTURES_DIR -cn qd_config-test render_params.pixel_size=1 render_params.size_power2=6 run_params.max_run_iter=20 algo.budget=16 algo.batch_size=2 ++other.log_level=30 ++other.render_bests=False
-python examples/render_multiscale_videos.py -cp $FIXTURES_DIR -cn orbium-test render_params.pixel_size=1 render_params.size_power2=6 run_params.max_run_iter=20 ++other.log_level=30 ++other.render_bests=False
 # python examples/optimization.py -cp $FIXTURES_DIR -cn orbium-mut render_params.pixel_size=1 run_params.max_run_iter=40 ++run_params.nb_mut_search=4 ++other.log_level=30
 
 # Cleanup.

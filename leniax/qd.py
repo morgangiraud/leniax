@@ -416,9 +416,7 @@ def render_found_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
                 f"[{padded_id}] - {nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps"
             )
             config['run_params']['init_cells'] = leniax_loader.compress_array(all_cells[0])
-            config['run_params']['cells'] = leniax_loader.compress_array(
-                leniax_utils.center_and_crop_cells(all_cells[-1])
-            )
+            config['run_params']['cells'] = leniax_loader.compress_array(leniax_utils.center_and_crop(all_cells[-1]))
             leniax_utils.save_config(save_dir, config)
 
             leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict)

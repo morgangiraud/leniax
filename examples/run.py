@@ -1,4 +1,4 @@
-"""Leniax run example.
+"""Leniax: A simple simulation example.
 
 This is a simple example on how to use Leniax to render a Lenia simulation.
 
@@ -17,7 +17,7 @@ import leniax.helpers as leniax_helpers
 import leniax.loader as leniax_loader
 from leniax import colormaps as leniax_colormaps
 
-# This is used to remove JAX logging
+# Disable JAX logging https://abseil.io/docs/python/guides/logging
 absl_logging.set_verbosity(absl_logging.ERROR)
 
 ###
@@ -27,7 +27,6 @@ absl_logging.set_verbosity(absl_logging.ERROR)
 # python examples/run.py render_params.world_size='[512, 512]' world_params.scale=4
 ###
 cdir = os.path.dirname(os.path.realpath(__file__))
-
 config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '1c-1k')
 config_name = "orbium"
 
@@ -51,7 +50,7 @@ def run(omegaConf: DictConfig) -> None:
     #   - We will truncate the computed statistics directory up to final interesting state (more info on this in the documentation.)
     # This function returns all the different states, potentials and fields + the statistic dictionnary
     # All the arrays are of shape [nb_max_iter, N, C, world_dims...]
-    logging.info("Simulation: start")
+    logging.info("Simulation: start.")
     start_time = time.time()
     all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
         config,
@@ -72,7 +71,7 @@ def run(omegaConf: DictConfig) -> None:
     logging.info("Compression: start")
     start_time = time.time()
     config['run_params']['init_cells'] = leniax_loader.compress_array(all_cells[0])
-    config['run_params']['cells'] = leniax_loader.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
+    config['run_params']['cells'] = leniax_loader.compress_array(leniax_utils.center_and_crop(all_cells[-1]))
     leniax_utils.save_config(save_dir, config)
     total_time = time.time() - start_time
     logging.info(f"Compression: stop. Done in {total_time:.2f} seconds.")
@@ -86,7 +85,6 @@ def run(omegaConf: DictConfig) -> None:
     for colormap in colormaps:
         leniax_helpers.dump_frame(save_dir, f'last_frame_cropped_{colormap.name}', all_cells[-1], True, colormap)
         leniax_helpers.dump_frame(save_dir, f'last_frame_{colormap.name}', all_cells[-1], False, colormap)
-    leniax_utils.save_config(save_dir, config)
     total_time = time.time() - start_time
     logging.info(f"Assets production: stop. Done in {total_time:.2f} seconds.")
 

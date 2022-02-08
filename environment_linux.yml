@@ -110,6 +110,7 @@ dependencies:
   - six=1.16.0=pyhd3eb1b0_0
   - sortedcontainers=2.4.0=pyhd8ed1ab_0
   - sqlite=3.36.0=hc218d9a_0
+  - tensorflow=2.7.0
   - threadpoolctl=3.0.0=pyh8a188c0_0
   - tk=8.6.10=hbc83047_0
   - toml=0.10.2=pyhd8ed1ab_0

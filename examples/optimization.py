@@ -4,7 +4,7 @@ This example shows how to use JAX to learn the original kernel from noise
 of an existing simulation.
 
 Usage:
-    ``python examples/run.py -cn config_name -cp config_path``
+    ``python examples/run.py -cn config_name -cp config_path run_params.nb_init_search=8 run_params.max_run_iter=512``
 """
 import functools
 import time
@@ -19,7 +19,7 @@ import tensorflow as tf
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jax.experimental import optimizers as jax_opt
+import jax.example_libraries.optimizers as jax_opt
 import matplotlib.pyplot as plt
 
 import leniax.utils as leniax_utils
@@ -100,8 +100,6 @@ config_name = "orbium"
 def run(omegaConf: DictConfig) -> None:
     config = leniax_utils.get_container(omegaConf, config_path)
     leniax_utils.set_log_level(config)
-    config['run_params']['nb_init_search'] = 8
-    config['run_params']['max_run_iter'] = 512
     leniax_utils.print_config(config)
 
     save_dir = os.getcwd()  # Hydra change automatically the working directory for each run.

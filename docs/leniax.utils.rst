@@ -14,8 +14,8 @@ leniax.utils package
 .. autofunction:: merge_cells
 .. autofunction:: center_world
 .. autofunction:: crop_zero
-.. autofunction:: auto_center_cells
-.. autofunction:: center_and_crop_cells
+.. autofunction:: auto_center
+.. autofunction:: center_and_crop
 .. autofunction:: get_image
 .. autofunction:: plot_stats
 .. autofunction:: generate_beta_faces

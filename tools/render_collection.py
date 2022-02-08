@@ -92,9 +92,7 @@ def dump_assets(inputData):
     scale, subdir, all_cells, render_params, colormap, render_gif = inputData
 
     leniax_helpers.dump_frame(subdir, f'creature_scale{scale}', all_cells[-1], True, colormap)
-    leniax_helpers.dump_frame(
-        subdir, f'world_scale{scale}', leniax_utils.auto_center_cells(all_cells[-1]), False, colormap
-    )
+    leniax_helpers.dump_frame(subdir, f'world_scale{scale}', leniax_utils.auto_center(all_cells[-1]), False, colormap)
     all_outputs_fullpath = leniax_video.render_video(subdir, all_cells, render_params, [colormap], 'creature_scale4')
     if render_gif:
         leniax_video.render_gif(all_outputs_fullpath[0])
@@ -195,7 +193,7 @@ def run() -> None:
                     zip_render_params = []
 
                     cropped_compressible_cells_1 = leniax_loader.make_array_compressible(
-                        leniax_utils.center_and_crop_cells(all_cells[-32 + frame_idx])
+                        leniax_utils.center_and_crop(all_cells[-32 + frame_idx])
                     )[jnp.newaxis]
 
                     # It's much more stable to scale by factor less than 4, to reach higher factor one should run the loop a bit and then scale again
@@ -215,7 +213,7 @@ def run() -> None:
                     zip_cells.append(all_cells_2)
                     zip_render_params.append(tmp_config_2['render_params'])
 
-                    all_cells_4, stats_dict_4 = run_at_scale(tmp_config_4, leniax_utils.center_and_crop_cells(all_cells_2[20]), 2., params_scale_4)
+                    all_cells_4, stats_dict_4 = run_at_scale(tmp_config_4, leniax_utils.center_and_crop(all_cells_2[20]), 2., params_scale_4)
                     print("N_4", stats_dict_4["N"])
                     if stats_dict_4["N"] != config['run_params']['max_run_iter']:
                         continue
@@ -223,7 +221,7 @@ def run() -> None:
                     zip_cells.append(all_cells_4)
                     zip_render_params.append(tmp_config_4['render_params'])
 
-                    # all_cells_6, stats_dict_6 = run_at_scale(tmp_config_6, leniax_utils.center_and_crop_cells(all_cells_2[20]), 3., params_scale_6)
+                    # all_cells_6, stats_dict_6 = run_at_scale(tmp_config_6, leniax_utils.center_and_crop(all_cells_2[20]), 3., params_scale_6)
                     # print("N_6", stats_dict_6["N"])
                     # if stats_dict_6["N"] != config['run_params']['max_run_iter']:
                     #     continue
@@ -231,7 +229,7 @@ def run() -> None:
                     # zip_cells.append(all_cells_6)
                     # zip_render_params.append(tmp_config_6['render_params'])
 
-                    # all_cells_8, stats_dict_8 = run_at_scale(tmp_config_8, leniax_utils.center_and_crop_cells(all_cells_4[20]), 2., params_scale_8)
+                    # all_cells_8, stats_dict_8 = run_at_scale(tmp_config_8, leniax_utils.center_and_crop(all_cells_4[20]), 2., params_scale_8)
                     # print("N_8", stats_dict_8["N"])
                     # if stats_dict_8["N"] == config['run_params']['max_run_iter']:
                     #     continue

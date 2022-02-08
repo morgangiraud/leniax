@@ -1,6 +1,4 @@
 import os
-import logging
-import time
 import ffmpeg
 import numpy as np
 import jax.numpy as jnp
@@ -85,20 +83,12 @@ def render_video(
                 pipe_stdin=True, quiet=True
             )
 
-        all_times = []
         for i in range(nb_iter_done):
-            start_time = time.time()
-
             img = get_image(np_all_cells[i], render_params['pixel_size'], colormap)
             process.stdin.write(img.tobytes())
 
-            all_times.append(time.time() - start_time)
         process.stdin.close()
         process.wait()
-
-        total_time = np.sum(all_times)
-        mean_time = np.mean(all_times)
-        logging.info(f"Video rendering: {len(all_times)} images dumped in {total_time} seconds: {1. / mean_time} fps")
 
         all_outputs_fullpath.append(output_fullpath)
 

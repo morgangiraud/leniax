@@ -63,13 +63,19 @@ def get_container(omegaConf: DictConfig, main_path: str) -> Dict:
 
     if 'scale' not in config['world_params']:
         config['world_params']['scale'] = 1.
+
     if "algo" not in config:
         config["algo"] = {}
+
     if "other" not in config:
         config["other"] = {}
-
     if "log_level" not in config["other"]:
         config["other"]["log_level"] = 20
+
+    if 'colormaps' not in config['render_params']:
+        config['render_params']['colormaps'] = ['extended']
+    if type(config['render_params']['colormaps']) == str:
+        config['render_params']['colormaps'] = [config['render_params']['colormaps']]
 
     if 'version' not in config or config['version'] == 1:
         # we are dealing with a V1 config
@@ -307,7 +313,7 @@ def crop_zero(kernels: jnp.ndarray) -> jnp.ndarray:
     return cropped_kernels
 
 
-def auto_center_cells(cells: jnp.ndarray) -> jnp.ndarray:
+def auto_center(cells: jnp.ndarray) -> jnp.ndarray:
     """Automatically center cells on its total mass centroid
 
     Args:
@@ -339,7 +345,7 @@ def auto_center_cells(cells: jnp.ndarray) -> jnp.ndarray:
     return centered_cells[0]
 
 
-def center_and_crop_cells(cells: jnp.ndarray) -> jnp.ndarray:
+def center_and_crop(cells: jnp.ndarray) -> jnp.ndarray:
     """Automatically center cells on its total mass centroid and crop zeros values
 
     Args:
@@ -369,7 +375,7 @@ def center_and_crop_cells(cells: jnp.ndarray) -> jnp.ndarray:
     )
     cells = cells[0]
 
-    centered_cells = auto_center_cells(cells)
+    centered_cells = auto_center(cells)
     cells = crop_zero(centered_cells)
 
     if 0 in cells.shape:

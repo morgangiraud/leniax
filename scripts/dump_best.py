@@ -19,7 +19,7 @@ def run() -> None:
             continue
         grid, qd_config = leniax_qd.load_qd_grid_and_config(final_fullpath)
         leniax_utils.set_log_level(qd_config)
-        
+
         os.chdir(subdir)
         max_val = qd_config['run_params']['max_run_iter']
         leniax_qd.render_best(grid, max_val)

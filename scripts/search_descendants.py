@@ -60,7 +60,7 @@ def launch(omegaConf: DictConfig) -> None:
 
             tmp_config['run_params']['init_cells'] = leniax_loader.compress_array(all_cells[0])
             tmp_config['run_params']['cells'] = leniax_loader.compress_array(
-                leniax_utils.center_and_crop_cells(all_cells[-1])
+                leniax_utils.center_and_crop(all_cells[-1])
             )
             leniax_utils.save_config(save_dir, tmp_config)
 

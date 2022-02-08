@@ -1,6 +1,15 @@
+"""Leniax: Kernel optimization example.
+
+This example shows how to use JAX to learn the original kernel from noise
+of an existing simulation.
+
+Usage:
+    ``python examples/run.py -cn config_name -cp config_path run_params.nb_init_search=8 run_params.max_run_iter=512``
+"""
 import functools
 import time
 import os
+import io
 import copy
 import logging
 from absl import logging as absl_logging
@@ -10,7 +19,7 @@ import tensorflow as tf
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jax.experimental import optimizers as jax_opt
+import jax.example_libraries.optimizers as jax_opt
 import matplotlib.pyplot as plt
 
 import leniax.utils as leniax_utils
@@ -19,14 +28,17 @@ import leniax.runner as leniax_runner
 import leniax.initializations as leniax_init
 from leniax.kernels import get_kernels_and_mapping
 
+# Disable JAX logging https://abseil.io/docs/python/guides/logging
 absl_logging.set_verbosity(absl_logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
-
 config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '1c-1k')
-config_name = "wanderer"
+config_name = "orbium"
 
 
+###
+# A few helper functions used in the learning pipeline.
+###
 def K_fn_fft(K_params):
     padding = jnp.array([[0, 0]] * 2 + [[(128 - dim) // 2, (128 - dim) // 2 + 1] for dim in K_params.shape[2:]])
     K = jnp.pad(K_params, padding, mode='constant')[jnp.newaxis, ...]
@@ -73,21 +85,34 @@ def error_fn_cells(preds, target):
     return batch_error
 
 
+###
+# We use hydra to load Leniax configurations.
+# It alloes to do many things among which, we can override configuraiton parameters.
+# For example to render a Lenia in a bigger size:
+# python examples/run.py render_params.world_size='[512, 512]' world_params.scale=4
+###
+cdir = os.path.dirname(os.path.realpath(__file__))
+config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '1c-1k')
+config_name = "orbium"
+
+
 @hydra.main(config_path=config_path, config_name=config_name)
 def run(omegaConf: DictConfig) -> None:
     config = leniax_utils.get_container(omegaConf, config_path)
-    config['run_params']['nb_init_search'] = 2
-    config['run_params']['max_run_iter'] = 32
+    leniax_utils.set_log_level(config)
     leniax_utils.print_config(config)
 
-    save_dir = os.getcwd()  # changed by hydra
+    save_dir = os.getcwd()  # Hydra change automatically the working directory for each run.
     leniax_utils.check_dir(save_dir)
+    logging.info(f"Output directory: {save_dir}")
 
-    # Seed the env
+    # We seed the whole python environment.
     rng_key = leniax_utils.seed_everything(config['run_params']['seed'])
 
     ###
     # Creating the training set
+    #
+    # First we gather data of a full simulation.
     ###
     config_target = copy.deepcopy(config)
 
@@ -117,8 +142,14 @@ def run(omegaConf: DictConfig) -> None:
         f"Rendering target: {nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps"
     )
 
+    ###
+    # Data pipeline
+    #
+    # Second, we build our tensorflow dataset for our optimization.
+    ###
     nb_steps_to_train = 1
     training_data_shape = [-1, nb_channels] + world_size
+    # We ensure that the training pipeline is on CPU
     tf.config.experimental.set_visible_devices([], "GPU")
     training_data = {
         'input_cells': all_cells_target[:-nb_steps_to_train].reshape(training_data_shape),
@@ -127,27 +158,18 @@ def run(omegaConf: DictConfig) -> None:
         'target_potentials': all_potentials_target[nb_steps_to_train:].reshape(training_data_shape),
     }
     dataset = tf.data.Dataset.from_tensor_slices(training_data)
-    bs = 1024
-    dataset = dataset.repeat(300).shuffle(bs * 2).batch(bs).as_numpy_iterator()
+    bs = 64
+    dataset = dataset.repeat(10).shuffle(bs * 2).batch(bs).as_numpy_iterator()
 
     ###
     # Preparing the training pipeline
+    #
+    # - We generate a random kernel.
+    # - We build the leniax update function.
+    # - We initialize our optimizers
     ###
     config_train = copy.deepcopy(config)
-    # config_train['world_params']['update_fn_version'] = 'v1'
-    # config_train['kernels_params'][0]['b'] = [1., 1.]
-    # config_train['kernels_params'][0]['gf_id'] = 0
-    # config_train['kernels_params'][0]['m'] = 0.15
-    # config_train['kernels_params'][0]['s'] = 0.015
-    # config_train['kernels_params'][0]['k_id'] = 0
-    # config_train['kernels_params'][0]['q'] = 1.
-
     K, mapping = get_kernels_and_mapping(config_train['kernels_params'], world_size, nb_channels, R, fft=False)
-    #     # kernel_shape = [
-    #     #     1,
-    #     #     config_train['world_params']['nb_channels'],
-    #     #     K.shape[0] // config_train['world_params']['nb_channels'],
-    #     # ] + config_train['render_params']['world_size']
     kernel_shape = K.shape
     rng_key, subkey = jax.random.split(rng_key)
     K_params = jax.random.uniform(subkey, shape=kernel_shape)
@@ -155,41 +177,42 @@ def run(omegaConf: DictConfig) -> None:
 
     update_fn = leniax_helpers.build_update_fn(kernel_shape, mapping, 'v1', True, fft=False)
     run_fn = functools.partial(
-        leniax_runner.run_diff,
-        max_run_iter=nb_steps_to_train,
-        K_fn=K_fn_id,
-        update_fn=update_fn,
-        error_fn=error_fn_cells
+        leniax_runner.run_diff, nb_steps=nb_steps_to_train, K_fn=K_fn_id, update_fn=update_fn, error_fn=error_fn_cells
     )
+    # We build the JAX gradient function
     run_fn_value_and_grads = jax.value_and_grad(run_fn, argnums=(1))
 
     gf_params = mapping.get_gf_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
     T = jnp.array(config_train['world_params']['T'], dtype=jnp.float32)
 
+    train_log_dir = os.path.join(save_dir, 'train')
+    train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+
     K_lr = 1e-4
     K_opt_init, K_opt_update, K_get_params = jax_opt.adam(K_lr)
     K_opt_state = K_opt_init(K_params)
-    gfn_lr = 1e-2
-    gfn_opt_init, gfn_opt_update, gfn_get_params = jax_opt.adam(gfn_lr)
-    gfn_opt_state = gfn_opt_init(gf_params)
     for i, training_data in enumerate(dataset):
         x = training_data['input_cells']
         y = (training_data['target_cells'], training_data['target_fields'], training_data['target_potentials'])
+
+        # In JAX, you need to manually retrieve the current state of your parameters at each timestep,
+        # so you can use them in your update function
         K_params = K_get_params(K_opt_state)
-        gf_params = gfn_get_params(gfn_opt_state)
-        error, grads = run_fn_value_and_grads(x, K_params, gf_params, kernels_weight_per_channel, T, target=y)
 
+        # We compute the gradients on a batch.
+        loss, grads = run_fn_value_and_grads(x, K_params, gf_params, kernels_weight_per_channel, T, target=y)
+
+        # Finally we update our parameters
         K_opt_state = K_opt_update(i, grads[0], K_opt_state)
-        gfn_opt_state = gfn_opt_update(i, grads[1], gfn_opt_state)
 
-        if i % 50 == 0:
-            K_params_neg_grad = -grads[0]
-            gf_params_neg_grad = -grads[1]
+        with train_summary_writer.as_default():
+            tf.summary.scalar('loss', loss, step=i)
 
-            logging.info(i, error, gf_params, gf_params_neg_grad)
+        if i % 20 == 0:
+            logging.info(F"Iteration {i}, loss: {loss}")
 
-            np.save(f"{save_dir}/K.npy", K_params, allow_pickle=True, fix_imports=True)
+            np.save(f"{save_dir}/K-{str(i).zfill(4)}.npy", K_params, allow_pickle=True, fix_imports=True)
 
             fig = plt.figure(figsize=(6, 6))
             axes = []
@@ -197,6 +220,8 @@ def run(omegaConf: DictConfig) -> None:
             axes[-1].title.set_text("kernel K1")
             plt.imshow(K_params[0, 0], cmap='viridis', interpolation="nearest", vmin=0, vmax=K_params.max())
             plt.colorbar()
+
+            K_params_neg_grad = -grads
             axes.append(fig.add_subplot(1, 2, 2))
             axes[-1].title.set_text("kernel K1 grad")
             plt.imshow(
@@ -207,9 +232,15 @@ def run(omegaConf: DictConfig) -> None:
                 vmax=K_params_neg_grad.max()
             )
             plt.colorbar()
+
             plt.tight_layout()
-            fullpath = f"{save_dir}/Ks{str(i).zfill(4)}.png"
-            fig.savefig(fullpath)
+            with train_summary_writer.as_default():
+                buf = io.BytesIO()
+                fig.savefig(buf, format='png')
+                buf.seek(0)
+                image = tf.image.decode_png(buf.getvalue(), channels=4)
+                image = tf.expand_dims(image, 0)
+                tf.summary.image("Training data", image, step=i)
             plt.close(fig)
 
 

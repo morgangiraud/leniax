@@ -29,53 +29,53 @@ def render(tuple_input):
     config['world_params']['scale'] = scale
     # config['run_params']['max_run_iter'] = 300
 
-    logging.info('Initialiazing and running', config)
-    start_time = time.time()
-    all_cells, _, _, _ = leniax_helpers.init_and_run(
-        config, use_init_cells=False, with_jit=False, fft=True, stat_trunc=stat_trunc
-    )  # [nb_max_iter, N=1, C, world_dims...]
-    all_cells = all_cells[:, 0]
-    total_time = time.time() - start_time
+    leniax_utils.print_config(config)
 
-    nb_iter_done = len(all_cells)
-    logging.info(f"{nb_iter_done} frames made in {total_time} seconds: {nb_iter_done / total_time} fps")
-
-    save_dir = os.path.join(os.getcwd(), '-'.join([str(a) for a in res]))  # changed by hydra
+    # Hydra change automatically the working directory for each run.
+    save_dir = os.path.join(os.getcwd(), '-'.join([str(a) for a in res]))
     leniax_utils.check_dir(save_dir)
 
-    logging.info("Compressing")
-    config['run_params']['init_cells'] = leniax_loader.compress_array(all_cells[0])
-    config['run_params']['cells'] = leniax_loader.compress_array(leniax_utils.center_and_crop_cells(all_cells[-1]))
-    leniax_utils.save_config(save_dir, config)
-    logging.info(f"Compressing done in {total_time} seconds")
+    logging.info("Simulation: start.")
+    start_time = time.time()
+    all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
+        config,
+        use_init_cells=False,
+        with_jit=False,
+        fft=True,
+        stat_trunc=True,
+    )
+    # In our case, we only ran 1 simulation so N=1
+    all_cells = all_cells[:, 0]
+    total_time = time.time() - start_time
+    nb_iter_done = len(all_cells)
+    logging.info(
+        f"Simulation: stop. {nb_iter_done} states computed in {total_time:.2f} seconds, {nb_iter_done / total_time:.2f} fps."
+    )
 
-    logging.info("Dumping assets")
-    colormaps = [
-        # leniax_colormaps.get('alizarin'),
-        # leniax_colormaps.get('black-white'),
-        # leniax_colormaps.get('carmine-blue'),
-        # leniax_colormaps.get('cinnamon'),
-        # leniax_colormaps.get('city'),
-        # leniax_colormaps.get('golden'),
-        # leniax_colormaps.get('laurel'),
-        leniax_colormaps.get('msdos'),
-        # leniax_colormaps.get('pink-beach'),
-        # leniax_colormaps.get('rainbow'),
-        # leniax_colormaps.get('rainbow_transparent'),
-        # leniax_colormaps.get('river-Leaf'),
-        # leniax_colormaps.get('salvia'),
-        # leniax_colormaps.get('summer'),
-        # leniax_colormaps.get('white-black'),
-    ]
+    # We then saved the initial and final states.
+    logging.info("Compression: start")
+    start_time = time.time()
+    config['run_params']['init_cells'] = leniax_loader.compress_array(all_cells[0])
+    config['run_params']['cells'] = leniax_loader.compress_array(leniax_utils.center_and_crop(all_cells[-1]))
+    leniax_utils.save_config(save_dir, config)
+    total_time = time.time() - start_time
+    logging.info(f"Compression: stop. Done in {total_time:.2f} seconds.")
+
+    # Finally, we can render our Lenia and other different assets like statistics charts etc.
+    # See the documentation for more information.
+    logging.info("Assets production: start")
+    start_time = time.time()
+    colormaps = [leniax_colormaps.get(cmap_name) for cmap_name in config['render_params']['colormaps']]
     leniax_video.render_video(save_dir, all_cells, config["render_params"], colormaps, 'birth')
-    # leniax_helpers.dump_assets(save_dir, config, all_cells, stats_dict, colormaps)
-    leniax_helpers.dump_frame(save_dir, f'creature_scale{scale}', all_cells[-1], True, colormaps[0])
+    for colormap in colormaps:
+        leniax_helpers.dump_frame(save_dir, f'last_frame_cropped_{colormap.name}', all_cells[-1], True, colormap)
+        leniax_helpers.dump_frame(save_dir, f'last_frame_{colormap.name}', all_cells[-1], False, colormap)
+    total_time = time.time() - start_time
+    logging.info(f"Assets production: stop. Done in {total_time:.2f} seconds.")
 
 
 config_path = os.path.join(cdir, '..', 'conf', 'species', '1c-1k')
 config_name = "orbium"
-
-stat_trunc = True
 
 
 @hydra.main(config_path=config_path, config_name=config_name)

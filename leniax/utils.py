@@ -63,13 +63,19 @@ def get_container(omegaConf: DictConfig, main_path: str) -> Dict:
 
     if 'scale' not in config['world_params']:
         config['world_params']['scale'] = 1.
+
     if "algo" not in config:
         config["algo"] = {}
+
     if "other" not in config:
         config["other"] = {}
-
     if "log_level" not in config["other"]:
         config["other"]["log_level"] = 20
+
+    if 'colormaps' not in config['render_params']:
+        config['render_params']['colormaps'] = ['extended']
+    if type(config['render_params']['colormaps']) == str:
+        config['render_params']['colormaps'] = [config['render_params']['colormaps']]
 
     if 'version' not in config or config['version'] == 1:
         # we are dealing with a V1 config

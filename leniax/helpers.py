@@ -5,6 +5,8 @@ gluing core functions together to achieve common usages.
 """
 import os
 import copy
+import logging
+import time
 import json
 import pickle
 import functools
@@ -471,11 +473,24 @@ def dump_assets(
 
     dump_viz_data(save_dir, config, stats_dict)
 
+    logging.info("Video rendering: start.")
+    start_time = time.time()
     all_outputs_fullpath = leniax_video.render_video(
         save_dir, all_cells, config['render_params'], colormaps, '', transparent_bg
     )
+    total_time = time.time() - start_time
+    logging.info(
+        f"Video rendering: stop. {len(all_cells)} states computed in {total_time:.2f} seconds, {len(all_cells) / total_time:.2f} fps."
+    )
+
+    logging.info("Gif rendering: start.")
+    start_time = time.time()
     for output_fullpath in all_outputs_fullpath:
         leniax_video.render_gif(output_fullpath)
+    total_time = time.time() - start_time
+    logging.info(
+        f"Gif rendering: stop. {len(all_cells)} states computed in {total_time:.2f} seconds, {len(all_cells) / total_time:.2f} fps."
+    )
 
 
 def dump_last_frame(

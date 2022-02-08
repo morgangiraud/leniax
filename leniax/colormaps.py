@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import numpy as np
 import logging
@@ -372,67 +373,102 @@ colormaps: Dict[str, Dict] = {
     'alizarin': {
         'name': 'alizarin',
         'hex_bg_color': "#d6c3c9",
-        'hex_colors': ['f9c784', 'e7e7e7', '485696', '19180a', '3f220f', '772014', 'af4319', 'e71d36']
+        'hex_colors': ['f9c784', 'e7e7e7', '485696', '19180a', '3f220f', '772014', 'af4319', 'e71d36'],
+        'type': 'perceptual',
     },
     'black-white': {
         'name': 'black-white',
         'hex_bg_color': '#000000',
-        'hex_colors': ['ffffff', 'd9dbe1', 'b6b9c1', '9497a1', '737780', '555860', '393b41', '1f2123'][::-1]
+        'hex_colors': ['ffffff', 'd9dbe1', 'b6b9c1', '9497a1', '737780', '555860', '393b41', '1f2123'][::-1],
+        'type': 'perceptual',
     },
     'carmine-blue': {
-        'name': 'carmine-blue', 'hex_bg_color': '#006eb8', 'hex_colors': ['#006eb8', '#fff200', '#cc1236']
+        'name': 'carmine-blue',
+        'hex_bg_color': '#006eb8',
+        'hex_colors': ['#006eb8', '#fff200', '#cc1236'],
+        'type': 'perceptual',
     },
     'cinnamon': {
-        'name': 'cinnamon', 'hex_bg_color': '#a7d4e4', 'hex_colors': ['#a7d4e4', '#71502f', '#fdc57e']
+        'name': 'cinnamon',
+        'hex_bg_color': '#a7d4e4',
+        'hex_colors': ['#a7d4e4', '#71502f', '#fdc57e'],
+        'type': 'perceptual',
     },
     'city': {
         'name': 'city',
         'hex_bg_color': '#F93943',
-        'hex_colors': ['ffa600', 'fff6e6', 'ffca66', '004b63', 'e6f9ff', '66daff', '3a0099', '23005c'][::-1]
+        'hex_colors': ['ffa600', 'fff6e6', 'ffca66', '004b63', 'e6f9ff', '66daff', '3a0099', '23005c'][::-1],
+        'type': 'perceptual',
     },
     'golden': {
-        'name': 'golden', 'hex_bg_color': '#b6bfc1', 'hex_colors': ['#b6bfc1', '#253122', '#f3a257']
+        'name': 'golden',
+        'hex_bg_color': '#b6bfc1',
+        'hex_colors': ['#b6bfc1', '#253122', '#f3a257'],
+        'type': 'perceptual',
     },
     'laurel': {
         'name': 'laurel',
         'hex_bg_color': '#381d2a',
-        'hex_colors': ['ffbfd7', 'ffe6ef', 'ff80b0', '71bf60', 'eaffe6', '96ff80', 'bffbff', '60b9bf'][::-1]
+        'hex_colors': ['ffbfd7', 'ffe6ef', 'ff80b0', '71bf60', 'eaffe6', '96ff80', 'bffbff', '60b9bf'][::-1],
+        'type': 'perceptual',
     },
     'msdos': {
         'name': 'msdos',
         'hex_bg_color': '#0c0786',
-        'hex_colors': ['#0c0786', '#7500a8', '#c03b80', '#f79241', '#fcfea4']
+        'hex_colors': ['#0c0786', '#7500a8', '#c03b80', '#f79241', '#fcfea4'],
+        'type': 'perceptual',
     },
     'pink-beach': {
         'name': 'pink-beach',
         'hex_bg_color': '#f4777f',
-        'hex_colors': ['00429d', '4771b2', '73a2c6', 'a5d5d8', 'ffffe0', 'ffbcaf', 'cf3759', '93003a'][::-1]
+        'hex_colors': ['00429d', '4771b2', '73a2c6', 'a5d5d8', 'ffffe0', 'ffbcaf', 'cf3759', '93003a'][::-1],
+        'type': 'perceptual',
     },
     'rainbow': {
         'name': 'rainbow',
         'hex_bg_color': '#000000',
-        'hex_colors': ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF']
+        'hex_colors': ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF'],
+        'type': 'perceptual',
     },
     'rainbow_transparent': {
         'name': 'rainbow_transparent#',
         'hex_bg_color': '#000000',
-        'hex_colors': ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF']
+        'hex_colors': ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#2E2B5F', '#8B00FF'],
+        'type': 'perceptual',
     },
     'river-Leaf': {
         'name': 'river-Leaf',
         'hex_bg_color': "#80ab82",
-        'hex_colors': ['4c5b5c', "ff715b", "f9cb40", "bced09", "2f52e0", "99f7ab", "c5d6d8", "7dcd85"][::-1]
+        'hex_colors': ['4c5b5c', "ff715b", "f9cb40", "bced09", "2f52e0", "99f7ab", "c5d6d8", "7dcd85"][::-1],
+        'type': 'perceptual',
     },
     'salvia': {
-        'name': 'salvia', 'hex_bg_color': '#b6bfc1', 'hex_colors': ['#b6bfc1', '#051230', '#97acc8']
+        'name': 'salvia',
+        'hex_bg_color': '#b6bfc1',
+        'hex_colors': ['#b6bfc1', '#051230', '#97acc8'],
+        'type': 'perceptual',
     },
     'summer': {
         'name': 'summer',
         'hex_bg_color': '#ffe000',
-        'hex_colors': ['003dc7', '002577', 'e6edff', '6695ff', 'ff9400', '995900', 'fff4e6', 'ffbf66'][::-1]
+        'hex_colors': ['003dc7', '002577', 'e6edff', '6695ff', 'ff9400', '995900', 'fff4e6', 'ffbf66'][::-1],
+        'type': 'perceptual',
     },
     'white-black': {
-        'name': 'white-black', 'hex_bg_color': '#ffffff', 'hex_colors': ['#ffffff', '#000000']
+        'name': 'white-black',
+        'hex_bg_color': '#ffffff',
+        'hex_colors': ['#ffffff', '#000000'],
+        'type': 'perceptual',
+    },
+    'extended': {
+        'name': 'extended',
+        'transparent_bg': False,
+        'type': 'extended',
+    },
+    'extended_transparent': {
+        'name': 'extended',
+        'transparent_bg': True,
+        'type': 'extended',
     }
 }
 
@@ -440,4 +476,13 @@ colormaps: Dict[str, Dict] = {
 def get(name: str) -> PerceptualGradientColormap:
     assert name in colormaps, f"Colormap {name} does not exist"
 
-    return PerceptualGradientColormap(**colormaps[name])  # type: ignore
+    colormap_template = copy.deepcopy(colormaps[name])
+    ctype = colormap_template['type']
+    del colormap_template['type']
+
+    if ctype == 'extended':
+        return ExtendedColormap(**colormap_template)  # type: ignore
+    elif ctype == 'perceptual':
+        return PerceptualGradientColormap(**colormap_template)  # type: ignore
+    else:
+        raise ValueError(f"Colormap type {ctype} unknown")

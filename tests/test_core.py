@@ -21,11 +21,13 @@ class TestCore(unittest.TestCase):
             omegaConf = compose(config_name="orbium-test")
             config = get_container(omegaConf, fixture_dir)
 
+        rng_key = jax.random.PRNGKey(0)
+
         cells, K, mapping = leniax_helpers.init(config)
         world_params = config['world_params']
         T = jnp.array(world_params['T'])
-        update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
-        update_fn = leniax_helpers.build_update_fn(K.shape, mapping, update_fn_version)
+        get_state_fn_slug = world_params['get_state_fn_slug'] if 'get_state_fn_slug' in world_params else 'v1'
+        update_fn = leniax_helpers.build_update_fn(K.shape, mapping, get_state_fn_slug)
 
         cells1 = jnp.ones(cells.shape) * 0.2
         K1 = jnp.ones(K.shape) * 0.3
@@ -33,8 +35,8 @@ class TestCore(unittest.TestCase):
         kernels_weight_per_channel1 = mapping.get_kernels_weight_per_channel()
 
         t0 = time.time()
-        out1 = update_fn(cells1, K1, gf_params1, kernels_weight_per_channel1, 1. / T)
-        out1[0].block_until_ready()
+        out1 = update_fn(rng_key, cells1, K1, gf_params1, kernels_weight_per_channel1, 1. / T)
+        out1[1].block_until_ready()
         delta_t = time.time() - t0
 
         cells2 = jnp.ones(cells.shape) * 0.5
@@ -44,8 +46,8 @@ class TestCore(unittest.TestCase):
         kernels_weight_per_channel2 = mapping.get_kernels_weight_per_channel()
 
         t0 = time.time()
-        out2 = update_fn(cells2, K2, gf_params2, kernels_weight_per_channel2, 1. / T)
-        out2[0].block_until_ready()
+        out2 = update_fn(rng_key, cells2, K2, gf_params2, kernels_weight_per_channel2, 1. / T)
+        out2[1].block_until_ready()
         delta_t_compiled = time.time() - t0
 
         assert delta_t_compiled < 1 / 20 * delta_t
@@ -155,8 +157,9 @@ class TestCore(unittest.TestCase):
         assert delta_t_compiled < 1 / 100 * delta_t
 
     def test_update_state_v1_jit_perf(self):
-        jit_fn = jax.jit(leniax_core.update_state)
+        jit_fn = jax.jit(leniax_core.get_state)
 
+        rng_key = jax.random.PRNGKey(0)
         world_shape = [25, 25]
 
         cells1 = jnp.ones(world_shape) * .5
@@ -164,7 +167,7 @@ class TestCore(unittest.TestCase):
         dt1 = jnp.array(1. / 3.)
 
         t0 = time.time()
-        out1 = jit_fn(cells1, field1, dt1)
+        rng_key, out1 = jit_fn(rng_key, cells1, field1, dt1)
         out1.block_until_ready()
         delta_t = time.time() - t0
 
@@ -173,7 +176,7 @@ class TestCore(unittest.TestCase):
         dt2 = jnp.array(1. / 6.)
 
         t0 = time.time()
-        out2 = jit_fn(cells2, field2, dt2)
+        rng_key, out2 = jit_fn(rng_key, cells2, field2, dt2)
         out2.block_until_ready()
         delta_t_compiled = time.time() - t0
 
@@ -182,8 +185,9 @@ class TestCore(unittest.TestCase):
         np.testing.assert_array_almost_equal(out2, jnp.ones(world_shape) * .7)
 
     def test_update_state_v2_jit_perf(self):
-        jit_fn = jax.jit(leniax_core.update_state_v2)
+        jit_fn = jax.jit(leniax_core.get_state_v2)
 
+        rng_key = jax.random.PRNGKey(0)
         world_shape = [25, 25]
 
         cells1 = jnp.ones(world_shape) * .5
@@ -191,7 +195,7 @@ class TestCore(unittest.TestCase):
         dt1 = jnp.array(1. / 3.)
 
         t0 = time.time()
-        out1 = jit_fn(cells1, field1, dt1)
+        rng_key, out1 = jit_fn(rng_key, cells1, field1, dt1)
         out1.block_until_ready()
         delta_t = time.time() - t0
 
@@ -200,7 +204,35 @@ class TestCore(unittest.TestCase):
         dt2 = jnp.array(1. / 6.)
 
         t0 = time.time()
-        out2 = jit_fn(cells2, field2, dt2)
+        rng_key, out2 = jit_fn(rng_key, cells2, field2, dt2)
+        out2.block_until_ready()
+        delta_t_compiled = time.time() - t0
+
+        print(delta_t_compiled, delta_t)
+
+        assert delta_t_compiled < 1 / 20 * delta_t
+
+    def test_update_state_stochastic_jit_perf(self):
+        jit_fn = jax.jit(leniax_core.get_state_stochastic)
+
+        rng_key = jax.random.PRNGKey(0)
+        world_shape = [5, 5]
+
+        cells1 = jnp.ones(world_shape) * .5
+        field1 = jnp.ones(world_shape) * 3
+        dt1 = jnp.array(1. / 3.)
+
+        t0 = time.time()
+        rng_key, out1 = jit_fn(rng_key, cells1, field1, dt1)
+        out1.block_until_ready()
+        delta_t = time.time() - t0
+
+        cells2 = jnp.ones(world_shape, ) * .2
+        field2 = jnp.ones(world_shape) * 3
+        dt2 = jnp.array(1. / 6.)
+
+        t0 = time.time()
+        rng_key, out2 = jit_fn(rng_key, cells2, field2, dt2)
         out2.block_until_ready()
         delta_t_compiled = time.time() - t0
 

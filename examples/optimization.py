@@ -74,15 +74,16 @@ def error_fn_triple(preds, target):
     return batch_error
 
 
-def error_fn_cells(preds, target):
+def error_fn_cells(rng_key, preds, target):
     all_cells = preds[0]
     all_cells_target = target[0]
     diffs = 0.5 * jnp.square(all_cells - all_cells_target)
     errors = jnp.sum(diffs, axis=(1, 2, 3))
-    cells_batch_error = jnp.mean(errors)
+    cells_batch_loss = jnp.mean(errors)
 
-    batch_error = cells_batch_error
-    return batch_error
+    batch_loss = cells_batch_loss
+
+    return rng_key, batch_loss
 
 
 ###
@@ -133,8 +134,8 @@ def run(omegaConf: DictConfig) -> None:
 
     logging.info("Rendering target: start")
     start_time = time.time()
-    all_cells_target, all_fields_target, all_potentials_target, _ = leniax_helpers.init_and_run(
-        config_target, use_init_cells=True, with_jit=True, fft=True, stat_trunc=False
+    rng_key, all_cells_target, all_fields_target, all_potentials_target, _ = leniax_helpers.init_and_run(
+        rng_key, config_target, use_init_cells=True, with_jit=True, fft=True, stat_trunc=False
     )  # [nb_max_iter, N=1, C, world_dims...]
     total_time = time.time() - start_time
     nb_iter_done = len(all_cells_target)
@@ -180,7 +181,7 @@ def run(omegaConf: DictConfig) -> None:
         leniax_runner.run_diff, nb_steps=nb_steps_to_train, K_fn=K_fn_id, update_fn=update_fn, error_fn=error_fn_cells
     )
     # We build the JAX gradient function
-    run_fn_value_and_grads = jax.value_and_grad(run_fn, argnums=(1))
+    run_fn_value_and_grads = jax.value_and_grad(run_fn, argnums=(2), has_aux=True)
 
     gf_params = mapping.get_gf_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
@@ -201,7 +202,7 @@ def run(omegaConf: DictConfig) -> None:
         K_params = K_get_params(K_opt_state)
 
         # We compute the gradients on a batch.
-        loss, grads = run_fn_value_and_grads(x, K_params, gf_params, kernels_weight_per_channel, T, target=y)
+        (loss, rng_key), grads = run_fn_value_and_grads(rng_key, x, K_params, gf_params, kernels_weight_per_channel, T, target=y)
 
         # Finally we update our parameters
         K_opt_state = K_opt_update(i, grads[0], K_opt_state)

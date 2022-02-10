@@ -5,7 +5,7 @@ defaults:
 
 world_params:
   nb_channels: 3
-  update_fn_version: 'v1'
+  get_state_fn_slug: 'v1'
 kernels_params:
   k:
     - k_id: 0

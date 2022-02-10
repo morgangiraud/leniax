@@ -53,12 +53,11 @@ class TestQD(unittest.TestCase):
         with initialize(config_path='fixtures'):
             omegaConf = compose(config_name="qd_config-test")
             qd_config = leniax_utils.get_container(omegaConf, fixture_dir)
+
         world_params = qd_config['world_params']
         nb_channels = world_params['nb_channels']
         R = world_params['R']
-
         nb_kernels = len(qd_config['kernels_params'])
-
         render_params = qd_config['render_params']
         world_size = render_params['world_size']
 

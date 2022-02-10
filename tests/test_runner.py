@@ -38,7 +38,7 @@ class TestRunner(unittest.TestCase):
             len = LeniaIndividual(qd_config, subkey, [random.random(), random.random()])
             leniax_sols1.append(len)
 
-        (rng_key, dynamic_args1) = get_dynamic_args(qd_config, leniax_sols1)
+        (rng_key1, dynamic_args1) = get_dynamic_args(qd_config, leniax_sols1)
 
         leniax_sols2 = []
         for _ in range(nb_lenia):
@@ -46,24 +46,24 @@ class TestRunner(unittest.TestCase):
             len = LeniaIndividual(qd_config, subkey, [random.random(), random.random()])
             leniax_sols2.append(len)
 
-        (rng_key, dynamic_args2) = get_dynamic_args(qd_config, leniax_sols2)
+        (rng_key2, dynamic_args2) = get_dynamic_args(qd_config, leniax_sols2)
 
         max_run_iter = qd_config['run_params']['max_run_iter']
         world_params = qd_config['world_params']
-        update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
+        get_state_fn_slug = world_params['get_state_fn_slug'] if 'get_state_fn_slug' in world_params else 'v1'
         weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
         render_params = qd_config['render_params']
         kernels_params = qd_config['kernels_params']
         K, mapping = get_kernels_and_mapping(
             kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R']
         )
-        update_fn = build_update_fn(K.shape, mapping, update_fn_version, weighted_average)
+        update_fn = build_update_fn(K.shape, mapping, get_state_fn_slug, weighted_average)
         compute_stats_fn = leniax_stat.build_compute_stats_fn(world_params, render_params)
 
         # jax.profiler.start_trace("/tmp/tensorboard")
-
         t0 = time.time()
-        stats1, _ = leniax_runner.run_scan_mem_optimized(
+        rng_key1, stats1, _ = leniax_runner.run_scan_mem_optimized(
+            rng_key1,
             *dynamic_args1,
             max_run_iter,
             R,
@@ -74,7 +74,8 @@ class TestRunner(unittest.TestCase):
         delta_t = time.time() - t0
 
         t0 = time.time()
-        stats2, _ = leniax_runner.run_scan_mem_optimized(
+        rng_key2, stats2, _ = leniax_runner.run_scan_mem_optimized(
+            rng_key2,
             *dynamic_args2,
             max_run_iter,
             R,
@@ -95,13 +96,15 @@ class TestRunner(unittest.TestCase):
             omegaConf = compose(config_name="orbium-test")
             config = get_container(omegaConf, fixture_dir)
 
+        rng_key = jax.random.PRNGKey(0)
+
         max_run_iter = 32
         cells, K, mapping = init(config)
         world_params = config['world_params']
         R = world_params['R']
         T = jnp.array(world_params['T'])
-        update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
-        update_fn = build_update_fn(K.shape, mapping, update_fn_version)
+        get_state_fn_slug = world_params['get_state_fn_slug'] if 'get_state_fn_slug' in world_params else 'v1'
+        update_fn = build_update_fn(K.shape, mapping, get_state_fn_slug)
         compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
         cells1 = jnp.ones(cells.shape) * 0.2
@@ -110,8 +113,8 @@ class TestRunner(unittest.TestCase):
         kernels_weight_per_channel1 = mapping.get_kernels_weight_per_channel()
 
         t0 = time.time()
-        out1, _, _, _ = leniax_runner.run_scan(
-            cells1, K1, gf_params1, kernels_weight_per_channel1, T, max_run_iter, R, update_fn, compute_stats_fn
+        rng_key, out1, _, _, _ = leniax_runner.run_scan(
+            rng_key, cells1, K1, gf_params1, kernels_weight_per_channel1, T, max_run_iter, R, update_fn, compute_stats_fn
         )
         out1.block_until_ready()
         delta_t = time.time() - t0
@@ -123,8 +126,8 @@ class TestRunner(unittest.TestCase):
         kernels_weight_per_channel2 = mapping.get_kernels_weight_per_channel()
 
         t0 = time.time()
-        out2, _, _, _ = leniax_runner.run_scan(
-            cells2, K2, gf_params2, kernels_weight_per_channel2, T, max_run_iter, R, update_fn, compute_stats_fn
+        rng_key, out2, _, _, _ = leniax_runner.run_scan(
+            rng_key, cells2, K2, gf_params2, kernels_weight_per_channel2, T, max_run_iter, R, update_fn, compute_stats_fn
         )
         out2.block_until_ready()
         delta_t_compiled = time.time() - t0

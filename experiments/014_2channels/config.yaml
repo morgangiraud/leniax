@@ -4,7 +4,7 @@ world_params:
   R: 13
   T: 10
   scale: 1.0
-  update_fn_version: v1
+  get_state_fn_slug: v1
   weighted_average: true
 render_params:
   pixel_size_power2: 2

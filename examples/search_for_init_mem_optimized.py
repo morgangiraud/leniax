@@ -80,7 +80,7 @@ def search(omegaConf: DictConfig) -> None:
         # Since we do not store intermediary states, we need to re-simulate the best configurations
         logging.info("Simulation: start.")
         start_time = time.time()
-        all_cells, _, _, stats_dict = leniax_helpers.init_and_run(config, with_jit=True, stat_trunc=True)
+        rng_key, all_cells, _, _, stats_dict = leniax_helpers.init_and_run(rng_key, config, with_jit=True, stat_trunc=True)
         all_cells = all_cells[:, 0]
         total_time = time.time() - start_time
         nb_iter_done = len(all_cells)

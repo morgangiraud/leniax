@@ -62,4 +62,4 @@ world_params:
   T: 10
   nb_channels: 1
   nb_dims: 2
-  update_fn_version: v2
+  get_state_fn_slug: v2

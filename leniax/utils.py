@@ -77,6 +77,10 @@ def get_container(omegaConf: DictConfig, main_path: str) -> Dict:
     if type(config['render_params']['colormaps']) == str:
         config['render_params']['colormaps'] = [config['render_params']['colormaps']]
 
+    if 'update_fn_version' in config['world_params']:
+        config['world_params']['get_state_fn_slug'] = config['world_params']['update_fn_version']
+        del config['world_params']['update_fn_version']
+
     if 'version' not in config or config['version'] == 1:
         # we are dealing with a V1 config
         config = update_config_v1_v2(config)
@@ -135,11 +139,11 @@ def update_config_v1_v2(config: Dict) -> Dict:
                 phen_str = phen_str.replace('.m', '.gf_params.0')
                 config['phenotype'][idx] = phen_str.replace('.s', '.gf_params.1')
 
-    update_fn_version = config['world_params']['update_fn_version'] if 'update_fn_version' in config['world_params'
+    get_state_fn_slug = config['world_params']['get_state_fn_slug'] if 'get_state_fn_slug' in config['world_params'
                                                                                                      ] else 'v1'
-    if update_fn_version == 'v1':
+    if get_state_fn_slug == 'v1':
         config['algo']['init_slug'] = 'perlin'
-    elif update_fn_version == 'v2':
+    elif get_state_fn_slug == 'v2':
         config['algo']['init_slug'] = 'perlin_local'
     config['algo']['init_param'] = []
 

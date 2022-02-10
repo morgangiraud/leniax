@@ -1,0 +1,41 @@
+algo:
+  init_param: []
+  init_slug: perlin_local
+kernels_params:
+- c_in: 0
+  c_out: 0
+  gf_params:
+  - 0.15
+  - 0.015
+  gf_slug: poly_quad4
+  h: 1
+  k_params:
+  - 1
+  - - 1.0
+  k_slug: circle_2d
+  kf_params:
+  - 4
+  kf_slug: poly_quad
+other:
+  log_level: 20
+render_params:
+  pixel_border_size: 0
+  pixel_size: 4
+  pixel_size_power2: 2
+  size_power2: 7
+  world_size:
+  - 128
+  - 128
+run_params:
+  max_run_iter: 96
+  nb_init_search: 1
+  nb_epochs: 1
+  seed: 1
+version: 2
+world_params:
+  R: 8
+  T: 1
+  nb_channels: 16
+  nb_dims: 2
+  scale: 1.0
+  get_state_fn_slug: 'simple'

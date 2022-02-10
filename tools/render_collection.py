@@ -30,7 +30,7 @@ def get_parameters_for_scale(scale: float, world_size: List[int], config: Dict, 
     tmp_config['world_params']['scale'] = scale
 
     world_params = tmp_config['world_params']
-    update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
+    get_state_fn_slug = world_params['get_state_fn_slug'] if 'get_state_fn_slug' in world_params else 'v1'
     weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
     T = world_params['T']
 
@@ -42,7 +42,7 @@ def get_parameters_for_scale(scale: float, world_size: List[int], config: Dict, 
     gf_params = mapping.get_gf_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
     R = config['world_params']['R']
-    update_fn = leniax_helpers.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
+    update_fn = leniax_helpers.build_update_fn(K.shape, mapping, get_state_fn_slug, weighted_average, fft)
     compute_stats_fn = leniax_stat.build_compute_stats_fn(tmp_config['world_params'], render_params)
 
     return {

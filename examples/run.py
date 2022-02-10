@@ -41,6 +41,9 @@ def run(omegaConf: DictConfig) -> None:
     leniax_utils.check_dir(save_dir)
     logging.info(f"Output directory: {save_dir}")
 
+    # We seed the whole python environment.
+    rng_key = leniax_utils.seed_everything(config['run_params']['seed'])
+
     # This is the main call which runs and returns data of the simulation
     # Ony the configuration parameter is mandatory.
     # In this case:
@@ -52,7 +55,8 @@ def run(omegaConf: DictConfig) -> None:
     # All the arrays are of shape [nb_max_iter, N, C, world_dims...]
     logging.info("Simulation: start.")
     start_time = time.time()
-    all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
+    rng_key, all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
+        rng_key,
         config,
         use_init_cells=False,
         with_jit=False,

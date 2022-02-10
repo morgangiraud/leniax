@@ -65,7 +65,7 @@ typecheck:
 	mypy $(CURRENT_DIR)/leniax $(CURRENT_DIR)/examples $(CURRENT_DIR)/scripts
 
 test:
-	pytest --disable-pytest-warnings .
+	pytest --disable-pytest-warnings tests
 
 test-examples: ## test examples are working
 	bash tests/examples.sh

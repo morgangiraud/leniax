@@ -129,12 +129,13 @@ def create_init_cells(
 
 
 def init_and_run(
+    rng_key: jax.random.KeyArray,
     config: Dict,
     use_init_cells: bool = True,
     with_jit: bool = True,
     fft: bool = True,
     stat_trunc: bool = False
-) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
+) -> Tuple[jax.random.KeyArray, jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
     """Initialize and simulate a Lenia configuration
 
     To simulate a configuration with multiple initializations you must set:
@@ -142,6 +143,7 @@ def init_and_run(
     - ``stat_trunc=False`` multiple initializations means different simulation length measured by the statistics.
 
     Args:
+        rng_key: JAX PRNG key.
         config: Lenia configuration
         use_init_cells: Set to ``True`` to use the ``init_cells`` configuration property.
         with_jit: Set to ``True`` to use the jitted scan implementation
@@ -159,23 +161,23 @@ def init_and_run(
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 
     world_params = config['world_params']
-    update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
+    get_state_fn_slug = world_params['get_state_fn_slug'] if 'get_state_fn_slug' in world_params else 'v1'
     weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
     R = config['world_params']['R']
     T = jnp.array(config['world_params']['T'], dtype=jnp.float32)
 
     max_run_iter = config['run_params']['max_run_iter']
 
-    update_fn = build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
+    update_fn = build_update_fn(K.shape, mapping, get_state_fn_slug, weighted_average, fft)
     compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     if with_jit is True:
-        all_cells, all_fields, all_potentials, stats_dict = leniax_runner.run_scan(
-            cells, K, gf_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
+        rng_key, all_cells, all_fields, all_potentials, stats_dict = leniax_runner.run_scan(
+            rng_key, cells, K, gf_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
         )
     else:
-        all_cells, all_fields, all_potentials, stats_dict = leniax_runner.run(
-            cells, K, gf_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
+        rng_key, all_cells, all_fields, all_potentials, stats_dict = leniax_runner.run(
+            rng_key, cells, K, gf_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
         )  # [nb_iter, nb_init, C, world_dims...]
     stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
 
@@ -184,7 +186,7 @@ def init_and_run(
         all_fields = all_fields[:int(stats_dict['N'])]
         all_potentials = all_potentials[:int(stats_dict['N'])]
 
-    return all_cells, all_fields, all_potentials, stats_dict
+    return rng_key, all_cells, all_fields, all_potentials, stats_dict
 
 
 def search_for_mutation(
@@ -233,8 +235,8 @@ def search_for_mutation(
             scaled_config['render_params']['world_size'] = [ws * 2**scale_power for ws in world_size]
             scaled_config['world_params']['scale'] = 2**scale_power
 
-            all_cells, _, _, stats_dict = init_and_run(
-                scaled_config, use_init_cells=use_init_cells, with_jit=True, fft=fft
+            rng_key, all_cells, _, _, stats_dict = init_and_run(
+                rng_key, scaled_config, use_init_cells=use_init_cells, with_jit=True, fft=fft
             )
             all_cells = all_cells[:, 0]
             stats_dict['N'].block_until_ready()
@@ -276,7 +278,7 @@ def search_for_init(
     """
     world_params = config['world_params']
     nb_channels = world_params['nb_channels']
-    update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
+    get_state_fn_slug = world_params['get_state_fn_slug'] if 'get_state_fn_slug' in world_params else 'v1'
     weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
     R = world_params['R']
     T = jnp.array(world_params['T'], dtype=jnp.float32)
@@ -295,7 +297,7 @@ def search_for_init(
     K, mapping = leniax_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)
     gf_params = mapping.get_gf_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
-    update_fn = build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
+    update_fn = build_update_fn(K.shape, mapping, get_state_fn_slug, weighted_average, fft)
     compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     nb_channels_to_init = nb_channels * nb_init_search
@@ -310,7 +312,8 @@ def search_for_init(
     best_run = {}
     current_max = 0
     for i in range(nb_init_search):
-        all_cells, _, _, all_stats = leniax_runner.run_scan(
+        rng_key, all_cells, _, _, all_stats = leniax_runner.run_scan(
+            rng_key,
             all_cells0_jnp[i],
             K,
             gf_params,
@@ -341,7 +344,7 @@ def search_for_init(
 def build_update_fn(
     kernel_shape: Tuple[int, ...],
     mapping: leniax_kernels.KernelMapping,
-    update_fn_version: str = 'v1',
+    get_state_fn_slug: str = 'v1',
     average_weight: bool = True,
     fft: bool = True,
 ) -> Callable:
@@ -352,7 +355,7 @@ def build_update_fn(
     Args:
         kernel_shape: Kernel shape.
         mapping: Mapping data.
-        update_fn_version: Which version of Lenia should be run
+        get_state_fn_slug: Which version of Lenia should be run
         fft: Set to ``True`` to use FFT optimization
 
     Returns:
@@ -360,10 +363,10 @@ def build_update_fn(
     """
     get_potential_fn = build_get_potential_fn(kernel_shape, mapping.true_channels, fft)
     get_field_fn = build_get_field_fn(mapping.cin_gfs, average_weight)
-    update_fn = leniax_core.update_register[update_fn_version]
+    get_state_fn = leniax_core.register[get_state_fn_slug]
 
     return functools.partial(
-        leniax_core.update, get_potential_fn=get_potential_fn, get_field_fn=get_field_fn, update_fn=update_fn
+        leniax_core.update, get_potential_fn=get_potential_fn, get_field_fn=get_field_fn, get_state_fn=get_state_fn
     )
 
 

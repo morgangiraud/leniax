@@ -24,9 +24,11 @@ extras_require = {
     "all": [
         "matplotlib>=3.0.0",
         "tensorflow>=2.7.0",
+        "flax>=0.4.0",
     ],
     "optim": [
        "tensorflow>=2.7.0",
+       "flax>=0.4.0",
     ],
 }
 

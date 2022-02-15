@@ -102,9 +102,7 @@ def get_potential(state: jnp.ndarray, K: jnp.ndarray, padding: jnp.ndarray, true
     """
     padded_state = jnp.pad(state, padding, mode='wrap')
     nb_channels = state.shape[1]
-    # the beauty of feature_group_count for depthwise convolution
     conv_out_reshaped = lax.conv_general_dilated(padded_state, K, (1, 1), 'VALID', feature_group_count=nb_channels)
-
     potential = conv_out_reshaped[:, true_channels]  # [N, nb_kernels, H, W]
 
     return potential
@@ -269,35 +267,8 @@ def get_state_simple(
     return rng_key, new_state
 
 
-def get_state_stochastic(
-    rng_key: jax.random.KeyArray,
-    state: jnp.ndarray,
-    field: jnp.ndarray,
-    dt: jnp.ndarray,
-) -> Tuple[jax.random.KeyArray, jnp.ndarray]:
-    """Compute the new cells state by simply adding the field directly
-
-    Args:
-        rng_key: JAX PRNG key.
-        state: Current cells state ``[N, nb_channels, world_dims...]``
-        field: Current field``[N, nb_channels, world_dims...]``
-        dt: Update rate ``[N]`` **(not used)**
-
-    Returns:
-        A 2-tuple representing a jax PRNG key and the new cells state
-    """
-    rng_key, subkey = jax.random.split(rng_key)
-    mask = jnp.array(jax.random.uniform(subkey, field.shape) > .5, dtype=jnp.float32)
-
-    masked_field = field * mask
-    new_state = state + dt * masked_field
-
-    return rng_key, new_state
-
-
 register = {
     'v1': get_state,
     'v2': get_state_v2,
     'simple': get_state_simple,
-    'stochastic': get_state_stochastic,
 }

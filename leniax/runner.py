@@ -5,6 +5,7 @@ import functools
 
 import jax
 from jax import vmap, pmap, lax, jit
+from jax.tree_util import tree_map
 import jax.numpy as jnp
 from typing import Callable, Dict, Tuple, Optional
 
@@ -148,7 +149,7 @@ def run_scan(
     """
     init_carry = _get_init_carry(rng_key, cells0, K, gf_params, kernels_weight_per_channel, T)
     fn: Callable = functools.partial(
-        _scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_simu_data=True
+        _scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_intermediary_data=True
     )
 
     final_carry, ys = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
@@ -197,7 +198,7 @@ def run_scan_mem_optimized(
     """
     init_carry = _get_init_carry(rng_key, cells0, K, gf_params, kernels_weight_per_channel, T)
     fn: Callable = functools.partial(
-        _scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_simu_data=False
+        _scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_intermediary_data=False
     )
 
     final_carry, stats = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
@@ -250,7 +251,7 @@ def run_scan_mem_optimized_pmap(
     """
     init_carry = _get_init_carry(rng_key, cells0, K, gf_params, kernels_weight_per_channel, T)
     fn: Callable = functools.partial(
-        _scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_simu_data=False
+        _scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_intermediary_data=False
     )
 
     final_carry, stats = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
@@ -295,7 +296,7 @@ def _scan_fn(
     x: Optional[jnp.ndarray],
     update_fn: Callable,
     compute_stats_fn: Callable,
-    keep_simu_data: bool = False
+    keep_intermediary_data: bool = False
 ) -> Tuple[Dict, Dict]:
     """Update function used in the scan implementation"""
 
@@ -319,7 +320,7 @@ def _scan_fn(
         }
     }
 
-    if keep_simu_data is True:
+    if keep_intermediary_data is True:
         y = {'cells': cells, 'field': field, 'potential': potential, 'stats': stats}
     else:
         y = stats
@@ -330,79 +331,107 @@ def _scan_fn(
 ###
 # Differentiable functions
 ###
-def run_diff(
-    rng_key: jax.random.KeyArray,
-    cells0: jnp.ndarray,
-    K_params: jnp.ndarray,
-    gf_params: jnp.ndarray,
-    kernels_weight_per_channel: jnp.ndarray,
-    T: jnp.ndarray,
-    target: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray], Optional[jnp.ndarray]],
-    nb_steps: int,
-    K_fn: Callable,
-    update_fn: Callable,
-    error_fn: Callable
-) -> Tuple[jnp.ndarray, jax.random.KeyArray]:
-    """Simulate a single configuration
+def make_pipeline_fn(
+    max_iter: int,
+    dt: float,
+    step_fn: Callable,
+    loss_fn: Callable[[jax.random.KeyArray, Tuple, Tuple], Tuple[jax.random.KeyArray, jnp.ndarray]],
+    keep_intermediary_data: bool = False,
+    keep_all_timesteps: bool = False,
+):
+    @jax.jit
+    def fn(rng_key, params, variables, state0, targets):
+        """Simulate a single configuration
 
-    It uses a python for loop under the hood.
-    Compute the error using the provided `error_fn`::
+        It uses a python for loop under the hood.
+        Compute the error using the provided `loss_fn`::
 
-        def error_fn(...):
-            ...
+            def loss_fn(...):
+                ...
 
-        run_fn = functools.partial(
-            leniax_runner.run_diff,
-            nb_steps=nb_steps,
-            K_fn=K_fn,
+            run_fn = functools.partial(
+                leniax_runner.run_diff,
+                nb_steps=nb_steps,
+                K_fn=K_fn,
+                update_fn=update_fn,
+                loss_fn=loss_fn
+            )
+            run_fn_value_and_grads = jax.value_and_grad(run_fn, argnums=(1))
+
+        Args:
+            cells: Initial cells state ``[N_init=1, nb_channels, world_dims...]``
+            K_params: Kernel parameters used to generate the final kernels
+            gf_params: Growth function parameters ``[nb_kernels, params_shape...]``
+            kernels_weight_per_channel: Kernels weight used in the average function ``[nb_channels, nb_kernels]``
+            dt: Update rate ``[N]``
+            target: 3-tuple of optionnal true cells, potential and field values
+            nb_steps: Maximum number of simulation iterations
+            K_fn: Function used to compute the kernels
+            update_fn: Function used to compute the new cell state
+            loss_fn: Function used to compute the error
+
+        Returns:
+            The error value.
+        """
+        update_fn = functools.partial(step_fn, {'params': params, **variables}, dt=dt)
+        fn: Callable = functools.partial(
+            _scan_fn_without_stat,
             update_fn=update_fn,
-            error_fn=error_fn
+            keep_intermediary_data=keep_intermediary_data,
+            keep_all_timesteps=keep_all_timesteps,
         )
-        run_fn_value_and_grads = jax.value_and_grad(run_fn, argnums=(1))
 
-    Args:
-        cells: Initial cells state ``[N_init=1, nb_channels, world_dims...]``
-        K_params: Kernel parameters used to generate the final kernels
-        gf_params: Growth function parameters ``[nb_kernels, params_shape...]``
-        kernels_weight_per_channel: Kernels weight used in the average function ``[nb_channels, nb_kernels]``
-        dt: Update rate ``[N]``
-        target: 3-tuple of optionnal true cells, potential and field values
-        nb_steps: Maximum number of simulation iterations
-        K_fn: Function used to compute the kernels
-        update_fn: Function used to compute the new cell state
-        error_fn: Function used to compute the error
+        # The number of iterations is controlled by the number of PRNG keys
+        rng_key, *subkeys = jax.random.split(rng_key, max_iter + 1)
+        final_state_carry, preds = lax.scan(fn, state0, jnp.array(subkeys))
 
-    Returns:
-        The error value.
-    """
-    K = K_fn(K_params)
-    init_carry = _get_init_carry(rng_key, cells0, K, gf_params, kernels_weight_per_channel, T, False)
-    fn: Callable = functools.partial(_scan_fn_without_stat, update_fn=update_fn, keep_simu_data=True)
+        if keep_all_timesteps is True:
+            loss, rng_key, *rest = loss_fn(rng_key, preds, targets)
+        else:
+            loss, rng_key, *rest = loss_fn(rng_key, (final_state_carry, ), targets)
 
-    final_carry, preds = lax.scan(fn, init_carry, None, length=nb_steps, unroll=1)
+        return loss, (rng_key, rest)
 
-    rng_key, error = error_fn(rng_key, preds, target)
+    return fn
 
-    return error, rng_key
-
-
-@functools.partial(jit, static_argnums=(2, 3))
-def _scan_fn_without_stat(carry: Dict,
-                          x: Optional[jnp.ndarray],
-                          update_fn: Callable,
-                          keep_simu_data: bool = False) -> Tuple[Dict, Tuple]:
+@functools.partial(jit, static_argnums=(2, 3, 4))
+def _scan_fn_without_stat(
+    state_carry: jnp.ndarray,
+    rng_key: jnp.ndarray,
+    update_fn: Callable,
+    keep_intermediary_data: bool = False,
+    keep_all_timesteps: bool = False,
+) -> Tuple[Dict, Optional[Tuple]]:
     """Update function used in the scan implementation"""
 
-    rng_key, cells, K, gf_params, kernels_weight_per_channel, T = carry['fn_params']
-    rng_key, new_cells, field, potential = update_fn(rng_key, cells, K, gf_params, kernels_weight_per_channel, 1. / T)
+    _, new_state_carry, field, potential = update_fn(rng_key, state_carry)
 
-    new_carry = {
-        'fn_params': (rng_key, new_cells, K, gf_params, kernels_weight_per_channel, T),
-    }
-
-    if keep_simu_data is True:
-        y = (cells, field, potential)
+    if keep_all_timesteps is True:
+        if keep_intermediary_data is True:
+            y = (new_state_carry, field, potential)
+        else:
+            y = (new_state_carry, )
     else:
-        y = (cells)
+        y = None
 
-    return new_carry, y
+    return new_state_carry, y
+
+    
+def make_gradient_fn(pipeline_fn: Callable, normalize: bool = True):
+    @jax.jit
+    def fn(rng_key, params, variables, state0, targets):
+        grads_fn = jax.value_and_grad(pipeline_fn, argnums=(1), has_aux=True)
+        (loss, aux), grads = grads_fn(rng_key, params, variables, state0, targets)
+        rng_key = aux[0]
+        rest = aux[1]
+
+        if normalize is True:
+            def normalize_fn(g):
+                return g / (jnp.linalg.norm(g) + 1e-8)
+
+            grads = tree_map(normalize_fn, grads)
+
+        return (rng_key, loss, rest), grads
+
+    return fn
+

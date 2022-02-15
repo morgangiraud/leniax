@@ -5,7 +5,7 @@ import functools
 import jax
 from jax import lax, jit
 import jax.numpy as jnp
-from typing import Callable, Tuple
+from typing import Callable, Tuple, Optional
 
 GetStateCallableType = Callable[[jax.random.KeyArray, jnp.ndarray, jnp.ndarray, jnp.ndarray],
                                 Tuple[jax.random.KeyArray, jnp.ndarray], ]
@@ -53,10 +53,10 @@ def update(
 def get_potential_fft(
     state: jnp.ndarray,
     K: jnp.ndarray,
-    true_channels: jnp.ndarray,
     max_k_per_channel: int,
     C: int,
-    wdims_axes: Tuple[int, ...]
+    wdims_axes: Tuple[int, ...],
+    true_channels: Optional[jnp.ndarray] = None,
 ) -> jnp.ndarray:
     """Compute the potential using FFT
 
@@ -81,12 +81,20 @@ def get_potential_fft(
     final_shape = (-1, max_k_per_channel * C) + world_shape
     conv_out_reshaped = conv_out.reshape(final_shape)
 
-    potential = conv_out_reshaped[:, true_channels]  # [N, nb_kernels, world_dims...]
+    if true_channels is not None:
+        potential = conv_out_reshaped[:, true_channels]  # [N, nb_kernels, world_dims...]
+    else:
+        potential = conv_out_reshaped
 
     return potential
 
 
-def get_potential(state: jnp.ndarray, K: jnp.ndarray, padding: jnp.ndarray, true_channels: jnp.ndarray) -> jnp.ndarray:
+def get_potential(
+    state: jnp.ndarray,
+    K: jnp.ndarray,
+    padding: jnp.ndarray,
+    true_channels: Optional[jnp.ndarray] = None,
+) -> jnp.ndarray:
     """Compute the potential using lax.conv_general_dilated
 
     The first dimension of cells and K is the vmap dimension
@@ -103,7 +111,11 @@ def get_potential(state: jnp.ndarray, K: jnp.ndarray, padding: jnp.ndarray, true
     padded_state = jnp.pad(state, padding, mode='wrap')
     nb_channels = state.shape[1]
     conv_out_reshaped = lax.conv_general_dilated(padded_state, K, (1, 1), 'VALID', feature_group_count=nb_channels)
-    potential = conv_out_reshaped[:, true_channels]  # [N, nb_kernels, H, W]
+
+    if true_channels is not None:
+        potential = conv_out_reshaped[:, true_channels]  # [N, nb_kernels, world_dims...]
+    else:
+        potential = conv_out_reshaped
 
     return potential
 

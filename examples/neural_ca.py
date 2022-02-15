@@ -18,8 +18,10 @@ import jax.numpy as jnp
 import jax.example_libraries.optimizers as jax_opt
 import flax.linen as nn
 import PIL.Image
+from typing import Tuple, Callable
 
 import leniax.utils as leniax_utils
+import leniax.helpers as leniax_helpers
 from leniax.runner import make_gradient_fn, make_pipeline_fn
 
 # Disable JAX logging https://abseil.io/docs/python/guides/logging
@@ -33,20 +35,19 @@ def get_jax_living_mask(x):
 
 
 class CAModel(nn.Module):
-    C: int
+    features: Tuple[int, ...]
     fire_rate: float
     K: jnp.ndarray
+    get_potential_fn: Callable
 
     def setup(self):
-        self.conv0 = nn.Conv(features=128, kernel_size=(1, 1))
-        self.conv1 = nn.Conv(features=self.C, kernel_size=(1, 1), kernel_init=nn.initializers.zeros)
+        self.conv0 = nn.Conv(features=self.features[0], kernel_size=(1, 1))
+        self.conv1 = nn.Conv(features=self.features[1], kernel_size=(1, 1), kernel_init=nn.initializers.zeros)
 
     def __call__(self, rng_key, x, dt=1.0):
         pre_life_mask = get_jax_living_mask(x)
 
-        padded_x = jnp.pad(x, [[0, 0], [0, 0], [1, 1], [1, 1]], mode='wrap')
-        nb_channels = x.shape[1]
-        potential = jax.lax.conv_general_dilated(padded_x, self.K, (1, 1), 'VALID', feature_group_count=nb_channels)
+        potential = self.get_potential_fn(x, self.K)
 
         y = jnp.moveaxis(potential, 1, -1)
         y = self.conv0(y)
@@ -138,7 +139,8 @@ def run(omegaConf: DictConfig) -> None:
     init_cells = init_cells.at[:, 3:, midpoint[0], midpoint[1]].set(1.)
 
     # We build the simulation function
-    ca = CAModel(C=C, fire_rate=.5, K=K)
+    get_potential_fn = leniax_helpers.build_get_potential_fn(K.shape, fft=False)
+    ca = CAModel(features=[128, C], fire_rate=.5, K=K, get_potential_fn=get_potential_fn)
     pipeline_fn = make_pipeline_fn(
         max_iter, 1 / T, ca.apply, all_states_loss_fn, keep_intermediary_data=False, keep_all_timesteps=True
     )

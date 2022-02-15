@@ -334,7 +334,7 @@ def _scan_fn(
 def make_pipeline_fn(
     max_iter: int,
     dt: float,
-    step_fn: Callable,
+    apply_fn: Callable,
     loss_fn: Callable[[jax.random.KeyArray, Tuple, Tuple], Tuple[jax.random.KeyArray, jnp.ndarray]],
     keep_intermediary_data: bool = False,
     keep_all_timesteps: bool = False,
@@ -373,7 +373,7 @@ def make_pipeline_fn(
         Returns:
             The error value.
         """
-        update_fn = functools.partial(step_fn, {'params': params, **variables}, dt=dt)
+        update_fn = functools.partial(apply_fn, {'params': params, **variables}, dt=dt)
         fn: Callable = functools.partial(
             _scan_fn_without_stat,
             update_fn=update_fn,
@@ -394,6 +394,7 @@ def make_pipeline_fn(
 
     return fn
 
+
 @functools.partial(jit, static_argnums=(2, 3, 4))
 def _scan_fn_without_stat(
     state_carry: jnp.ndarray,
@@ -410,13 +411,13 @@ def _scan_fn_without_stat(
         if keep_intermediary_data is True:
             y = (new_state_carry, field, potential)
         else:
-            y = (new_state_carry, )
+            y = (new_state_carry, None, None)
     else:
         y = None
 
     return new_state_carry, y
 
-    
+
 def make_gradient_fn(pipeline_fn: Callable, normalize: bool = True):
     @jax.jit
     def fn(rng_key, params, variables, state0, targets):
@@ -426,6 +427,7 @@ def make_gradient_fn(pipeline_fn: Callable, normalize: bool = True):
         rest = aux[1]
 
         if normalize is True:
+
             def normalize_fn(g):
                 return g / (jnp.linalg.norm(g) + 1e-8)
 
@@ -434,4 +436,3 @@ def make_gradient_fn(pipeline_fn: Callable, normalize: bool = True):
         return (rng_key, loss, rest), grads
 
     return fn
-

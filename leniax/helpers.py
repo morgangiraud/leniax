@@ -14,7 +14,7 @@ import numpy as np
 import scipy
 import jax
 import jax.numpy as jnp
-from typing import Callable, Dict, Tuple, List, Union
+from typing import Callable, Dict, Tuple, List, Union, Optional
 import matplotlib.pyplot as plt
 
 from . import core as leniax_core
@@ -370,7 +370,11 @@ def build_update_fn(
     )
 
 
-def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: jnp.ndarray, fft: bool = True) -> Callable:
+def build_get_potential_fn(
+    kernel_shape: Tuple[int, ...],
+    true_channels: Optional[jnp.ndarray] = None,
+    fft: bool = True,
+) -> Callable:
     """Construct an Leniax potential function
 
     A potential function allows one to compute the potential from a Lenia state.
@@ -392,10 +396,10 @@ def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: jnp.nda
 
         return functools.partial(
             leniax_core.get_potential_fft,
-            true_channels=true_channels,
             max_k_per_channel=max_k_per_channel,
             C=C,
-            wdims_axes=wdims_axes
+            wdims_axes=wdims_axes,
+            true_channels=true_channels,
         )
     else:
         padding = jnp.array([[0, 0]] * 2 + [[dim // 2, dim // 2] for dim in kernel_shape[2:]])

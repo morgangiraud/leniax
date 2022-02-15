@@ -6,7 +6,6 @@ of an existing simulation.
 Usage:
     ``python examples/run.py -cn config_name -cp config_path run_params.nb_init_search=8 run_params.max_run_iter=512``
 """
-import functools
 import time
 import os
 import io
@@ -17,16 +16,18 @@ from omegaconf import DictConfig
 import hydra
 import tensorflow as tf
 import jax
-import jax.numpy as jnp
 import numpy as np
+import jax.numpy as jnp
 import jax.example_libraries.optimizers as jax_opt
+import flax.linen as nn
 import matplotlib.pyplot as plt
+from typing import Tuple, Callable
 
 import leniax.utils as leniax_utils
 import leniax.helpers as leniax_helpers
-import leniax.runner as leniax_runner
 import leniax.initializations as leniax_init
 from leniax.kernels import get_kernels_and_mapping
+from leniax.runner import make_gradient_fn, make_pipeline_fn
 
 # Disable JAX logging https://abseil.io/docs/python/guides/logging
 absl_logging.set_verbosity(absl_logging.ERROR)
@@ -36,54 +37,45 @@ config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '1c-1k')
 config_name = "orbium"
 
 
-###
-# A few helper functions used in the learning pipeline.
-###
-def K_fn_fft(K_params):
-    padding = jnp.array([[0, 0]] * 2 + [[(128 - dim) // 2, (128 - dim) // 2 + 1] for dim in K_params.shape[2:]])
-    K = jnp.pad(K_params, padding, mode='constant')[jnp.newaxis, ...]
-    K = jnp.fft.fftshift(K, axes=[-2, -1])
-    K = jnp.fft.fftn(K, axes=[-2, -1])
-    return K
+class Step(nn.Module):
+    kernel_shape: Tuple[int, ...]
+    kernel_init: Callable
+
+    gf_params: jnp.ndarray
+    kernels_weight_per_channel: jnp.ndarray
+    update_fn: Callable
+
+    @nn.compact
+    def __call__(self, rng_key, x, dt):
+        K = self.param('K', self.kernel_init, self.kernel_shape, jnp.float32)
+
+        rng_key, state, field, potential = self.update_fn(
+            rng_key, x, K, self.gf_params, self.kernels_weight_per_channel, dt=dt
+        )
+
+        return rng_key, state, field, potential
 
 
-def K_fn_id(K_params):
-    return K_params
+def kernel_init(rng_key, kernel_shape, dtype):
+    rng_key, subkey = jax.random.split(rng_key)
+    K_params = jax.random.uniform(subkey, shape=kernel_shape)
+
+    K = K_params / K_params.sum()
+
+    return jnp.asarray(K, dtype=dtype)
 
 
-def error_fn_triple(preds, target):
-    all_cells = preds[0]
-    all_cells_target = target[0]
-    diffs = 0.5 * jnp.square(all_cells - all_cells_target)
-    errors = jnp.sum(diffs, axis=(1, 2, 3))
-    cells_batch_error = jnp.mean(errors)
+def all_states_loss_fn(rng_key, preds, target):
+    x = preds[0]
+    x_true = target[0]
 
-    all_fields = preds[1]
-    all_fields_target = target[1]
-    diffs = 0.5 * jnp.square(all_fields - all_fields_target)
-    errors = jnp.mean(diffs, axis=(1, 2, 3))
-    fields_batch_error = jnp.mean(errors)
-
-    all_potentials = preds[2]
-    all_potentials_target = target[2]
-    diffs = 0.5 * jnp.square(all_potentials - all_potentials_target)
-    errors = jnp.sum(diffs, axis=(1, 2, 3))
-    potentials_batch_error = jnp.mean(errors)
-
-    batch_error = (cells_batch_error + fields_batch_error + potentials_batch_error) / 3
-    return batch_error
-
-
-def error_fn_cells(rng_key, preds, target):
-    all_cells = preds[0]
-    all_cells_target = target[0]
-    diffs = 0.5 * jnp.square(all_cells - all_cells_target)
+    diffs = 0.5 * jnp.square(x - x_true)
     errors = jnp.sum(diffs, axis=(1, 2, 3))
     cells_batch_loss = jnp.mean(errors)
 
-    batch_loss = cells_batch_loss
+    loss = cells_batch_loss
 
-    return rng_key, batch_loss
+    return loss, rng_key, x
 
 
 ###
@@ -160,7 +152,7 @@ def run(omegaConf: DictConfig) -> None:
     }
     dataset = tf.data.Dataset.from_tensor_slices(training_data)
     bs = 64
-    dataset = dataset.repeat(10).shuffle(bs * 2).batch(bs).as_numpy_iterator()
+    dataset = dataset.repeat(4).shuffle(bs * 2).batch(bs).as_numpy_iterator()
 
     ###
     # Preparing the training pipeline
@@ -170,42 +162,43 @@ def run(omegaConf: DictConfig) -> None:
     # - We initialize our optimizers
     ###
     config_train = copy.deepcopy(config)
+    T = config['world_params']['T']
     K, mapping = get_kernels_and_mapping(config_train['kernels_params'], world_size, nb_channels, R, fft=False)
-    kernel_shape = K.shape
-    rng_key, subkey = jax.random.split(rng_key)
-    K_params = jax.random.uniform(subkey, shape=kernel_shape)
-    K_params = K_params / K_params.sum()
-
-    update_fn = leniax_helpers.build_update_fn(kernel_shape, mapping, 'v1', True, fft=False)
-    run_fn = functools.partial(
-        leniax_runner.run_diff, nb_steps=nb_steps_to_train, K_fn=K_fn_id, update_fn=update_fn, error_fn=error_fn_cells
-    )
-    # We build the JAX gradient function
-    run_fn_value_and_grads = jax.value_and_grad(run_fn, argnums=(2), has_aux=True)
-
     gf_params = mapping.get_gf_params()
-    kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
-    T = jnp.array(config_train['world_params']['T'], dtype=jnp.float32)
+    kwpc = mapping.get_kernels_weight_per_channel()
+    update_fn = leniax_helpers.build_update_fn(K.shape, mapping, 'v1', True, fft=False)
+
+    # We build the simulation function
+    steper = Step(K.shape, kernel_init, gf_params, kwpc, update_fn)  # type: ignore
+    pipeline_fn = make_pipeline_fn(
+        nb_steps_to_train, 1 / T, steper.apply, all_states_loss_fn, keep_intermediary_data=False, keep_all_timesteps=True
+    )
+    gradient = make_gradient_fn(pipeline_fn, normalize=True)
 
     train_log_dir = os.path.join(save_dir, 'train')
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
 
-    K_lr = 1e-4
-    K_opt_init, K_opt_update, K_get_params = jax_opt.adam(K_lr)
-    K_opt_state = K_opt_init(K_params)
+    lr = 1e-4
+    opt_init, opt_update, get_params = jax_opt.adam(lr)
+    rng_key, params_key, subkey = jax.random.split(rng_key, 2 + 1)
+    variables = steper.init(params_key, subkey, jnp.ones(all_init_cells.shape), 1.)
+    vars, params = variables.pop('params')
+    del variables  # Delete variables to avoid wasting resources
+    opt_state = opt_init(params)
+
     for i, training_data in enumerate(dataset):
         x = training_data['input_cells']
         y = (training_data['target_cells'], training_data['target_fields'], training_data['target_potentials'])
 
         # In JAX, you need to manually retrieve the current state of your parameters at each timestep,
         # so you can use them in your update function
-        K_params = K_get_params(K_opt_state)
+        params = get_params(opt_state)
 
         # We compute the gradients on a batch.
-        (loss, rng_key), grads = run_fn_value_and_grads(rng_key, x, K_params, gf_params, kernels_weight_per_channel, T, target=y)
+        (rng_key, loss, rest), grads = gradient(rng_key, params, vars, x, y)
 
         # Finally we update our parameters
-        K_opt_state = K_opt_update(i, grads[0], K_opt_state)
+        opt_state = opt_update(i, grads, opt_state)
 
         with train_summary_writer.as_default():
             tf.summary.scalar('loss', loss, step=i)
@@ -213,6 +206,7 @@ def run(omegaConf: DictConfig) -> None:
         if i % 20 == 0:
             logging.info(F"Iteration {i}, loss: {loss}")
 
+            K_params = params['K']
             np.save(f"{save_dir}/K-{str(i).zfill(4)}.npy", K_params, allow_pickle=True, fix_imports=True)
 
             fig = plt.figure(figsize=(6, 6))
@@ -222,7 +216,7 @@ def run(omegaConf: DictConfig) -> None:
             plt.imshow(K_params[0, 0], cmap='viridis', interpolation="nearest", vmin=0, vmax=K_params.max())
             plt.colorbar()
 
-            K_params_neg_grad = -grads
+            K_params_neg_grad = -grads['K']
             axes.append(fig.add_subplot(1, 2, 2))
             axes[-1].title.set_text("kernel K1 grad")
             plt.imshow(

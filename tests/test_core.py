@@ -211,31 +211,3 @@ class TestCore(unittest.TestCase):
         print(delta_t_compiled, delta_t)
 
         assert delta_t_compiled < 1 / 20 * delta_t
-
-    def test_update_state_stochastic_jit_perf(self):
-        jit_fn = jax.jit(leniax_core.get_state_stochastic)
-
-        rng_key = jax.random.PRNGKey(0)
-        world_shape = [5, 5]
-
-        cells1 = jnp.ones(world_shape) * .5
-        field1 = jnp.ones(world_shape) * 3
-        dt1 = jnp.array(1. / 3.)
-
-        t0 = time.time()
-        rng_key, out1 = jit_fn(rng_key, cells1, field1, dt1)
-        out1.block_until_ready()
-        delta_t = time.time() - t0
-
-        cells2 = jnp.ones(world_shape, ) * .2
-        field2 = jnp.ones(world_shape) * 3
-        dt2 = jnp.array(1. / 6.)
-
-        t0 = time.time()
-        rng_key, out2 = jit_fn(rng_key, cells2, field2, dt2)
-        out2.block_until_ready()
-        delta_t_compiled = time.time() - t0
-
-        print(delta_t_compiled, delta_t)
-
-        assert delta_t_compiled < 1 / 20 * delta_t

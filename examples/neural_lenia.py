@@ -124,7 +124,7 @@ def run(omegaConf: DictConfig) -> None:
     img = jnp.pad(img, pad_width=[[p, p], [p, p], [0, 0]])
     img = jnp.moveaxis(img, -1, 0)[jnp.newaxis]  # [1, C, H, W]
     targets = {'cells': img}
-    
+
     ###
     # We define the final kernel K
     ###
@@ -132,7 +132,7 @@ def run(omegaConf: DictConfig) -> None:
     k = k[:2]
     k = k.at[:, :, R, R].set(0.)
     k_identity = jnp.zeros_like(k[:1]).at[:, :, R, R].set(1.0)
-    k = jnp.vstack([k_identity, k]) # [K_o=3, K_i=1, H, W]
+    k = jnp.vstack([k_identity, k])  # [K_o=3, K_i=1, H, W]
     K = jnp.repeat(k, C, axis=0)  # [K_o=3*c, K_i=1, H, W]
 
     # We use a simple init_cells: only pixel set to 1 in the center

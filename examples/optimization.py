@@ -49,9 +49,7 @@ class Step(nn.Module):
     def __call__(self, rng_key, x, dt):
         K = self.param('K', self.kernel_init, self.kernel_shape, jnp.float32)
 
-        state, field, potential = self.update_fn(
-            rng_key, x, K, self.gf_params, self.kernels_weight_per_channel, dt=dt
-        )
+        state, field, potential = self.update_fn(rng_key, x, K, self.gf_params, self.kernels_weight_per_channel, dt=dt)
 
         return state, field, potential
 
@@ -193,8 +191,8 @@ def run(omegaConf: DictConfig) -> None:
     for i, training_data in enumerate(dataset):
         x = training_data['input_cells']
         y = {
-            'cells': training_data['target_cells'], 
-            'fields': training_data['target_fields'], 
+            'cells': training_data['target_cells'],
+            'fields': training_data['target_fields'],
             'potentials': training_data['target_potentials'],
         }
 

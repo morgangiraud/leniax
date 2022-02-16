@@ -609,7 +609,7 @@ def plot_kernels(save_dir: str, config: Dict):
     for param in config['kernels_params']:
         all_kfs.append(kf_register[param['kf_slug']](param['kf_params'], x))
         all_gfs.append(gf_register[param['gf_slug']](param["gf_params"], x) * param['h'])
-    
+
     # Plot kernels image where color represent intensity
     rows = int(nb_Ks**0.5)
     cols = nb_Ks // rows
@@ -620,14 +620,14 @@ def plot_kernels(save_dir: str, config: Dict):
     K_size = Ks.shape[-1]
     K_mid = K_size // 2
     vmax = Ks.max()
+    vmin = Ks.min()
     fullpath = f"{save_dir}/Ks.png"
     if len(Ks.shape) == 3:
         # 2D kernels
-
         for i in range(nb_Ks):
             axes.append(fig.add_subplot(rows, cols, i + 1))
             axes[-1].title.set_text(f"kernel K{i}")
-            plt.imshow(Ks[i], cmap='viridis', interpolation="nearest", vmin=0, vmax=vmax)
+            plt.imshow(Ks[i], cmap='viridis', interpolation="nearest", vmin=vmin, vmax=vmax)
     elif len(Ks.shape) == 4:
         # 3D kernels
         for i in range(nb_Ks):

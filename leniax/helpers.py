@@ -591,19 +591,20 @@ def plot_kernels(save_dir: str, config: Dict):
 
     R = config['world_params']['R']
     scale = config['world_params']['scale']
+    C = config['world_params']['nb_channels']
 
     x = jnp.linspace(0, 1, 1000)
-    all_ks = []
+    Ks, _ = leniax_kernels.get_kernels_and_mapping(
+        config['kernels_params'], config['render_params']['world_size'], C, R, fft=False
+    )
+    Ks = Ks[:, 0]
+    nb_Ks = Ks.shape[0]
     all_kfs = []
     all_gfs = []
     for param in config['kernels_params']:
-        k = leniax_kernels.register[param['k_slug']](R * scale, param['k_params'], param['kf_slug'], param['kf_params'])
-        all_ks.append(k)
         all_kfs.append(kf_register[param['kf_slug']](param['kf_params'], x))
         all_gfs.append(gf_register[param['gf_slug']](param["gf_params"], x) * param['h'])
-    Ks = leniax_utils.crop_zero(jnp.vstack(all_ks))
-    nb_Ks = Ks.shape[0]
-
+    
     # Plot kernels image where color represent intensity
     rows = int(nb_Ks**0.5)
     cols = nb_Ks // rows

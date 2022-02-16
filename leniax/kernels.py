@@ -123,13 +123,17 @@ def get_kernels_and_mapping(
     kernels_per_channel = []
     true_channels = []
     for cin_kernel_list in mapping.cin_kernels:
-        K_tmp = kernels[jnp.array(cin_kernel_list)]  # [O=nb_kernel_per_channel, K_h, K_w]
-
+        if len(cin_kernel_list):
+            K_tmp = kernels[jnp.array(cin_kernel_list)]  # [O=nb_kernel_per_channel, K_h, K_w]
+        else:
+            K_tmp = jnp.zeros([0, K_h, K_w])
+        
         # We create the mask
-        diff = max_k_per_channel - K_tmp.shape[0]
-        true_channels.append(jnp.array([True] * K_tmp.shape[0] + [False] * diff))
-        if diff > 0:
-            K_tmp = jnp.vstack([K_tmp, jnp.zeros([diff, K_h, K_w])])  # [O=max_k_per_channel, K_h, K_w]
+        nb_k = K_tmp.shape[0]
+        nb_missing = max_k_per_channel - nb_k
+        true_channels.append(jnp.array([True] * nb_k + [False] * nb_missing))
+        if nb_missing > 0:
+            K_tmp = jnp.vstack([K_tmp, jnp.zeros([nb_missing, K_h, K_w])])  # [O=max_k_per_channel, K_h, K_w]
 
         K_tmp = K_tmp[:, jnp.newaxis, ...]  # [O=max_k_per_channel, I=1, K_h, K_w]
         kernels_per_channel.append(K_tmp)

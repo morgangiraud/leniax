@@ -22,6 +22,7 @@ from typing import Tuple, Callable
 
 import leniax.utils as leniax_utils
 import leniax.helpers as leniax_helpers
+from leniax.kernels import get_kernels_and_mapping
 from leniax.runner import make_gradient_fn, make_pipeline_fn
 
 # Disable JAX logging https://abseil.io/docs/python/guides/logging
@@ -106,6 +107,7 @@ def run(omegaConf: DictConfig) -> None:
     rng_key = leniax_utils.seed_everything(config['run_params']['seed'])
 
     # We load some parameter from the configuration
+    R = config['world_params']['R']
     C = config['world_params']['nb_channels']
     T = config['world_params']['T']
     world_size = config['render_params']['world_size']
@@ -122,13 +124,15 @@ def run(omegaConf: DictConfig) -> None:
     img = jnp.pad(img, pad_width=[[p, p], [p, p], [0, 0]])
     img = jnp.moveaxis(img, -1, 0)[jnp.newaxis]  # [1, C, H, W]
     targets = {'cells': img}
+    
     ###
     # We define the final kernel K
     ###
-    k_dx = jnp.array(np.outer([1, 2, 1], [-1, 0, 1]), dtype=jnp.float32) / 8.0  # Sobel filter
-    k_dy = k_dx.T
-    k_identity = jnp.array([[0, 0, 0], [0, 1, 0], [0, 0, 0]], dtype=jnp.float32)
-    k = jnp.stack([k_identity, k_dx, k_dy])[:, jnp.newaxis]  # [K_o=3, K_i=1, H, W]
+    k, _ = get_kernels_and_mapping(config['kernels_params'], world_size, C, R, fft=False)
+    k = k[:2]
+    k = k.at[:, :, R, R].set(0.)
+    k_identity = jnp.zeros_like(k[:1]).at[:, :, R, R].set(1.0)
+    k = jnp.vstack([k_identity, k]) # [K_o=3, K_i=1, H, W]
     K = jnp.repeat(k, C, axis=0)  # [K_o=3*c, K_i=1, H, W]
 
     # We use a simple init_cells: only pixel set to 1 in the center

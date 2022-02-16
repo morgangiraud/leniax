@@ -410,8 +410,13 @@ def build_get_potential_fn(
             true_channels=true_channels,
         )
     else:
-        padding = jnp.array([[0, 0]] * 2 + [[dim // 2, dim // 2] for dim in kernel_shape[2:]])
-
+        pad_l = [[0, 0], [0, 0]]
+        for dim in kernel_shape[2:]:
+            if dim % 2 == 0:
+                pad_l += [[dim // 2, dim // 2 - 1]]
+            else:
+                pad_l += [[dim // 2, dim // 2]]
+        padding = jnp.array(pad_l)
         return functools.partial(leniax_core.get_potential, padding=padding, true_channels=true_channels)
 
 

@@ -27,7 +27,7 @@ class TestPipeline(unittest.TestCase):
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        rng_key, all_cells, _, _, _ = init_and_run(rng_key, config, with_jit=False)
+        all_cells, _, _, _ = init_and_run(rng_key, config, with_jit=False)
         all_cells = all_cells[:, 0]
         last_frame = all_cells[-1]
 
@@ -46,7 +46,7 @@ class TestPipeline(unittest.TestCase):
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        rng_key, all_cells, _, _, _ = init_and_run(rng_key, config, with_jit=True)
+        all_cells, _, _, _ = init_and_run(rng_key, config, with_jit=True)
         all_cells = all_cells[:, 0]
         last_frame = all_cells[-1]
 
@@ -65,7 +65,7 @@ class TestPipeline(unittest.TestCase):
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        rng_key, all_cells, _, _, _ = init_and_run(rng_key, config, with_jit=True)
+        all_cells, _, _, _ = init_and_run(rng_key, config, with_jit=True)
         all_cells = all_cells[:, 0]
         last_frame = all_cells[-1]
 
@@ -84,7 +84,7 @@ class TestPipeline(unittest.TestCase):
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        rng_key, all_cells, _, _, _ = init_and_run(rng_key, config, with_jit=True, fft=True)
+        all_cells, _, _, _ = init_and_run(rng_key, config, with_jit=True, fft=True)
         all_cells = all_cells[:, 0]
         last_frame = all_cells[-1]
 
@@ -103,7 +103,7 @@ class TestPipeline(unittest.TestCase):
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        rng_key, all_cells, _, _, _ = init_and_run(rng_key, config, with_jit=True)
+        all_cells, _, _, _ = init_and_run(rng_key, config, with_jit=True)
         all_cells = all_cells[:, 0]
         last_frame = all_cells[-1]
 
@@ -122,7 +122,7 @@ class TestPipeline(unittest.TestCase):
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        rng_key, all_cells, _, _, _ = init_and_run(rng_key, config, with_jit=True, fft=True)
+        all_cells, _, _, _ = init_and_run(rng_key, config, with_jit=True, fft=True)
         all_cells = all_cells[:, 0]
         last_frame = all_cells[-1]
 

@@ -56,7 +56,7 @@ def search(omegaConf: DictConfig) -> None:
     # For more information check the documentaton.
     logging.info("Search: start.")
     start_time = time.time()
-    _, (best, nb_mut_done) = leniax_helpers.search_for_mutation(
+    best, nb_mut_done = leniax_helpers.search_for_mutation(
         rng_key, config, nb_scale_for_stability=1, use_init_cells=True, fft=True
     )
     all_cells = best['all_cells'][:int(best['N'])]

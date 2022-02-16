@@ -49,11 +49,11 @@ class Step(nn.Module):
     def __call__(self, rng_key, x, dt):
         K = self.param('K', self.kernel_init, self.kernel_shape, jnp.float32)
 
-        rng_key, state, field, potential = self.update_fn(
+        state, field, potential = self.update_fn(
             rng_key, x, K, self.gf_params, self.kernels_weight_per_channel, dt=dt
         )
 
-        return rng_key, state, field, potential
+        return state, field, potential
 
 
 def kernel_init(rng_key, kernel_shape, dtype):
@@ -66,8 +66,8 @@ def kernel_init(rng_key, kernel_shape, dtype):
 
 
 def all_states_loss_fn(rng_key, preds, target):
-    x = preds[0]
-    x_true = target[0]
+    x = preds['cells']
+    x_true = target['cells']
 
     diffs = 0.5 * jnp.square(x - x_true)
     errors = jnp.sum(diffs, axis=(1, 2, 3))
@@ -75,7 +75,7 @@ def all_states_loss_fn(rng_key, preds, target):
 
     loss = cells_batch_loss
 
-    return loss, rng_key, x
+    return loss, x
 
 
 ###
@@ -118,15 +118,14 @@ def run(omegaConf: DictConfig) -> None:
     kernels_params = config_target['kernels_params']
     init_slug = config['algo']['init_slug']
 
-    _, subkey = jax.random.split(rng_key)
     nb_init = nb_channels * nb_init_search
-    rng_key, noises = leniax_init.register[init_slug](subkey, nb_init, world_size, R, kernels_params[0]['gf_params'])
+    rng_key, noises = leniax_init.register[init_slug](rng_key, nb_init, world_size, R, kernels_params[0]['gf_params'])
     all_init_cells = noises.reshape([nb_init_search, 1] + world_size)
     config_target['run_params']['init_cells'] = all_init_cells
 
     logging.info("Rendering target: start")
     start_time = time.time()
-    rng_key, all_cells_target, all_fields_target, all_potentials_target, _ = leniax_helpers.init_and_run(
+    all_cells_target, all_fields_target, all_potentials_target, _ = leniax_helpers.init_and_run(
         rng_key, config_target, use_init_cells=True, with_jit=True, fft=True, stat_trunc=False
     )  # [nb_max_iter, N=1, C, world_dims...]
     total_time = time.time() - start_time
@@ -171,7 +170,12 @@ def run(omegaConf: DictConfig) -> None:
     # We build the simulation function
     steper = Step(K.shape, kernel_init, gf_params, kwpc, update_fn)  # type: ignore
     pipeline_fn = make_pipeline_fn(
-        nb_steps_to_train, 1 / T, steper.apply, all_states_loss_fn, keep_intermediary_data=False, keep_all_timesteps=True
+        nb_steps_to_train,
+        1 / T,
+        steper.apply,
+        all_states_loss_fn,
+        keep_intermediary_data=False,
+        keep_all_timesteps=True
     )
     gradient = make_gradient_fn(pipeline_fn, normalize=True)
 
@@ -188,14 +192,19 @@ def run(omegaConf: DictConfig) -> None:
 
     for i, training_data in enumerate(dataset):
         x = training_data['input_cells']
-        y = (training_data['target_cells'], training_data['target_fields'], training_data['target_potentials'])
+        y = {
+            'cells': training_data['target_cells'], 
+            'fields': training_data['target_fields'], 
+            'potentials': training_data['target_potentials'],
+        }
 
         # In JAX, you need to manually retrieve the current state of your parameters at each timestep,
         # so you can use them in your update function
         params = get_params(opt_state)
 
         # We compute the gradients on a batch.
-        (rng_key, loss, rest), grads = gradient(rng_key, params, vars, x, y)
+        rng_key, subkey = jax.random.split(rng_key)
+        (loss, aux), grads = gradient(subkey, params, vars, x, y)
 
         # Finally we update our parameters
         opt_state = opt_update(i, grads, opt_state)

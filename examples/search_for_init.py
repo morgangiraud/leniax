@@ -54,7 +54,7 @@ def search(omegaConf: DictConfig) -> None:
     # For more information check the documentaton.
     logging.info("Search: start.")
     start_time = time.time()
-    _, (best, nb_init_done) = leniax_helpers.search_for_init(rng_key, config, fft=True)
+    best, nb_init_done = leniax_helpers.search_for_init(rng_key, config, fft=True)
     # We truncate the best run up to its final interesting state
     all_cells = best['all_cells'][:int(best['N']), 0]
     stats_dict = {k: v.squeeze() for k, v in best['all_stats'].items()}

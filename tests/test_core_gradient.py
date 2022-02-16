@@ -32,7 +32,7 @@ class TestCore(unittest.TestCase):
         update_fn = leniax_helpers.build_update_fn(K.shape, mapping, get_state_fn_slug)
 
         def apply_update(rng_key, cells, K, gf_params, kernels_weight_per_channel, dt, target):
-            rng_key, cells_out, _, _ = update_fn(rng_key, cells, K, gf_params, kernels_weight_per_channel, dt)
+            cells_out, _, _ = update_fn(rng_key, cells, K, gf_params, kernels_weight_per_channel, dt)
             error = jnp.sum((cells_out - target)**2)
 
             return error
@@ -135,8 +135,8 @@ class TestCore(unittest.TestCase):
         rng_key = jax.random.PRNGKey(0)
 
         def apply_update(rng_key, cells, field, dt, target):
-            rng_key, cells = leniax_core.get_state(rng_key, cells, field, dt)
-            rng_key, out = leniax_core.get_state(rng_key, cells, field, dt)
+            cells = leniax_core.get_state(rng_key, cells, field, dt)
+            out = leniax_core.get_state(rng_key, cells, field, dt)
             error = jnp.sum((out - target)**2)
 
             return error
@@ -163,8 +163,8 @@ class TestCore(unittest.TestCase):
         rng_key = jax.random.PRNGKey(0)
 
         def apply_update(rng_key, cells, field, dt, target):
-            rng_key, cells = leniax_core.get_state_v2(rng_key, cells, field, dt)
-            rng_key, out = leniax_core.get_state_v2(rng_key, cells, field, dt)
+            cells = leniax_core.get_state_v2(rng_key, cells, field, dt)
+            out = leniax_core.get_state_v2(rng_key, cells, field, dt)
             error = jnp.sum((out - target)**2)
 
             return error

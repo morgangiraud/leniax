@@ -135,7 +135,7 @@ def init_and_run(
     with_jit: bool = True,
     fft: bool = True,
     stat_trunc: bool = False
-) -> Tuple[jax.random.KeyArray, jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict]:
     """Initialize and simulate a Lenia configuration
 
     To simulate a configuration with multiple initializations you must set:
@@ -172,11 +172,11 @@ def init_and_run(
     compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     if with_jit is True:
-        rng_key, all_cells, all_fields, all_potentials, stats_dict = leniax_runner.run_scan(
+        all_cells, all_fields, all_potentials, stats_dict = leniax_runner.run_scan(
             rng_key, cells, K, gf_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
         )
     else:
-        rng_key, all_cells, all_fields, all_potentials, stats_dict = leniax_runner.run(
+        all_cells, all_fields, all_potentials, stats_dict = leniax_runner.run(
             rng_key, cells, K, gf_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
         )  # [nb_iter, nb_init, C, world_dims...]
     stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
@@ -186,7 +186,7 @@ def init_and_run(
         all_fields = all_fields[:int(stats_dict['N'])]
         all_potentials = all_potentials[:int(stats_dict['N'])]
 
-    return rng_key, all_cells, all_fields, all_potentials, stats_dict
+    return all_cells, all_fields, all_potentials, stats_dict
 
 
 def search_for_mutation(
@@ -196,7 +196,7 @@ def search_for_mutation(
     use_init_cells: bool = True,
     fft: bool = True,
     mutation_rate: float = 1e-5,
-) -> Tuple[jax.random.KeyArray, Tuple[Dict, int]]:
+) -> Tuple[Dict, int]:
     """Search for a stable mutation
 
     Args:
@@ -208,7 +208,7 @@ def search_for_mutation(
         mutation_rate: Mutation rate.
 
     Returns:
-        The new rng_key and a 2-tuple of a dictionnary with the best run data and
+        A 2-tuple of a dictionnary with the best run data and
         the number of runs made to find it
     """
     render_params = config['render_params']
@@ -220,12 +220,17 @@ def search_for_mutation(
 
     best_run = {}
     current_max = 0
+    nb_genes = len(config['genotype'])
+    rng_key, *subkeys = jax.random.split(rng_key, nb_mut_search * nb_genes + 1)
     for i in range(nb_mut_search):
         copied_config = copy.deepcopy(config)
-        for gene in config['genotype']:
+        for gene_i, gene in enumerate(config['genotype']):
             val = leniax_utils.get_param(copied_config, gene['key'])
-            val += np.random.normal(0., mutation_rate)
-            leniax_utils.set_param(copied_config, gene['key'], val)
+
+            subkey = subkeys[i * nb_genes + gene_i]
+            val += jax.random.normal(subkey, dtype=jnp.float32) * mutation_rate
+
+            leniax_utils.set_param(copied_config, gene['key'], float(val))
 
         total_iter_done = 0
         nb_iter_done = 0
@@ -235,7 +240,9 @@ def search_for_mutation(
             scaled_config['render_params']['world_size'] = [ws * 2**scale_power for ws in world_size]
             scaled_config['world_params']['scale'] = 2**scale_power
 
-            rng_key, all_cells, _, _, stats_dict = init_and_run(
+            # We do not split the rng_key here, because we want to keep the exact same run
+            # while just changing the rendering size
+            all_cells, _, _, stats_dict = init_and_run(
                 rng_key, scaled_config, use_init_cells=use_init_cells, with_jit=True, fft=fft
             )
             all_cells = all_cells[:, 0]
@@ -257,14 +264,14 @@ def search_for_mutation(
         if total_iter_done >= max_run_iter * nb_scale_for_stability:
             break
 
-    return rng_key, (best_run, i)
+    return best_run, i
 
 
 def search_for_init(
     rng_key: jax.random.KeyArray,
     config: Dict,
     fft: bool = True,
-) -> Tuple[jax.random.KeyArray, Tuple[Dict, int]]:
+) -> Tuple[Dict, int]:
     """Search for a stable initial state
 
     Args:
@@ -273,7 +280,7 @@ def search_for_init(
         fft: Set to ``True`` to use FFT optimization.
 
     Returns:
-        The new rng_key and a 2-tuple of a dictionnary with the best run data and
+        A 2-tuple of a dictionnary with the best run data and
         the number of runs made to find it
     """
     world_params = config['world_params']
@@ -311,9 +318,10 @@ def search_for_init(
 
     best_run = {}
     current_max = 0
+    subkeys = jax.random.split(rng_key, nb_init_search)
     for i in range(nb_init_search):
-        rng_key, all_cells, _, _, all_stats = leniax_runner.run_scan(
-            rng_key,
+        all_cells, _, _, all_stats = leniax_runner.run_scan(
+            subkeys[i],
             all_cells0_jnp[i],
             K,
             gf_params,
@@ -335,7 +343,7 @@ def search_for_init(
         if nb_iter_done >= max_run_iter:
             break
 
-    return rng_key, (best_run, i)
+    return best_run, i
 
 
 ###

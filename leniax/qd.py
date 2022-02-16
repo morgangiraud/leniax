@@ -60,7 +60,7 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, fitness_coef: floa
         qd_config = leniax_sols[0].qd_config
 
         rng_key, dynamic_args = get_dynamic_args(qd_config, leniax_sols, fft)
-        rng_key, stats, _ = leniax_runner.run_scan_mem_optimized(
+        stats, _ = leniax_runner.run_scan_mem_optimized(
             rng_key,
             *dynamic_args,
             max_run_iter,
@@ -196,7 +196,7 @@ def run_qd_search(
     eval_fn: Callable,
     log_freq: int = 1,
     n_workers: int = -1
-) -> Tuple[jax.random.KeyArray, QDMetrics]:
+) -> QDMetrics:
     """Run a Quality-diveristy search
 
     .. Warning::
@@ -214,7 +214,7 @@ def run_qd_search(
         n_workers: Number of workers used to eval a set of candidate solutions
 
     Returns:
-        A 2-tuple representing a jax PRNGkey and search metrics
+        Qd metrics
     """
     DEBUG = False
     if DEBUG is True:
@@ -307,7 +307,7 @@ def run_qd_search(
                 f"{time.time() - t0:>20.4f}"
             )
 
-    return rng_key, metrics
+    return metrics
 
 
 ###
@@ -387,8 +387,9 @@ def render_found_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
 
     if 'init_rng_key' in config['algo']:
         init_slug = config['algo']['init_slug']
+        init_rng_key = jnp.array(config['algo']['init_rng_key'], dtype=jnp.uint32)
         rng_key, noises = leniax_init.register[init_slug](
-            jnp.array(config['algo']['init_rng_key'], dtype=jnp.uint32),
+            init_rng_key,
             config['run_params']['nb_init_search'] * config['world_params']['nb_channels'],
             config['render_params']['world_size'],
             config['world_params']['R'],
@@ -408,7 +409,8 @@ def render_found_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
             config['run_params']['init_cells'] = init_noises[idx]
 
             start_time = time.time()
-            rng_key, all_cells, _, _, stats_dict = leniax_helpers.init_and_run(rng_key, config, use_init_cells=True, with_jit=True, fft=True, stat_trunc=True)
+            rng_key, subkey = jax.random.split(rng_key)
+            all_cells, _, _, stats_dict = leniax_helpers.init_and_run(subkey, config, use_init_cells=True, with_jit=True, fft=True, stat_trunc=True)
             all_cells = all_cells[:, 0]
             total_time = time.time() - start_time
 

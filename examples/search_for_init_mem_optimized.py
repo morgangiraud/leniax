@@ -71,16 +71,16 @@ def search(omegaConf: DictConfig) -> None:
     logging.info(f"Search: stop. {len(results)} configurations tested in {time.time() - start_time:.2f}.")
 
     # We iterate over the configurations and render the best initial state.
-    for id_best, best in enumerate(results):
+    for idx_best, best in enumerate(results):
         logging.info(f"Search: best run length: {best.fitness}")
         config = best.get_config()
-        save_dir = os.path.join(parent_dir, f"{str(id_best).zfill(4)}")  # changed by hydra
+        save_dir = os.path.join(parent_dir, f"{str(idx_best).zfill(4)}")  # changed by hydra
         leniax_utils.check_dir(save_dir)
 
         # Since we do not store intermediary states, we need to re-simulate the best configurations
         logging.info("Simulation: start.")
         start_time = time.time()
-        rng_key, all_cells, _, _, stats_dict = leniax_helpers.init_and_run(rng_key, config, with_jit=True, stat_trunc=True)
+        all_cells, _, _, stats_dict = leniax_helpers.init_and_run(best.rng_key, config, with_jit=True, stat_trunc=True)
         all_cells = all_cells[:, 0]
         total_time = time.time() - start_time
         nb_iter_done = len(all_cells)

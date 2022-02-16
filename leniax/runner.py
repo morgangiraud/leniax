@@ -7,7 +7,7 @@ import jax
 from jax import vmap, pmap, lax, jit
 from jax.tree_util import tree_map
 import jax.numpy as jnp
-from typing import Callable, Dict, Tuple, Optional
+from typing import Callable, Dict, Tuple
 
 from . import statistics as leniax_stat
 from .constant import EPSILON, START_CHECK_STOP
@@ -24,7 +24,7 @@ def run(
     R: float,
     update_fn: Callable,
     compute_stats_fn: Callable
-) -> Tuple[jax.random.KeyArray, jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict[str, jnp.ndarray]]:
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict[str, jnp.ndarray]]:
     """Simulate a single configuration
 
     It uses a python ``for`` loop under the hood.
@@ -65,8 +65,9 @@ def run(
     total_shift_idx = jnp.zeros([N, nb_world_dims], dtype=jnp.int32)
     mass_centroid = jnp.zeros([nb_world_dims, N])
     mass_angle = jnp.zeros([N])
+    subkeys = jax.random.split(rng_key, max_run_iter)
     for current_iter in range(max_run_iter):
-        rng_key, new_cells, field, potential = update_fn(rng_key, cells, K, gf_params, kernels_weight_per_channel, 1. / T)
+        new_cells, field, potential = update_fn(subkeys[current_iter], cells, K, gf_params, kernels_weight_per_channel, 1. / T)
 
         stat_t, total_shift_idx, mass_centroid, mass_angle = compute_stats_fn(
             cells, field, potential, total_shift_idx, mass_centroid, mass_angle
@@ -110,7 +111,7 @@ def run(
     stats_dict = leniax_stat.stats_list_to_dict(all_stats)
     stats_dict['N'] = jnp.array(current_iter)
 
-    return rng_key, all_cells_jnp, all_fields_jnp, all_potentials_jnp, stats_dict
+    return all_cells_jnp, all_fields_jnp, all_potentials_jnp, stats_dict
 
 
 @functools.partial(jit, static_argnums=(6, 7, 8, 9))
@@ -125,7 +126,7 @@ def run_scan(
     R: float,
     update_fn: Callable,
     compute_stats_fn: Callable
-) -> Tuple[jax.random.KeyArray, jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict[str, jnp.ndarray]]:
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict[str, jnp.ndarray]]:
     """Simulate a single configuration
 
     This function is jitted, it uses jax.lax.scan function under the hood.
@@ -147,19 +148,18 @@ def run_scan(
         A 4-tuple of arrays representing the updated cells state, the used potential
         and used field and simulations statistics
     """
-    init_carry = _get_init_carry(rng_key, cells0, K, gf_params, kernels_weight_per_channel, T)
+    init_carry = _get_init_carry(cells0, K, gf_params, kernels_weight_per_channel, T)
     fn: Callable = functools.partial(
         _scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_intermediary_data=True
     )
 
-    final_carry, ys = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
-
-    rng_key = final_carry['fn_params'][0]
+    subkeys = jax.random.split(rng_key, max_run_iter)
+    _, ys = lax.scan(fn, init_carry, jnp.array(subkeys))
 
     continue_stat = leniax_stat.check_heuristics(ys['stats'])
     ys['stats']['N'] = continue_stat.sum(axis=0)
 
-    return rng_key, ys['cells'], ys['field'], ys['potential'], ys['stats']
+    return ys['cells'], ys['field'], ys['potential'], ys['stats']
 
 
 @functools.partial(jit, static_argnums=(6, 7, 8, 9))
@@ -175,7 +175,7 @@ def run_scan_mem_optimized(
     R: float,
     update_fn: Callable,
     compute_stats_fn: Callable
-) -> Tuple[jax.random.KeyArray, Dict[str, jnp.ndarray], jnp.ndarray]:
+) -> Tuple[Dict[str, jnp.ndarray], jnp.ndarray]:
     """Simulate multiple configurations
 
     This function is jitted, it uses jax.lax.scan function under the hood.
@@ -196,20 +196,21 @@ def run_scan_mem_optimized(
     Returns:
         A 3-tuple representing a jax PRNG key, the simulations statistics and final cells states
     """
-    init_carry = _get_init_carry(rng_key, cells0, K, gf_params, kernels_weight_per_channel, T)
+    init_carry = _get_init_carry(cells0, K, gf_params, kernels_weight_per_channel, T)
     fn: Callable = functools.partial(
         _scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_intermediary_data=False
     )
 
-    final_carry, stats = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
+    subkeys = jax.random.split(rng_key, max_run_iter)
+    final_carry, ys = lax.scan(fn, init_carry, jnp.array(subkeys))
 
-    rng_key = final_carry['fn_params'][0]
-    final_cells = final_carry['fn_params'][1]
+    final_cells = final_carry['fn_params'][0]
+    stats = ys['stats']
 
     continue_stat = leniax_stat.check_heuristics(stats)
     stats['N'] = continue_stat.sum(axis=0)
 
-    return rng_key, stats, final_cells
+    return stats, final_cells
 
 
 @functools.partial(
@@ -227,7 +228,7 @@ def run_scan_mem_optimized_pmap(
     R: float,
     update_fn: Callable,
     compute_stats_fn: Callable
-) -> Tuple[jax.random.KeyArray, Dict[str, jnp.ndarray], jnp.ndarray]:
+) -> Tuple[Dict[str, jnp.ndarray], jnp.ndarray]:
     """Simulate multiple configurations on multiple devices
 
     This function is jitted, it uses jax.lax.scan function under the hood.
@@ -249,24 +250,23 @@ def run_scan_mem_optimized_pmap(
     Returns:
         A 3-tuple representing a jax PRNG key, the simulations statistics and final cells states
     """
-    init_carry = _get_init_carry(rng_key, cells0, K, gf_params, kernels_weight_per_channel, T)
+    init_carry = _get_init_carry(cells0, K, gf_params, kernels_weight_per_channel, T)
     fn: Callable = functools.partial(
         _scan_fn, update_fn=update_fn, compute_stats_fn=compute_stats_fn, keep_intermediary_data=False
     )
+    subkeys = jax.random.split(rng_key, max_run_iter)
+    final_carry, ys = lax.scan(fn, init_carry, jnp.array(subkeys))
 
-    final_carry, stats = lax.scan(fn, init_carry, None, length=max_run_iter, unroll=1)
-
-    rng_key = final_carry['fn_params'][0]
-    final_cells = final_carry['fn_params'][1]
+    final_cells = final_carry['fn_params'][0]
+    stats = ys['stats']
 
     continue_stat = leniax_stat.check_heuristics(stats)
     stats['N'] = continue_stat.sum(axis=0)
 
-    return rng_key, stats, final_cells
+    return stats, final_cells
 
 
 def _get_init_carry(
-    rng_key: jax.random.KeyArray,
     cells0: jnp.ndarray,
     K: jnp.ndarray,
     gf_params: jnp.ndarray,
@@ -277,7 +277,7 @@ def _get_init_carry(
     N = cells0.shape[0]
     nb_world_dims = cells0.ndim - 2
     init_carry: Dict = {
-        'fn_params': (rng_key, cells0, K, gf_params, kernels_weight_per_channel, T),
+        'fn_params': (cells0, K, gf_params, kernels_weight_per_channel, T),
     }
 
     if with_stat is True:
@@ -290,18 +290,19 @@ def _get_init_carry(
     return init_carry
 
 
-@functools.partial(jit, static_argnums=(2, 3, 4))
+@functools.partial(jit, static_argnums=(2, 3, 4, 5))
 def _scan_fn(
     carry: Dict,
-    x: Optional[jnp.ndarray],
+    x_rng_key: jnp.ndarray,
     update_fn: Callable,
     compute_stats_fn: Callable,
-    keep_intermediary_data: bool = False
+    keep_intermediary_data: bool = False,
+    keep_all_timesteps: bool = True,
 ) -> Tuple[Dict, Dict]:
     """Update function used in the scan implementation"""
 
-    rng_key, cells, K, gf_params, kernels_weight_per_channel, T = carry['fn_params']
-    rng_key, new_cells, field, potential = update_fn(rng_key, cells, K, gf_params, kernels_weight_per_channel, 1. / T)
+    cells, K, gf_params, kernels_weight_per_channel, T = carry['fn_params']
+    new_cells, field, potential = update_fn(x_rng_key, cells, K, gf_params, kernels_weight_per_channel, 1. / T)
 
     stat_props = carry['stats_properties']
     total_shift_idx = stat_props['total_shift_idx']
@@ -312,7 +313,7 @@ def _scan_fn(
     )
 
     new_carry = {
-        'fn_params': (rng_key, new_cells, K, gf_params, kernels_weight_per_channel, T),
+        'fn_params': (new_cells, K, gf_params, kernels_weight_per_channel, T),
         'stats_properties': {
             'total_shift_idx': total_shift_idx,
             'mass_centroid': mass_centroid,
@@ -320,24 +321,50 @@ def _scan_fn(
         }
     }
 
-    if keep_intermediary_data is True:
-        y = {'cells': cells, 'field': field, 'potential': potential, 'stats': stats}
+    if keep_all_timesteps is True:
+        if keep_intermediary_data is True:
+            y = {'cells': cells, 'field': field, 'potential': potential, 'stats': stats}
+        else:
+            y = {'stats': stats}
     else:
-        y = stats
+        y = {}
 
     return new_carry, y
+
+
+@functools.partial(jit, static_argnums=(2, 3, 4))
+def _scan_fn_without_stat(
+    state_carry: jnp.ndarray,
+    x_rng_key: jnp.ndarray,
+    update_fn: Callable,
+    keep_intermediary_data: bool = False,
+    keep_all_timesteps: bool = True,
+) -> Tuple[jnp.ndarray, Dict]:
+    """Update function used in the scan implementation"""
+
+    new_state_carry, field, potential = update_fn(x_rng_key, state_carry)
+
+    if keep_all_timesteps is True:
+        if keep_intermediary_data is True:
+            y = {'cells': state_carry, 'field': field, 'potential': potential}
+        else:
+            y = {'cells': state_carry}
+    else:
+        y = {}
+
+    return new_state_carry, y
 
 
 ###
 # Differentiable functions
 ###
 def make_pipeline_fn(
-    max_iter: int,
+    max_run_iter: int,
     dt: float,
     apply_fn: Callable,
-    loss_fn: Callable[[jax.random.KeyArray, Tuple, Tuple], Tuple[jax.random.KeyArray, jnp.ndarray]],
+    loss_fn: Callable[[jax.random.KeyArray, Tuple, Tuple], Tuple[jnp.ndarray, ...]],
     keep_intermediary_data: bool = False,
-    keep_all_timesteps: bool = False,
+    keep_all_timesteps: bool = True,
 ):
     @jax.jit
     def fn(rng_key, params, variables, state0, targets):
@@ -382,57 +409,38 @@ def make_pipeline_fn(
         )
 
         # The number of iterations is controlled by the number of PRNG keys
-        rng_key, *subkeys = jax.random.split(rng_key, max_iter + 1)
+        rng_key, *subkeys = jax.random.split(rng_key, max_run_iter + 1)
         final_state_carry, preds = lax.scan(fn, state0, jnp.array(subkeys))
 
-        if keep_all_timesteps is True:
-            loss, rng_key, *rest = loss_fn(rng_key, preds, targets)
-        else:
-            loss, rng_key, *rest = loss_fn(rng_key, (final_state_carry, ), targets)
+        if keep_all_timesteps is False:
+            preds = {'cells': final_state_carry}
+        loss, *rest = loss_fn(rng_key, preds, targets)
 
-        return loss, (rng_key, rest)
+        return loss, rest
 
     return fn
 
 
-@functools.partial(jit, static_argnums=(2, 3, 4))
-def _scan_fn_without_stat(
-    state_carry: jnp.ndarray,
-    rng_key: jnp.ndarray,
-    update_fn: Callable,
-    keep_intermediary_data: bool = False,
-    keep_all_timesteps: bool = False,
-) -> Tuple[Dict, Optional[Tuple]]:
-    """Update function used in the scan implementation"""
+def make_gradient_fn(pipeline_fn: Callable, normalize: bool = True) -> Callable:
+    """Make the gradient function
 
-    _, new_state_carry, field, potential = update_fn(rng_key, state_carry)
+    Args:
+        pipeline_fn: Leniax pipeline function which run a full simulation and compute a loss
+        normalize: Set to ``True`` to normalize each gradient respectively
+    """
+    grads_fn = jax.value_and_grad(pipeline_fn, argnums=(1), has_aux=True)
 
-    if keep_all_timesteps is True:
-        if keep_intermediary_data is True:
-            y = (new_state_carry, field, potential)
-        else:
-            y = (new_state_carry, None, None)
-    else:
-        y = None
-
-    return new_state_carry, y
-
-
-def make_gradient_fn(pipeline_fn: Callable, normalize: bool = True):
     @jax.jit
-    def fn(rng_key, params, variables, state0, targets):
-        grads_fn = jax.value_and_grad(pipeline_fn, argnums=(1), has_aux=True)
+    def fn(rng_key: jnp.ndarray, params: Dict, variables: Dict, state0: jnp.ndarray, targets: Dict):
         (loss, aux), grads = grads_fn(rng_key, params, variables, state0, targets)
-        rng_key = aux[0]
-        rest = aux[1]
 
         if normalize is True:
-
-            def normalize_fn(g):
-                return g / (jnp.linalg.norm(g) + 1e-8)
-
             grads = tree_map(normalize_fn, grads)
 
-        return (rng_key, loss, rest), grads
+        return (loss, aux), grads
 
     return fn
+
+
+def normalize_fn(g):
+    return g / (jnp.linalg.norm(g) + 1e-8)

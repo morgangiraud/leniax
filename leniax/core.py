@@ -7,8 +7,7 @@ from jax import lax, jit
 import jax.numpy as jnp
 from typing import Callable, Tuple, Optional
 
-GetStateCallableType = Callable[[jax.random.KeyArray, jnp.ndarray, jnp.ndarray, jnp.ndarray],
-                                Tuple[jax.random.KeyArray, jnp.ndarray], ]
+GetStateCallableType = Callable[[jax.random.KeyArray, jnp.ndarray, jnp.ndarray, jnp.ndarray], jnp.ndarray]
 
 
 @functools.partial(jit, static_argnums=(6, 7, 8))
@@ -22,7 +21,7 @@ def update(
     get_potential_fn: Callable,
     get_field_fn: Callable,
     get_state_fn: GetStateCallableType,
-) -> Tuple[jax.random.KeyArray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Update the cells state
 
     Jitted function with static argnums. Use functools.partial to set the different function.
@@ -45,9 +44,9 @@ def update(
 
     potential = get_potential_fn(state, K)
     field = get_field_fn(potential, gf_params, kernels_weight_per_channel)
-    rng_key, state = get_state_fn(rng_key, state, field, dt)
+    state = get_state_fn(rng_key, state, field, dt)
 
-    return rng_key, state, field, potential
+    return state, field, potential
 
 
 def get_potential_fft(
@@ -207,7 +206,7 @@ def get_state(
     state: jnp.ndarray,
     field: jnp.ndarray,
     dt: jnp.ndarray,
-) -> Tuple[jax.random.KeyArray, jnp.ndarray]:
+) -> jnp.ndarray:
     """Compute the new cells state using the original Lenia formula
 
     Args:
@@ -229,7 +228,7 @@ def get_state(
     zero = new_state - lax.stop_gradient(new_state)
     out = zero + lax.stop_gradient(clipped_cells)
 
-    return rng_key, out
+    return out
 
 
 def get_state_v2(
@@ -237,7 +236,7 @@ def get_state_v2(
     state: jnp.ndarray,
     field: jnp.ndarray,
     dt: jnp.ndarray,
-) -> Tuple[jax.random.KeyArray, jnp.ndarray]:
+) -> jnp.ndarray:
     """Compute the new cells state using the asymptotic Lenia formula
 
     Args:
@@ -254,7 +253,7 @@ def get_state_v2(
     """
     new_state = state * (1 - dt) + dt * field
 
-    return rng_key, new_state
+    return new_state
 
 
 def get_state_simple(
@@ -262,7 +261,7 @@ def get_state_simple(
     state: jnp.ndarray,
     field: jnp.ndarray,
     dt: jnp.ndarray,
-) -> Tuple[jax.random.KeyArray, jnp.ndarray]:
+) -> jnp.ndarray:
     """Compute the new cells state by simply adding the field directly
 
     Args:
@@ -276,7 +275,7 @@ def get_state_simple(
     """
     new_state = state + dt * field
 
-    return rng_key, new_state
+    return new_state
 
 
 register = {

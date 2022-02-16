@@ -55,7 +55,7 @@ def run(omegaConf: DictConfig) -> None:
     # All the arrays are of shape [nb_max_iter, N, C, world_dims...]
     logging.info("Simulation: start.")
     start_time = time.time()
-    rng_key, all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
+    all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
         rng_key,
         config,
         use_init_cells=False,

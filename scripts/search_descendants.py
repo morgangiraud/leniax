@@ -46,7 +46,7 @@ def launch(omegaConf: DictConfig) -> None:
             rng_key = leniax_utils.seed_everything(tmp_config['run_params']['seed'])
 
             t0 = time.time()
-            _, (best, nb_init_done) = leniax_helpers.search_for_init(rng_key, tmp_config, fft=True)
+            best, nb_init_done = leniax_helpers.search_for_init(rng_key, tmp_config, fft=True)
             print(f"Init search done in {time.time() - t0} (nb_inits done: {nb_init_done})")
 
             all_cells = best['all_cells'][:int(best['N']), 0]

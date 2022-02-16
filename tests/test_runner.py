@@ -62,7 +62,7 @@ class TestRunner(unittest.TestCase):
 
         # jax.profiler.start_trace("/tmp/tensorboard")
         t0 = time.time()
-        rng_key1, stats1, _ = leniax_runner.run_scan_mem_optimized(
+        stats1, _ = leniax_runner.run_scan_mem_optimized(
             rng_key1,
             *dynamic_args1,
             max_run_iter,
@@ -74,7 +74,7 @@ class TestRunner(unittest.TestCase):
         delta_t = time.time() - t0
 
         t0 = time.time()
-        rng_key2, stats2, _ = leniax_runner.run_scan_mem_optimized(
+        stats2, _ = leniax_runner.run_scan_mem_optimized(
             rng_key2,
             *dynamic_args2,
             max_run_iter,
@@ -113,7 +113,7 @@ class TestRunner(unittest.TestCase):
         kernels_weight_per_channel1 = mapping.get_kernels_weight_per_channel()
 
         t0 = time.time()
-        rng_key, out1, _, _, _ = leniax_runner.run_scan(
+        out1, _, _, _ = leniax_runner.run_scan(
             rng_key, cells1, K1, gf_params1, kernels_weight_per_channel1, T, max_run_iter, R, update_fn, compute_stats_fn
         )
         out1.block_until_ready()
@@ -126,7 +126,7 @@ class TestRunner(unittest.TestCase):
         kernels_weight_per_channel2 = mapping.get_kernels_weight_per_channel()
 
         t0 = time.time()
-        rng_key, out2, _, _, _ = leniax_runner.run_scan(
+        out2, _, _, _ = leniax_runner.run_scan(
             rng_key, cells2, K2, gf_params2, kernels_weight_per_channel2, T, max_run_iter, R, update_fn, compute_stats_fn
         )
         out2.block_until_ready()

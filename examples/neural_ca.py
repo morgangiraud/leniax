@@ -55,8 +55,7 @@ class CAModel(nn.Module):
         dx = self.conv1(y)
         dx = jnp.moveaxis(dx, -1, 1)
 
-        rng_key, subkey = jax.random.split(rng_key)
-        update_mask = jax.random.uniform(subkey, dx[:, :1, :, :].shape) <= self.fire_rate
+        update_mask = jax.random.uniform(rng_key, dx[:, :1, :, :].shape) <= self.fire_rate
 
         field = dx * jnp.array(update_mask, jnp.float32)
         x += dt * field
@@ -64,23 +63,22 @@ class CAModel(nn.Module):
         post_life_mask = get_jax_living_mask(x)
         life_mask = pre_life_mask & post_life_mask
 
-        return rng_key, x * jnp.array(life_mask, dtype=jnp.float32), potential, field
+        return x * jnp.array(life_mask, dtype=jnp.float32), potential, field
 
 
 def all_states_loss_fn(rng_key, preds, targets):
-    all_cells = preds[0]  # [N_iter, N_init, C, H, W]
+    all_cells = preds['cells']  # [N_iter, N_init, C, H, W]
     nb_steps = all_cells.shape[0]
-    x_true = targets[0]  # [1, 4, H, W]
+    x_true = targets['cells']  # [1, 4, H, W]
 
-    rng_key, subkey = jax.random.split(rng_key)
-    iter_idx = jax.random.randint(subkey, [], int(0.8 * nb_steps), nb_steps)
+    iter_idx = jax.random.randint(rng_key, [], int(0.8 * nb_steps), nb_steps)
     x = all_cells[iter_idx, :, :4]  # [N_init, 4, H, W]
 
     diffs = jnp.square(x - x_true)  # [N_init, C, H, W]
     batch_diffs = jnp.mean(diffs, axis=[-3, -2, -1])  # [N_init]
     loss = jnp.mean(batch_diffs)  # []
 
-    return loss, rng_key, x
+    return loss, x
 
 
 ###
@@ -123,7 +121,7 @@ def run(omegaConf: DictConfig) -> None:
     img = np.float32(img) / 255.
     img = jnp.pad(img, pad_width=[[p, p], [p, p], [0, 0]])
     img = jnp.moveaxis(img, -1, 0)[jnp.newaxis]  # [1, C, H, W]
-    targets = (img, None, None)
+    targets = {'cells': img}
     ###
     # We define the final kernel K
     ###
@@ -163,7 +161,8 @@ def run(omegaConf: DictConfig) -> None:
         params = get_params(opt_state)
 
         # We compute the gradients on a batch.
-        (rng_key, loss, rest), grads = gradient(rng_key, params, vars, init_cells, targets)
+        rng_key, subkey = jax.random.split(rng_key)
+        (loss, aux), grads = gradient(subkey, params, vars, init_cells, targets)
 
         # Finally we update our parameters
         opt_state = opt_update(i, grads, opt_state)
@@ -175,7 +174,7 @@ def run(omegaConf: DictConfig) -> None:
             logging.info(F"Iteration {i}, loss: {loss}")
 
             with train_summary_writer.as_default():
-                final_cells = rest[0]
+                final_cells = aux[0]
                 vis0 = jnp.hstack(jnp.moveaxis(init_cells[:, :4], 1, -1))
                 vis1 = jnp.hstack(jnp.moveaxis(final_cells[:, :4], 1, -1))
                 vis = np.vstack([vis0, vis1])

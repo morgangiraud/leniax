@@ -167,7 +167,7 @@ class TestCore(unittest.TestCase):
         dt1 = jnp.array(1. / 3.)
 
         t0 = time.time()
-        rng_key, out1 = jit_fn(rng_key, cells1, field1, dt1)
+        out1 = jit_fn(rng_key, cells1, field1, dt1)
         out1.block_until_ready()
         delta_t = time.time() - t0
 
@@ -176,7 +176,7 @@ class TestCore(unittest.TestCase):
         dt2 = jnp.array(1. / 6.)
 
         t0 = time.time()
-        rng_key, out2 = jit_fn(rng_key, cells2, field2, dt2)
+        out2 = jit_fn(rng_key, cells2, field2, dt2)
         out2.block_until_ready()
         delta_t_compiled = time.time() - t0
 
@@ -195,7 +195,7 @@ class TestCore(unittest.TestCase):
         dt1 = jnp.array(1. / 3.)
 
         t0 = time.time()
-        rng_key, out1 = jit_fn(rng_key, cells1, field1, dt1)
+        out1 = jit_fn(rng_key, cells1, field1, dt1)
         out1.block_until_ready()
         delta_t = time.time() - t0
 
@@ -204,7 +204,7 @@ class TestCore(unittest.TestCase):
         dt2 = jnp.array(1. / 6.)
 
         t0 = time.time()
-        rng_key, out2 = jit_fn(rng_key, cells2, field2, dt2)
+        out2 = jit_fn(rng_key, cells2, field2, dt2)
         out2.block_until_ready()
         delta_t_compiled = time.time() - t0
 

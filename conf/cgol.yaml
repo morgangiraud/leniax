@@ -1,0 +1,29 @@
+kernels_params:
+- c_in: 0
+  c_out: 0
+  gf_params: []
+  gf_slug: identity
+  h: 1
+  k_params: []
+  k_slug: cgol_2d
+  kf_slug: ''
+  kf_params: []
+other:
+  log_level: 20
+render_params:
+  pixel_border_size: 0
+  pixel_size: 2
+  world_size:
+  - 512
+  - 512
+run_params:
+  max_run_iter: 1024
+  seed: 1
+version: 2
+world_params:
+  R: 13
+  T: 10
+  nb_channels: 1
+  nb_dims: 2
+  scale: 1.0
+  get_state_fn_slug: 'get_state_cgol'

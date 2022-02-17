@@ -37,8 +37,9 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_array_almost_equal(cells, cells_out, decimal=4)
 
         new_st = leniax_loader.compress_array(cells_out)
+        cells_out = leniax_loader.decompress_array(new_st, 1)
 
-        assert st == new_st
+        np.testing.assert_array_almost_equal(cells, cells_out, decimal=4)
 
     def test_make_array_compressible(self):
         cells = np.arange(0, 1e5, 100) / 1e5

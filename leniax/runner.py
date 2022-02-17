@@ -23,7 +23,8 @@ def run(
     max_run_iter: int,
     R: float,
     update_fn: Callable,
-    compute_stats_fn: Callable
+    compute_stats_fn: Callable,
+    stat_trunc: bool = False,
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict[str, jnp.ndarray]]:
     """Simulate a single configuration
 
@@ -40,6 +41,7 @@ def run(
         R: Main kernel Resolution
         update_fn: Function used to compute the new cell state
         compute_stats_fn: Function used to compute the statistics
+        stat_trunc: Set to ``True`` to truncate run based on its statistics
 
     Returns:
         A 5-tuple of arrays representing a jax PRNG key, the updated cells state,
@@ -98,7 +100,7 @@ def run(
         should_continue *= should_continue_cond
 
         # We avoid dismissing a simulation during the init period
-        if current_iter >= START_CHECK_STOP and should_continue == 0:
+        if stat_trunc is True and current_iter >= START_CHECK_STOP and should_continue == 0:
             break
 
     # To keep the same number of elements per array
@@ -411,9 +413,9 @@ def make_pipeline_fn(
         # The number of iterations is controlled by the number of PRNG keys
         rng_key, *subkeys = jax.random.split(rng_key, max_run_iter + 1)
         final_state_carry, preds = lax.scan(fn, state0, jnp.array(subkeys))
-
         if keep_all_timesteps is False:
             preds = {'cells': final_state_carry}
+
         loss, *rest = loss_fn(rng_key, preds, targets)
 
         return loss, rest

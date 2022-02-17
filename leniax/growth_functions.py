@@ -243,6 +243,16 @@ def triangle(params: jnp.ndarray, X: jnp.ndarray):
     return 2 * out - 1
 
 
+def identity(params: jnp.ndarray, X: jnp.ndarray):
+    """Identity function
+
+    Args:
+        params: Kernel function parameters
+        X: Raw kernel
+    """
+    return X
+
+
 register = {
     'poly_quad4': poly_quad4,
     'gaussian': gaussian,
@@ -250,4 +260,5 @@ register = {
     'step': step,
     'staircase': staircase,
     'triangle': triangle,
+    'identity': identity
 }

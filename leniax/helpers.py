@@ -177,7 +177,7 @@ def init_and_run(
         )
     else:
         all_cells, all_fields, all_potentials, stats_dict = leniax_runner.run(
-            rng_key, cells, K, gf_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
+            rng_key, cells, K, gf_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn, stat_trunc
         )  # [nb_iter, nb_init, C, world_dims...]
     stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
 
@@ -607,7 +607,8 @@ def plot_kernels(save_dir: str, config: Dict):
     all_kfs = []
     all_gfs = []
     for param in config['kernels_params']:
-        all_kfs.append(kf_register[param['kf_slug']](param['kf_params'], x))
+        if param['kf_slug'] != '':
+            all_kfs.append(kf_register[param['kf_slug']](param['kf_params'], x))
         all_gfs.append(gf_register[param['gf_slug']](param["gf_params"], x) * param['h'])
 
     # Plot kernels image where color represent intensity
@@ -651,9 +652,10 @@ def plot_kernels(save_dir: str, config: Dict):
     fullpath = f"{save_dir}/Ks_graph.png"
     fig, ax = plt.subplots(1, 3, figsize=(10, 2))
 
-    ax[0].plot(x, jnp.asarray(all_kfs).T)
-    ax[0].axhline(y=0, color='grey', linestyle='dotted')
-    ax[0].title.set_text('Kernel functions')
+    if len(all_kfs) > 0:
+        ax[0].plot(x, jnp.asarray(all_kfs).T)
+        ax[0].axhline(y=0, color='grey', linestyle='dotted')
+        ax[0].title.set_text('Kernel functions')
 
     if len(Ks.shape) == 3:
         ax[1].plot(range(K_size), Ks[:, K_mid, :].T)

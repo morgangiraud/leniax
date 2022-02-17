@@ -258,6 +258,7 @@ def ellipse_2d(R, k_params: List, kf_slug: str, kf_params: jnp.ndarray) -> jnp.n
 
     return kernel
 
+
 def oriented_ellipse_2d(R, k_params: List, kf_slug: str, kf_params: jnp.ndarray) -> jnp.ndarray:
     """Build a circle kernel
 
@@ -297,11 +298,8 @@ def oriented_ellipse_2d(R, k_params: List, kf_slug: str, kf_params: jnp.ndarray)
     # We then crop to distances < 1 which defines the "size" of the kernel
     raw_kernel = kf_register[kf_slug](kf_params, B_dist % 1)
     kernel = (distances < 1) * raw_kernel * bs_mat  # type: ignore
-    kernel = kernel / kernel.sum()
-
-    grad_coord = rot_centered_coords[0].at[rot_centered_coords[0] < -0.01].set(-1)
-    grad_coord = grad_coord.at[grad_coord > 0.01].set(1)
-    kernel = kernel * grad_coord
+    kernel = kernel * rot_centered_coords[0]
+    kernel = kernel / jnp.absolute(kernel).sum()
 
     kernel = kernel[jnp.newaxis, ...]  # [1, dim_0, dim_1, ...]
 

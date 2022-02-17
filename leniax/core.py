@@ -216,7 +216,7 @@ def get_state(
         dt: Update rate ``[N]``
 
     Returns:
-        A 2-tuple representing a jax PRNG key and the new cells state
+        The new cells state
 
     Reference:
         https://arxiv.org/abs/1812.05433
@@ -246,7 +246,7 @@ def get_state_v2(
         dt: Update rate ``[N]``
 
     Returns:
-        A 2-tuple representing a jax PRNG key and the new cells state
+        The new cells state
 
     Reference:
         https://direct.mit.edu/isal/proceedings/isal/91/102916
@@ -271,7 +271,7 @@ def get_state_simple(
         dt: Update rate ``[N]`` **(not used)**
 
     Returns:
-        A 2-tuple representing a jax PRNG key and the new cells state
+        The new cells state
     """
     new_state = state + dt * field
 

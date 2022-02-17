@@ -1,5 +1,5 @@
 world_params:
-  update_fn_version: 'v1'
+  get_state_fn_slug: 'v1'
   weighted_average: true
   nb_dims: 2
   nb_channels: 1

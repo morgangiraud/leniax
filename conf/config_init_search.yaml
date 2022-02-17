@@ -4,7 +4,7 @@ defaults:
   - run_params: init_search
 
 world_params:
-  update_fn_version: 'v1'
+  get_state_fn_slug: 'v1'
   R: 13
 
 render_params:

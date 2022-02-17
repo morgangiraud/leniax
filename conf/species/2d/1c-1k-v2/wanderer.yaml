@@ -3,7 +3,7 @@ world_params:
   nb_channels: 1
   R: 13
   T: 10
-  update_fn_version: 'v2'
+  get_state_fn_slug: 'v2'
 render_params:
   pixel_size_power2: 2
   size_power2: 7

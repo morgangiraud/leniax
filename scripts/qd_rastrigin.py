@@ -75,7 +75,7 @@ def run(omegaConf: DictConfig) -> None:
     eval_fn = functools.partial(leniax_qd.eval_debug, fitness_coef=-1.)
 
     # QD search
-    rng_key, metrics = leniax_qd.run_qd_search(rng_key, config, optimizer, fitness_domain, eval_fn, log_freq=1, n_workers=0)
+    metrics = leniax_qd.run_qd_search(rng_key, config, optimizer, fitness_domain, eval_fn, log_freq=1, n_workers=0)
 
     # Save results
     save_dir = os.getcwd()

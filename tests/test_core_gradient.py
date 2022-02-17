@@ -19,6 +19,8 @@ class TestCore(unittest.TestCase):
             omegaConf = compose(config_name="orbium-test")
             config = get_container(omegaConf, fixture_dir)
 
+        rng_key = jax.random.PRNGKey(0)
+
         cells, K, mapping = leniax_helpers.init(config)
         gf_params = mapping.get_gf_params()
         kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
@@ -26,31 +28,31 @@ class TestCore(unittest.TestCase):
 
         world_params = config['world_params']
         dt = 1. / jnp.array(world_params['T'])
-        update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
-        update_fn = leniax_helpers.build_update_fn(K.shape, mapping, update_fn_version)
+        get_state_fn_slug = world_params['get_state_fn_slug'] if 'get_state_fn_slug' in world_params else 'v1'
+        update_fn = leniax_helpers.build_update_fn(K.shape, mapping, get_state_fn_slug)
 
-        def apply_update(cells, K, gf_params, kernels_weight_per_channel, dt, target):
-            cells_out, _, _ = update_fn(cells, K, gf_params, kernels_weight_per_channel, dt)
+        def apply_update(rng_key, cells, K, gf_params, kernels_weight_per_channel, dt, target):
+            cells_out, _, _ = update_fn(rng_key, cells, K, gf_params, kernels_weight_per_channel, dt)
             error = jnp.sum((cells_out - target)**2)
 
             return error
 
-        update_fn_cellsgrad = jax.grad(apply_update, argnums=0)
-        update_fn_Kgrad = jax.grad(apply_update, argnums=1)
-        update_fn_gfngrad = jax.grad(apply_update, argnums=2)
-        update_fn_kernelsweightgrad = jax.grad(apply_update, argnums=3)
+        update_fn_cellsgrad = jax.grad(apply_update, argnums=1)
+        update_fn_Kgrad = jax.grad(apply_update, argnums=2)
+        update_fn_gfngrad = jax.grad(apply_update, argnums=3)
+        update_fn_kernelsweightgrad = jax.grad(apply_update, argnums=4)
 
         # out = update_fn(cells, K, gf_params, kernels_weight_per_channel, dt)
-        out_grad = update_fn_cellsgrad(cells, K, gf_params, kernels_weight_per_channel, dt, target)
+        out_grad = update_fn_cellsgrad(rng_key, cells, K, gf_params, kernels_weight_per_channel, dt, target)
         assert float(jnp.sum(out_grad)) != 0.
 
-        out_grad = update_fn_Kgrad(cells, K, gf_params, kernels_weight_per_channel, dt, target)
+        out_grad = update_fn_Kgrad(rng_key, cells, K, gf_params, kernels_weight_per_channel, dt, target)
         assert float(jnp.real(jnp.sum(out_grad))) != 0.
 
-        out_grad = update_fn_gfngrad(cells, K, gf_params, kernels_weight_per_channel, dt, target)
+        out_grad = update_fn_gfngrad(rng_key, cells, K, gf_params, kernels_weight_per_channel, dt, target)
         assert float(jnp.sum(out_grad)) != 0.
 
-        out_grad = update_fn_kernelsweightgrad(cells, K, gf_params, kernels_weight_per_channel, dt, target)
+        out_grad = update_fn_kernelsweightgrad(rng_key, cells, K, gf_params, kernels_weight_per_channel, dt, target)
         assert float(jnp.sum(out_grad)) != 0.
 
     def test_get_field_grad(self):
@@ -129,16 +131,18 @@ class TestCore(unittest.TestCase):
         out_grad = weighted_mean_weightsgrad(field, weights, target)
         assert float(jnp.sum(out_grad)) != 0.
 
-    def test_update_state_v1_grad(self):
-        def apply_update(cells, field, dt, target):
-            cells = leniax_core.update_state(cells, field, dt)
-            out = leniax_core.update_state(cells, field, dt)
+    def test_get_state_v1_grad(self):
+        rng_key = jax.random.PRNGKey(0)
+
+        def apply_update(rng_key, cells, field, dt, target):
+            cells = leniax_core.get_state(rng_key, cells, field, dt)
+            out = leniax_core.get_state(rng_key, cells, field, dt)
             error = jnp.sum((out - target)**2)
 
             return error
 
-        update_state_grad = jax.grad(apply_update, argnums=0)
-        update_state_fieldgrad = jax.grad(apply_update, argnums=1)
+        get_state_grad = jax.grad(apply_update, argnums=1)
+        get_state_fieldgrad = jax.grad(apply_update, argnums=2)
 
         world_shape = [2, 2]
         cells = jnp.ones(world_shape) * .5
@@ -147,23 +151,26 @@ class TestCore(unittest.TestCase):
         dt = jnp.array(1. / 3.)
         target = jnp.ones(world_shape) * 0.7
 
-        # out = leniax_core.update_state(cells, field, dt)
-        out_grad = update_state_grad(cells, field, dt, target)
+        # out = leniax_core.get_state(cells, field, dt)
+        out_grad = get_state_grad(rng_key, cells, field, dt, target)
         assert float(jnp.sum(out_grad)) != 0.
 
-        out_grad = update_state_fieldgrad(cells, field, dt, target)
+        out_grad = get_state_fieldgrad(rng_key, cells, field, dt, target)
         assert float(jnp.sum(out_grad)) != 0.
 
-    def test_update_state_v2_grad(self):
-        def apply_update(cells, field, dt, target):
-            cells = leniax_core.update_state_v2(cells, field, dt)
-            out = leniax_core.update_state_v2(cells, field, dt)
+    def test_get_state_v2_grad(self):
+
+        rng_key = jax.random.PRNGKey(0)
+
+        def apply_update(rng_key, cells, field, dt, target):
+            cells = leniax_core.get_state_v2(rng_key, cells, field, dt)
+            out = leniax_core.get_state_v2(rng_key, cells, field, dt)
             error = jnp.sum((out - target)**2)
 
             return error
 
-        update_state_cellsgrad = jax.grad(apply_update, argnums=0)
-        update_state_fieldgrad = jax.grad(apply_update, argnums=1)
+        get_state_cellsgrad = jax.grad(apply_update, argnums=1)
+        get_state_fieldgrad = jax.grad(apply_update, argnums=2)
 
         world_shape = [2, 2]
         cells = jnp.ones(world_shape) * .5
@@ -171,9 +178,9 @@ class TestCore(unittest.TestCase):
         dt = jnp.array(1. / 3.)
         target = jnp.ones(world_shape) * 0.7
 
-        # out = leniax_core.update_state_v2(cells, field, dt)
-        out_grad = update_state_cellsgrad(cells, field, dt, target)
+        # out = leniax_core.get_state_v2(cells, field, dt)
+        out_grad = get_state_cellsgrad(rng_key, cells, field, dt, target)
         assert float(jnp.sum(out_grad)) != 0.
 
-        out_grad = update_state_fieldgrad(cells, field, dt, target)
+        out_grad = get_state_fieldgrad(rng_key, cells, field, dt, target)
         assert float(jnp.sum(out_grad)) != 0.

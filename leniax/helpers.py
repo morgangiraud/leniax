@@ -14,7 +14,7 @@ import numpy as np
 import scipy
 import jax
 import jax.numpy as jnp
-from typing import Callable, Dict, Tuple, List, Union
+from typing import Callable, Dict, Tuple, List, Union, Optional
 import matplotlib.pyplot as plt
 
 from . import core as leniax_core
@@ -129,6 +129,7 @@ def create_init_cells(
 
 
 def init_and_run(
+    rng_key: jax.random.KeyArray,
     config: Dict,
     use_init_cells: bool = True,
     with_jit: bool = True,
@@ -142,6 +143,7 @@ def init_and_run(
     - ``stat_trunc=False`` multiple initializations means different simulation length measured by the statistics.
 
     Args:
+        rng_key: JAX PRNG key.
         config: Lenia configuration
         use_init_cells: Set to ``True`` to use the ``init_cells`` configuration property.
         with_jit: Set to ``True`` to use the jitted scan implementation
@@ -159,23 +161,23 @@ def init_and_run(
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
 
     world_params = config['world_params']
-    update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
+    get_state_fn_slug = world_params['get_state_fn_slug'] if 'get_state_fn_slug' in world_params else 'v1'
     weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
     R = config['world_params']['R']
     T = jnp.array(config['world_params']['T'], dtype=jnp.float32)
 
     max_run_iter = config['run_params']['max_run_iter']
 
-    update_fn = build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
+    update_fn = build_update_fn(K.shape, mapping, get_state_fn_slug, weighted_average, fft)
     compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     if with_jit is True:
         all_cells, all_fields, all_potentials, stats_dict = leniax_runner.run_scan(
-            cells, K, gf_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
+            rng_key, cells, K, gf_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
         )
     else:
         all_cells, all_fields, all_potentials, stats_dict = leniax_runner.run(
-            cells, K, gf_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn
+            rng_key, cells, K, gf_params, kernels_weight_per_channel, T, max_run_iter, R, update_fn, compute_stats_fn, stat_trunc
         )  # [nb_iter, nb_init, C, world_dims...]
     stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
 
@@ -194,7 +196,7 @@ def search_for_mutation(
     use_init_cells: bool = True,
     fft: bool = True,
     mutation_rate: float = 1e-5,
-) -> Tuple[jax.random.KeyArray, Tuple[Dict, int]]:
+) -> Tuple[Dict, int]:
     """Search for a stable mutation
 
     Args:
@@ -206,7 +208,7 @@ def search_for_mutation(
         mutation_rate: Mutation rate.
 
     Returns:
-        The new rng_key and a 2-tuple of a dictionnary with the best run data and
+        A 2-tuple of a dictionnary with the best run data and
         the number of runs made to find it
     """
     render_params = config['render_params']
@@ -218,12 +220,17 @@ def search_for_mutation(
 
     best_run = {}
     current_max = 0
+    nb_genes = len(config['genotype'])
+    rng_key, *subkeys = jax.random.split(rng_key, nb_mut_search * nb_genes + 1)
     for i in range(nb_mut_search):
         copied_config = copy.deepcopy(config)
-        for gene in config['genotype']:
+        for gene_i, gene in enumerate(config['genotype']):
             val = leniax_utils.get_param(copied_config, gene['key'])
-            val += np.random.normal(0., mutation_rate)
-            leniax_utils.set_param(copied_config, gene['key'], val)
+
+            subkey = subkeys[i * nb_genes + gene_i]
+            val += jax.random.normal(subkey, dtype=jnp.float32) * mutation_rate
+
+            leniax_utils.set_param(copied_config, gene['key'], float(val))
 
         total_iter_done = 0
         nb_iter_done = 0
@@ -233,8 +240,10 @@ def search_for_mutation(
             scaled_config['render_params']['world_size'] = [ws * 2**scale_power for ws in world_size]
             scaled_config['world_params']['scale'] = 2**scale_power
 
+            # We do not split the rng_key here, because we want to keep the exact same run
+            # while just changing the rendering size
             all_cells, _, _, stats_dict = init_and_run(
-                scaled_config, use_init_cells=use_init_cells, with_jit=True, fft=fft
+                rng_key, scaled_config, use_init_cells=use_init_cells, with_jit=True, fft=fft
             )
             all_cells = all_cells[:, 0]
             stats_dict['N'].block_until_ready()
@@ -255,14 +264,14 @@ def search_for_mutation(
         if total_iter_done >= max_run_iter * nb_scale_for_stability:
             break
 
-    return rng_key, (best_run, i)
+    return best_run, i
 
 
 def search_for_init(
     rng_key: jax.random.KeyArray,
     config: Dict,
     fft: bool = True,
-) -> Tuple[jax.random.KeyArray, Tuple[Dict, int]]:
+) -> Tuple[Dict, int]:
     """Search for a stable initial state
 
     Args:
@@ -271,12 +280,12 @@ def search_for_init(
         fft: Set to ``True`` to use FFT optimization.
 
     Returns:
-        The new rng_key and a 2-tuple of a dictionnary with the best run data and
+        A 2-tuple of a dictionnary with the best run data and
         the number of runs made to find it
     """
     world_params = config['world_params']
     nb_channels = world_params['nb_channels']
-    update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
+    get_state_fn_slug = world_params['get_state_fn_slug'] if 'get_state_fn_slug' in world_params else 'v1'
     weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
     R = world_params['R']
     T = jnp.array(world_params['T'], dtype=jnp.float32)
@@ -295,7 +304,7 @@ def search_for_init(
     K, mapping = leniax_kernels.get_kernels_and_mapping(kernels_params, world_size, nb_channels, R, fft)
     gf_params = mapping.get_gf_params()
     kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
-    update_fn = build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
+    update_fn = build_update_fn(K.shape, mapping, get_state_fn_slug, weighted_average, fft)
     compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
     nb_channels_to_init = nb_channels * nb_init_search
@@ -309,8 +318,10 @@ def search_for_init(
 
     best_run = {}
     current_max = 0
+    subkeys = jax.random.split(rng_key, nb_init_search)
     for i in range(nb_init_search):
         all_cells, _, _, all_stats = leniax_runner.run_scan(
+            subkeys[i],
             all_cells0_jnp[i],
             K,
             gf_params,
@@ -332,7 +343,7 @@ def search_for_init(
         if nb_iter_done >= max_run_iter:
             break
 
-    return rng_key, (best_run, i)
+    return best_run, i
 
 
 ###
@@ -341,7 +352,7 @@ def search_for_init(
 def build_update_fn(
     kernel_shape: Tuple[int, ...],
     mapping: leniax_kernels.KernelMapping,
-    update_fn_version: str = 'v1',
+    get_state_fn_slug: str = 'v1',
     average_weight: bool = True,
     fft: bool = True,
 ) -> Callable:
@@ -352,7 +363,7 @@ def build_update_fn(
     Args:
         kernel_shape: Kernel shape.
         mapping: Mapping data.
-        update_fn_version: Which version of Lenia should be run
+        get_state_fn_slug: Which version of Lenia should be run
         fft: Set to ``True`` to use FFT optimization
 
     Returns:
@@ -360,14 +371,18 @@ def build_update_fn(
     """
     get_potential_fn = build_get_potential_fn(kernel_shape, mapping.true_channels, fft)
     get_field_fn = build_get_field_fn(mapping.cin_gfs, average_weight)
-    update_fn = leniax_core.update_register[update_fn_version]
+    get_state_fn = leniax_core.register[get_state_fn_slug]
 
     return functools.partial(
-        leniax_core.update, get_potential_fn=get_potential_fn, get_field_fn=get_field_fn, update_fn=update_fn
+        leniax_core.update, get_potential_fn=get_potential_fn, get_field_fn=get_field_fn, get_state_fn=get_state_fn
     )
 
 
-def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: jnp.ndarray, fft: bool = True) -> Callable:
+def build_get_potential_fn(
+    kernel_shape: Tuple[int, ...],
+    true_channels: Optional[jnp.ndarray] = None,
+    fft: bool = True,
+) -> Callable:
     """Construct an Leniax potential function
 
     A potential function allows one to compute the potential from a Lenia state.
@@ -389,14 +404,19 @@ def build_get_potential_fn(kernel_shape: Tuple[int, ...], true_channels: jnp.nda
 
         return functools.partial(
             leniax_core.get_potential_fft,
-            true_channels=true_channels,
             max_k_per_channel=max_k_per_channel,
             C=C,
-            wdims_axes=wdims_axes
+            wdims_axes=wdims_axes,
+            true_channels=true_channels,
         )
     else:
-        padding = jnp.array([[0, 0]] * 2 + [[dim // 2, dim // 2] for dim in kernel_shape[2:]])
-
+        pad_l = [[0, 0], [0, 0]]
+        for dim in kernel_shape[2:]:
+            if dim % 2 == 0:
+                pad_l += [[dim // 2, dim // 2 - 1]]
+            else:
+                pad_l += [[dim // 2, dim // 2]]
+        padding = jnp.array(pad_l)
         return functools.partial(leniax_core.get_potential, padding=padding, true_channels=true_channels)
 
 
@@ -576,18 +596,20 @@ def plot_kernels(save_dir: str, config: Dict):
 
     R = config['world_params']['R']
     scale = config['world_params']['scale']
+    C = config['world_params']['nb_channels']
 
     x = jnp.linspace(0, 1, 1000)
-    all_ks = []
+    Ks, _ = leniax_kernels.get_kernels_and_mapping(
+        config['kernels_params'], config['render_params']['world_size'], C, R, fft=False
+    )
+    Ks = Ks[:, 0]
+    nb_Ks = Ks.shape[0]
     all_kfs = []
     all_gfs = []
     for param in config['kernels_params']:
-        k = leniax_kernels.register[param['k_slug']](R * scale, param['k_params'], param['kf_slug'], param['kf_params'])
-        all_ks.append(k)
-        all_kfs.append(kf_register[param['kf_slug']](param['kf_params'], x))
+        if param['kf_slug'] != '':
+            all_kfs.append(kf_register[param['kf_slug']](param['kf_params'], x))
         all_gfs.append(gf_register[param['gf_slug']](param["gf_params"], x) * param['h'])
-    Ks = leniax_utils.crop_zero(jnp.vstack(all_ks))
-    nb_Ks = Ks.shape[0]
 
     # Plot kernels image where color represent intensity
     rows = int(nb_Ks**0.5)
@@ -599,14 +621,14 @@ def plot_kernels(save_dir: str, config: Dict):
     K_size = Ks.shape[-1]
     K_mid = K_size // 2
     vmax = Ks.max()
+    vmin = Ks.min()
     fullpath = f"{save_dir}/Ks.png"
     if len(Ks.shape) == 3:
         # 2D kernels
-
         for i in range(nb_Ks):
             axes.append(fig.add_subplot(rows, cols, i + 1))
             axes[-1].title.set_text(f"kernel K{i}")
-            plt.imshow(Ks[i], cmap='viridis', interpolation="nearest", vmin=0, vmax=vmax)
+            plt.imshow(Ks[i], cmap='viridis', interpolation="nearest", vmin=vmin, vmax=vmax)
     elif len(Ks.shape) == 4:
         # 3D kernels
         for i in range(nb_Ks):
@@ -630,9 +652,10 @@ def plot_kernels(save_dir: str, config: Dict):
     fullpath = f"{save_dir}/Ks_graph.png"
     fig, ax = plt.subplots(1, 3, figsize=(10, 2))
 
-    ax[0].plot(x, jnp.asarray(all_kfs).T)
-    ax[0].axhline(y=0, color='grey', linestyle='dotted')
-    ax[0].title.set_text('Kernel functions')
+    if len(all_kfs) > 0:
+        ax[0].plot(x, jnp.asarray(all_kfs).T)
+        ax[0].axhline(y=0, color='grey', linestyle='dotted')
+        ax[0].title.set_text('Kernel functions')
 
     if len(Ks.shape) == 3:
         ax[1].plot(range(K_size), Ks[:, K_mid, :].T)

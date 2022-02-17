@@ -5,7 +5,7 @@ world_params:
   nb_channels: 1
   nb_dims: 3
   scale: 1.0
-  update_fn_version: v1
+  get_state_fn_slug: v1
   weighted_average: true
 
 # Lenia kernels parameters

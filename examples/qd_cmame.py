@@ -99,7 +99,7 @@ def run(omegaConf: DictConfig) -> None:
     # Finally we can launch the search
     # This function returns a new JAX PRNG key and the search metrics.
     # !!! The solutions are updated in the archive directly and are not returned.
-    rng_key, metrics = leniax_qd.run_qd_search(rng_key, config, optimizer, fitness_domain, eval_fn, log_freq=1, n_workers=-1)
+    metrics = leniax_qd.run_qd_search(rng_key, config, optimizer, fitness_domain, eval_fn, log_freq=1, n_workers=-1)
 
     # We save the whole configuration and the archive
     with open(f"{save_dir}/final.p", 'wb') as handle:

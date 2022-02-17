@@ -123,13 +123,17 @@ def get_kernels_and_mapping(
     kernels_per_channel = []
     true_channels = []
     for cin_kernel_list in mapping.cin_kernels:
-        K_tmp = kernels[jnp.array(cin_kernel_list)]  # [O=nb_kernel_per_channel, K_h, K_w]
+        if len(cin_kernel_list):
+            K_tmp = kernels[jnp.array(cin_kernel_list)]  # [O=nb_kernel_per_channel, K_h, K_w]
+        else:
+            K_tmp = jnp.zeros([0, K_h, K_w])
 
         # We create the mask
-        diff = max_k_per_channel - K_tmp.shape[0]
-        true_channels.append(jnp.array([True] * K_tmp.shape[0] + [False] * diff))
-        if diff > 0:
-            K_tmp = jnp.vstack([K_tmp, jnp.zeros([diff, K_h, K_w])])  # [O=max_k_per_channel, K_h, K_w]
+        nb_k = K_tmp.shape[0]
+        nb_missing = max_k_per_channel - nb_k
+        true_channels.append(jnp.array([True] * nb_k + [False] * nb_missing))
+        if nb_missing > 0:
+            K_tmp = jnp.vstack([K_tmp, jnp.zeros([nb_missing, K_h, K_w])])  # [O=max_k_per_channel, K_h, K_w]
 
         K_tmp = K_tmp[:, jnp.newaxis, ...]  # [O=max_k_per_channel, I=1, K_h, K_w]
         kernels_per_channel.append(K_tmp)
@@ -205,7 +209,106 @@ def circle_2d(R, k_params: List, kf_slug: str, kf_params: jnp.ndarray) -> jnp.nd
     return kernel
 
 
+def ellipse_2d(R, k_params: List, kf_slug: str, kf_params: jnp.ndarray) -> jnp.ndarray:
+    """Build a circle kernel
+
+    Args:
+        R: World radius
+        k_params: Kernel parameters
+        kf_slug: Kernel function slug
+        kf_params: Kernel function params
+
+    Returns:
+        A kernel of shape ``[1, world_dims...]``
+    """
+    r = k_params[0]
+    k_radius_px = math.ceil(r * R)
+    bs = jnp.array(k_params[1], dtype=jnp.float32)
+    a = k_params[2]
+    b = k_params[3]
+    theta = k_params[4] * jnp.pi
+
+    midpoint = jnp.array([k_radius_px, k_radius_px])
+    midpoint = midpoint.reshape([-1] + [1, 1])  # [nb_dims, 1, 1]
+    coords = jnp.indices([k_radius_px * 2, k_radius_px * 2])  # [nb_dims, dim_0, dim_1]
+    centered_coords = (coords - midpoint) / (r * R)  # [nb_dims, dim_0, dim_1]
+    # Rotated distances from the center of the grid
+    rot_centered_coords = jnp.stack([
+        centered_coords[0] * jnp.cos(theta) + centered_coords[1] * jnp.sin(theta),
+        -centered_coords[0] * jnp.sin(theta) + centered_coords[1] * jnp.cos(theta)
+    ])
+    distances = jnp.sqrt((rot_centered_coords[0] / a)**2 + (rot_centered_coords[1] / b)**2)
+
+    nb_b = bs.shape[0]
+    B_dist = nb_b * distances  # scale distances by the number of modes
+    bs_mat = bs[jnp.minimum(jnp.floor(B_dist).astype(int), nb_b - 1)]  # Define postions for each mode
+
+    # All kernel functions are defined in [0, 1] so we compute B_dist modulo 1 to make sure value lies in the good range
+    # Notice that those kernel functions should be positive and fk(0) = 0, fk(1) = 0
+    # We then crop to distances < 1 which defines the "size" of the kernel
+    raw_kernel = kf_register[kf_slug](kf_params, B_dist % 1)
+    kernel = (distances < 1) * raw_kernel * bs_mat  # type: ignore
+    kernel = kernel / kernel.sum()
+
+    grad_coord = rot_centered_coords[0].at[rot_centered_coords[0] < -0.01].set(-1)
+    grad_coord = grad_coord.at[grad_coord > 0.01].set(1)
+    kernel = kernel * grad_coord
+
+    kernel = kernel[jnp.newaxis, ...]  # [1, dim_0, dim_1, ...]
+
+    return kernel
+
+
+def oriented_ellipse_2d(R, k_params: List, kf_slug: str, kf_params: jnp.ndarray) -> jnp.ndarray:
+    """Build a circle kernel
+
+    Args:
+        R: World radius
+        k_params: Kernel parameters
+        kf_slug: Kernel function slug
+        kf_params: Kernel function params
+
+    Returns:
+        A kernel of shape ``[1, world_dims...]``
+    """
+    r = k_params[0]
+    k_radius_px = math.ceil(r * R)
+    bs = jnp.array(k_params[1], dtype=jnp.float32)
+    a = k_params[2]
+    b = k_params[3]
+    theta = k_params[4] * jnp.pi
+
+    midpoint = jnp.array([k_radius_px, k_radius_px])
+    midpoint = midpoint.reshape([-1] + [1, 1])  # [nb_dims, 1, 1]
+    coords = jnp.indices([k_radius_px * 2, k_radius_px * 2])  # [nb_dims, dim_0, dim_1]
+    centered_coords = (coords - midpoint) / (r * R)  # [nb_dims, dim_0, dim_1]
+    # Rotated distances from the center of the grid
+    rot_centered_coords = jnp.stack([
+        centered_coords[0] * jnp.cos(theta) + centered_coords[1] * jnp.sin(theta),
+        -centered_coords[0] * jnp.sin(theta) + centered_coords[1] * jnp.cos(theta)
+    ])
+    distances = jnp.sqrt((rot_centered_coords[0] / a)**2 + (rot_centered_coords[1] / b)**2)
+
+    nb_b = bs.shape[0]
+    B_dist = nb_b * distances  # scale distances by the number of modes
+    bs_mat = bs[jnp.minimum(jnp.floor(B_dist).astype(int), nb_b - 1)]  # Define postions for each mode
+
+    # All kernel functions are defined in [0, 1] so we compute B_dist modulo 1 to make sure value lies in the good range
+    # Notice that those kernel functions should be positive and fk(0) = 0, fk(1) = 0
+    # We then crop to distances < 1 which defines the "size" of the kernel
+    raw_kernel = kf_register[kf_slug](kf_params, B_dist % 1)
+    kernel = (distances < 1) * raw_kernel * bs_mat  # type: ignore
+    kernel = kernel * rot_centered_coords[0]
+    kernel = kernel / jnp.absolute(kernel).sum()
+
+    kernel = kernel[jnp.newaxis, ...]  # [1, dim_0, dim_1, ...]
+
+    return kernel
+
+
 register: Dict[str, Callable] = {
     'raw': raw,
     'circle_2d': circle_2d,
+    'ellipse_2d': ellipse_2d,
+    'oriented_ellipse_2d': oriented_ellipse_2d,
 }

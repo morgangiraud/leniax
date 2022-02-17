@@ -21,10 +21,13 @@ class TestPipeline(unittest.TestCase):
             omegaConf = compose(config_name="orbium-test")
             config = leniax_utils.get_container(omegaConf, fixture_dir)
 
+        seed = config['run_params']['seed']
+        rng_key = leniax_utils.seed_everything(seed)
+
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        all_cells, _, _, _ = init_and_run(config, with_jit=False)
+        all_cells, _, _, _ = init_and_run(rng_key, config, with_jit=False)
         all_cells = all_cells[:, 0]
         last_frame = all_cells[-1]
 
@@ -37,10 +40,13 @@ class TestPipeline(unittest.TestCase):
             omegaConf = compose(config_name="orbium-test")
             config = leniax_utils.get_container(omegaConf, fixture_dir)
 
+        seed = config['run_params']['seed']
+        rng_key = leniax_utils.seed_everything(seed)
+
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        all_cells, _, _, _ = init_and_run(config, with_jit=True)
+        all_cells, _, _, _ = init_and_run(rng_key, config, with_jit=True)
         all_cells = all_cells[:, 0]
         last_frame = all_cells[-1]
 
@@ -53,10 +59,13 @@ class TestPipeline(unittest.TestCase):
             omegaConf = compose(config_name="orbium-scutium-test")
             config = leniax_utils.get_container(omegaConf, fixture_dir)
 
+        seed = config['run_params']['seed']
+        rng_key = leniax_utils.seed_everything(seed)
+
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        all_cells, _, _, _ = init_and_run(config, with_jit=True)
+        all_cells, _, _, _ = init_and_run(rng_key, config, with_jit=True)
         all_cells = all_cells[:, 0]
         last_frame = all_cells[-1]
 
@@ -69,10 +78,13 @@ class TestPipeline(unittest.TestCase):
             omegaConf = compose(config_name="orbium-scutium-test")
             config = leniax_utils.get_container(omegaConf, fixture_dir)
 
+        seed = config['run_params']['seed']
+        rng_key = leniax_utils.seed_everything(seed)
+
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        all_cells, _, _, _ = init_and_run(config, with_jit=True, fft=True)
+        all_cells, _, _, _ = init_and_run(rng_key, config, with_jit=True, fft=True)
         all_cells = all_cells[:, 0]
         last_frame = all_cells[-1]
 
@@ -85,10 +97,13 @@ class TestPipeline(unittest.TestCase):
             omegaConf = compose(config_name="aquarium-test")
             config = leniax_utils.get_container(omegaConf, fixture_dir)
 
+        seed = config['run_params']['seed']
+        rng_key = leniax_utils.seed_everything(seed)
+
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        all_cells, _, _, _ = init_and_run(config, with_jit=True)
+        all_cells, _, _, _ = init_and_run(rng_key, config, with_jit=True)
         all_cells = all_cells[:, 0]
         last_frame = all_cells[-1]
 
@@ -101,10 +116,13 @@ class TestPipeline(unittest.TestCase):
             omegaConf = compose(config_name="aquarium-test")
             config = leniax_utils.get_container(omegaConf, fixture_dir)
 
+        seed = config['run_params']['seed']
+        rng_key = leniax_utils.seed_everything(seed)
+
         with open(last_frame_fullpath, "rb") as f:
             true_last_frame = pickle.load(f)
 
-        all_cells, _, _, _ = init_and_run(config, with_jit=True, fft=True)
+        all_cells, _, _, _ = init_and_run(rng_key, config, with_jit=True, fft=True)
         all_cells = all_cells[:, 0]
         last_frame = all_cells[-1]
 

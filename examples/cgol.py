@@ -11,14 +11,47 @@ import logging
 from absl import logging as absl_logging
 from omegaconf import DictConfig
 import hydra
+import jax
+import jax.numpy as jnp
 
 import leniax.utils as leniax_utils
 import leniax.helpers as leniax_helpers
 import leniax.loader as leniax_loader
 from leniax import colormaps as leniax_colormaps
+from leniax.core import register as update_register
+from leniax.kernels import register as kernels_register
 
 # Disable JAX logging https://abseil.io/docs/python/guides/logging
 absl_logging.set_verbosity(absl_logging.ERROR)
+
+
+# We define our own CGOL kernel
+# Leniax convention is [C, H, W] in float32
+# (I know this is not efficient, I'll see later if I can configure dtypes)
+def cgol_2d(*args, **kwargs):
+    return jnp.array([[
+        [1., 1., 1.],
+        [1., 0., 1.],
+        [1., 1., 1.],
+    ]], jnp.float32)
+
+
+kernels_register['cgol_2d'] = cgol_2d
+
+
+# We define a custom cgol function
+def get_state_cgol(
+    rng_key: jax.random.KeyArray,
+    state: jnp.ndarray,
+    field: jnp.ndarray,
+    dt: jnp.ndarray,
+) -> jnp.ndarray:
+    new_state = jnp.array((state == 1) & (field == 2) | (field == 3), dtype=jnp.float32)
+
+    return new_state
+
+
+update_register['get_state_cgol'] = get_state_cgol
 
 ###
 # We use hydra to load Leniax configurations.
@@ -27,8 +60,8 @@ absl_logging.set_verbosity(absl_logging.ERROR)
 # python examples/run.py render_params.world_size='[512, 512]' world_params.scale=4
 ###
 cdir = os.path.dirname(os.path.realpath(__file__))
-config_path = os.path.join(cdir, '..', 'conf', 'species', '2d', '1c-1k')
-config_name = "orbium"
+config_path = os.path.join(cdir, '..', 'conf')
+config_name = "cgol"
 
 
 @hydra.main(config_path=config_path, config_name=config_name)
@@ -44,13 +77,17 @@ def run(omegaConf: DictConfig) -> None:
     # We seed the whole python environment.
     rng_key = leniax_utils.seed_everything(config['run_params']['seed'])
 
+    # We sample some initialize state
+    cells_shape = [1] + config['render_params']['world_size']
+    rng_key, subkey = jax.random.split(rng_key)
+    config['run_params']['init_cells'] = jnp.array(jax.random.randint(subkey, cells_shape, 0, 2), dtype=jnp.float32)
     # This is the main call which runs and returns data of the simulation
     # Ony the configuration parameter is mandatory.
     # In this case:
     #   - We are using the field "init_cells" as a the simulation initialization
-    #   - We are not using JAX jit functions
-    #   - We are using the fft optimization
-    #   - We will truncate the computed statistics directory up to final interesting state (more info on this in the documentation.)
+    #   - We are using JAX jit functions
+    #   - We are not using the fft optimization
+    #   - We won't truncate the computed statistics up to final interesting state (more info on this in the documentation.)
     # This function returns all the different states, potentials and fields + the statistic dictionnary
     # All the arrays are of shape [nb_max_iter, N, C, world_dims...]
     logging.info("Simulation: start.")
@@ -58,10 +95,10 @@ def run(omegaConf: DictConfig) -> None:
     all_cells, _, _, stats_dict = leniax_helpers.init_and_run(
         rng_key,
         config,
-        use_init_cells=False,
-        with_jit=False,
-        fft=True,
-        stat_trunc=True,
+        use_init_cells=True,
+        with_jit=True,
+        fft=False,
+        stat_trunc=False,
     )
     # In our case, we only ran 1 simulation so N=1
     all_cells = all_cells[:, 0]

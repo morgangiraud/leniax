@@ -46,21 +46,22 @@ def build_eval_lenia_config_mem_optimized_fn(qd_config: Dict, fitness_coef: floa
     R = world_params['R']
 
     render_params = qd_config['render_params']
-    update_fn_version = world_params['update_fn_version'] if 'update_fn_version' in world_params else 'v1'
+    get_state_fn_slug = world_params['get_state_fn_slug'] if 'get_state_fn_slug' in world_params else 'v1'
     weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
     kernels_params = qd_config['kernels_params']
 
     K, mapping = leniax_kernels.get_kernels_and_mapping(
         kernels_params, render_params['world_size'], world_params['nb_channels'], world_params['R'], fft
     )
-    update_fn = leniax_helpers.build_update_fn(K.shape, mapping, update_fn_version, weighted_average, fft)
+    update_fn = leniax_helpers.build_update_fn(K.shape, mapping, get_state_fn_slug, weighted_average, fft)
     compute_stats_fn = build_compute_stats_fn(world_params, render_params)
 
     def eval_lenia_config_mem_optimized(leniax_sols: List[LeniaIndividual]) -> List[LeniaIndividual]:
         qd_config = leniax_sols[0].qd_config
 
-        _, dynamic_args = get_dynamic_args(qd_config, leniax_sols, fft)
+        rng_key, dynamic_args = get_dynamic_args(qd_config, leniax_sols, fft)
         stats, _ = leniax_runner.run_scan_mem_optimized(
+            rng_key,
             *dynamic_args,
             max_run_iter,
             R,
@@ -195,7 +196,7 @@ def run_qd_search(
     eval_fn: Callable,
     log_freq: int = 1,
     n_workers: int = -1
-) -> Tuple[jax.random.KeyArray, QDMetrics]:
+) -> QDMetrics:
     """Run a Quality-diveristy search
 
     .. Warning::
@@ -213,7 +214,7 @@ def run_qd_search(
         n_workers: Number of workers used to eval a set of candidate solutions
 
     Returns:
-        A 2-tuple representing a jax PRNGkey and search metrics
+        Qd metrics
     """
     DEBUG = False
     if DEBUG is True:
@@ -306,7 +307,7 @@ def run_qd_search(
                 f"{time.time() - t0:>20.4f}"
             )
 
-    return rng_key, metrics
+    return metrics
 
 
 ###
@@ -386,8 +387,9 @@ def render_found_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
 
     if 'init_rng_key' in config['algo']:
         init_slug = config['algo']['init_slug']
-        _, noises = leniax_init.register[init_slug](
-            jnp.array(config['algo']['init_rng_key'], dtype=jnp.uint32),
+        init_rng_key = jnp.array(config['algo']['init_rng_key'], dtype=jnp.uint32)
+        rng_key, noises = leniax_init.register[init_slug](
+            init_rng_key,
             config['run_params']['nb_init_search'] * config['world_params']['nb_channels'],
             config['render_params']['world_size'],
             config['world_params']['R'],
@@ -407,7 +409,8 @@ def render_found_lenia(enum_lenia: Tuple[int, LeniaIndividual]):
             config['run_params']['init_cells'] = init_noises[idx]
 
             start_time = time.time()
-            all_cells, _, _, stats_dict = leniax_helpers.init_and_run(config, use_init_cells=True, with_jit=True, fft=True, stat_trunc=True)
+            rng_key, subkey = jax.random.split(rng_key)
+            all_cells, _, _, stats_dict = leniax_helpers.init_and_run(subkey, config, use_init_cells=True, with_jit=True, fft=True, stat_trunc=True)
             all_cells = all_cells[:, 0]
             total_time = time.time() - start_time
 

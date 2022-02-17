@@ -2,21 +2,25 @@
 """
 
 import functools
+import jax
 from jax import lax, jit
 import jax.numpy as jnp
-from typing import Callable, Tuple
+from typing import Callable, Tuple, Optional
+
+GetStateCallableType = Callable[[jax.random.KeyArray, jnp.ndarray, jnp.ndarray, jnp.ndarray], jnp.ndarray]
 
 
-@functools.partial(jit, static_argnums=(5, 6, 7))
+@functools.partial(jit, static_argnums=(6, 7, 8))
 def update(
-    cells: jnp.ndarray,
+    rng_key: jax.random.KeyArray,
+    state: jnp.ndarray,
     K: jnp.ndarray,
     gf_params: jnp.ndarray,
     kernels_weight_per_channel: jnp.ndarray,
     dt: jnp.ndarray,
     get_potential_fn: Callable,
     get_field_fn: Callable,
-    update_fn: Callable,
+    get_state_fn: GetStateCallableType,
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Update the cells state
 
@@ -24,40 +28,41 @@ def update(
     Avoid changing non-static argument shape for performance.
 
     Args:
-        cells: cells state ``[N, nb_channels, world_dims...]``
+        rng_key: JAX PRNG key.
+        state: cells state ``[N, nb_channels, world_dims...]``
         K: Kernel ``[K_o=nb_channels * max_k_per_channel, K_i=1, kernel_dims...]``
         gf_params: Growth function parmaeters ``[nb_kernels, params_shape...]``
         kernels_weight_per_channel: Kernels weight used in the averaginf function ``[nb_channels, nb_kernels]``
         dt: Update rate ``[N]``
         get_potential_fn: **(jit static arg)** Function used to compute the potential
         get_field_fn: **(jit static arg)** Function used to compute the field
-        update_fn: **(jit static arg)** Function used to compute the new cell state
+        get_state_fn: **(jit static arg)** Function used to compute the new cell state
 
     Returns:
-        A tuple of arrays representing the updated cells state, the used potential and used field.
+        A tuple of arrays representing a jax PRNG key and the updated state, the used potential and used field.
     """
 
-    potential = get_potential_fn(cells, K)
+    potential = get_potential_fn(state, K)
     field = get_field_fn(potential, gf_params, kernels_weight_per_channel)
-    cells = update_fn(cells, field, dt)
+    state = get_state_fn(rng_key, state, field, dt)
 
-    return cells, field, potential
+    return state, field, potential
 
 
 def get_potential_fft(
-    cells: jnp.ndarray,
+    state: jnp.ndarray,
     K: jnp.ndarray,
-    true_channels: jnp.ndarray,
     max_k_per_channel: int,
     C: int,
-    wdims_axes: Tuple[int, ...]
+    wdims_axes: Tuple[int, ...],
+    true_channels: Optional[jnp.ndarray] = None,
 ) -> jnp.ndarray:
     """Compute the potential using FFT
 
     The first dimension of cells and K is the vmap dimension
 
     Args:
-        cells: cells state ``[N, nb_channels, world_dims...]``
+        state: cells state ``[N, nb_channels, world_dims...]``
         K: Kernels ``[1, nb_channels, max_k_per_channel, world_dims...]``
         true_channels: ``1-dim`` array of boolean values ``[nb_channels]``
         max_k_per_channel: Maximum number of kernels applied per channel
@@ -67,26 +72,34 @@ def get_potential_fft(
     Returns:
         An array containing the potential
     """
-    fft_cells = jnp.fft.fftn(cells, axes=wdims_axes)[:, :, jnp.newaxis, ...]  # [N, nb_channels, 1, world_dims...]
+    fft_cells = jnp.fft.fftn(state, axes=wdims_axes)[:, :, jnp.newaxis, ...]  # [N, nb_channels, 1, world_dims...]
     fft_out = fft_cells * K
     conv_out = jnp.real(jnp.fft.ifftn(fft_out, axes=wdims_axes))  # [N, nb_channels, max_k_per_channel, world_dims...]
 
-    world_shape = cells.shape[2:]
+    world_shape = state.shape[2:]
     final_shape = (-1, max_k_per_channel * C) + world_shape
     conv_out_reshaped = conv_out.reshape(final_shape)
 
-    potential = conv_out_reshaped[:, true_channels]  # [N, nb_kernels, world_dims...]
+    if true_channels is not None:
+        potential = conv_out_reshaped[:, true_channels]  # [N, nb_kernels, world_dims...]
+    else:
+        potential = conv_out_reshaped
 
     return potential
 
 
-def get_potential(cells: jnp.ndarray, K: jnp.ndarray, padding: jnp.ndarray, true_channels: jnp.ndarray) -> jnp.ndarray:
+def get_potential(
+    state: jnp.ndarray,
+    K: jnp.ndarray,
+    padding: jnp.ndarray,
+    true_channels: Optional[jnp.ndarray] = None,
+) -> jnp.ndarray:
     """Compute the potential using lax.conv_general_dilated
 
     The first dimension of cells and K is the vmap dimension
 
     Args:
-        cells: cells state ``[N, nb_channels, world_dims...]``
+        state: cells state ``[N, nb_channels, world_dims...]``
         K: Kernels ``[K_o=nb_channels * max_k_per_channel, K_i=1, kernel_dims...]``
         padding: array with padding informations, ``[nb_world_dims, 2]``
         true_channels: ``1-dim`` array of boolean values ``[nb_channels]``
@@ -94,12 +107,14 @@ def get_potential(cells: jnp.ndarray, K: jnp.ndarray, padding: jnp.ndarray, true
     Returns:
         An array containing the potential
     """
-    padded_cells = jnp.pad(cells, padding, mode='wrap')
-    nb_channels = cells.shape[1]
-    # the beauty of feature_group_count for depthwise convolution
-    conv_out_reshaped = lax.conv_general_dilated(padded_cells, K, (1, 1), 'VALID', feature_group_count=nb_channels)
+    padded_state = jnp.pad(state, padding, mode='wrap')
+    nb_channels = state.shape[1]
+    conv_out_reshaped = lax.conv_general_dilated(padded_state, K, (1, 1), 'VALID', feature_group_count=nb_channels)
 
-    potential = conv_out_reshaped[:, true_channels]  # [N, nb_kernels, H, W]
+    if true_channels is not None:
+        potential = conv_out_reshaped[:, true_channels]  # [N, nb_kernels, world_dims...]
+    else:
+        potential = conv_out_reshaped
 
     return potential
 
@@ -186,11 +201,17 @@ def weighted_mean(fields: jnp.ndarray, weights: jnp.ndarray) -> jnp.ndarray:
     return fields_normalized
 
 
-def update_state(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp.ndarray:
+def get_state(
+    rng_key: jax.random.KeyArray,
+    state: jnp.ndarray,
+    field: jnp.ndarray,
+    dt: jnp.ndarray,
+) -> jnp.ndarray:
     """Compute the new cells state using the original Lenia formula
 
     Args:
-        cells: Current cells state ``[N, nb_channels, world_dims...]``
+        rng_key: JAX PRNG key.
+        state: Current cells state ``[N, nb_channels, world_dims...]``
         field: Current field``[N, nb_channels, world_dims...]``
         dt: Update rate ``[N]``
 
@@ -200,21 +221,27 @@ def update_state(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp
     Reference:
         https://arxiv.org/abs/1812.05433
     """
-    cells_new = cells + dt * field
+    new_state = state + dt * field
 
     # Straight-through estimator
-    clipped_cells = jnp.clip(cells_new, 0., 1.)
-    zero = cells_new - lax.stop_gradient(cells_new)
+    clipped_cells = jnp.clip(new_state, 0., 1.)
+    zero = new_state - lax.stop_gradient(new_state)
     out = zero + lax.stop_gradient(clipped_cells)
 
     return out
 
 
-def update_state_v2(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp.ndarray:
+def get_state_v2(
+    rng_key: jax.random.KeyArray,
+    state: jnp.ndarray,
+    field: jnp.ndarray,
+    dt: jnp.ndarray,
+) -> jnp.ndarray:
     """Compute the new cells state using the asymptotic Lenia formula
 
     Args:
-        cells: Current cells state ``[N, nb_channels, world_dims...]``
+        rng_key: JAX PRNG key.
+        state: Current cells state ``[N, nb_channels, world_dims...]``
         field: Current field``[N, nb_channels, world_dims...]``
         dt: Update rate ``[N]``
 
@@ -224,29 +251,35 @@ def update_state_v2(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> 
     Reference:
         https://direct.mit.edu/isal/proceedings/isal/91/102916
     """
-    cells_new = cells * (1 - dt) + dt * field
+    new_state = state * (1 - dt) + dt * field
 
-    return cells_new
+    return new_state
 
 
-def update_state_simple(cells: jnp.ndarray, field: jnp.ndarray, dt: jnp.ndarray) -> jnp.ndarray:
+def get_state_simple(
+    rng_key: jax.random.KeyArray,
+    state: jnp.ndarray,
+    field: jnp.ndarray,
+    dt: jnp.ndarray,
+) -> jnp.ndarray:
     """Compute the new cells state by simply adding the field directly
 
     Args:
-        cells: Current cells state ``[N, nb_channels, world_dims...]``
+        rng_key: JAX PRNG key.
+        state: Current cells state ``[N, nb_channels, world_dims...]``
         field: Current field``[N, nb_channels, world_dims...]``
         dt: Update rate ``[N]`` **(not used)**
 
     Returns:
         The new cells state
     """
-    cells_new = cells + field
+    new_state = state + dt * field
 
-    return cells_new
+    return new_state
 
 
-update_register = {
-    'v1': update_state,
-    'v2': update_state_v2,
-    'simple': update_state_simple,
+register = {
+    'v1': get_state,
+    'v2': get_state_v2,
+    'simple': get_state_simple,
 }

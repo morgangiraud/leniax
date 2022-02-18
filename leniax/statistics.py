@@ -115,7 +115,7 @@ def build_compute_stats_fn(world_params: Dict, render_params: Dict) -> Callable:
         }
 
         shift_idx = mass_centroid.astype(jnp.int32).T
-        world_shape = jnp.array(cells.shape[2:])
+        world_shape = jnp.array(cells.shape[2:], dtype=jnp.int32)
         total_shift_idx = (previous_total_shift_idx + shift_idx) % world_shape
 
         # Since we will center the world before computing stats

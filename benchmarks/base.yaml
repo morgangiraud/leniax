@@ -1,0 +1,44 @@
+bench:
+  device: cpu
+  task: 'single_run'
+  burnin: 1  # Number of initial iterations that are disregarded for final statistics
+  nb_k: 1
+  fft: False
+  with_jit: True
+  multipliers: [1, 2, 4]
+  repetitions: null
+other:
+  log_level: 20
+render_params:
+  pixel_border_size: 0
+  pixel_size: 4
+  pixel_size_power2: 2
+  size_power2: 8
+  world_size: MISSING
+run_params:
+  max_run_iter: 64
+  nb_init_search: 1
+  nb_sols: 1
+  seed: 1
+version: 2
+world_params:
+  R: 7
+  T: 10
+  nb_channels: 1
+  nb_dims: 2
+  scale: 1.0
+kernels_params:
+- c_in: 0
+  c_out: 0
+  gf_params:
+  - 0.15
+  - 0.015
+  gf_slug: poly_quad4
+  h: 1
+  k_params:
+  - 1
+  - - 1.0
+  k_slug: circle_2d
+  kf_params:
+  - 4
+  kf_slug: poly_quad

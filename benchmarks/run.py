@@ -1,23 +1,17 @@
 #!/usr/bin/env python3
 
 import os
+import shutil
 import copy
 import random
 import itertools
 import logging
-from absl import logging as absl_logging
 from omegaconf import DictConfig
 import hydra
 import numpy as np
 import click
 
-from backends import (__backends__ as setup_functions, BackendNotSupported)
 from utilities import (Timer, estimate_repetitions, format_output, compute_statistics, check_consistency, get_task)
-
-from leniax import utils as leniax_utils
-
-# Disable JAX logging https://abseil.io/docs/python/guides/logging
-absl_logging.set_verbosity(absl_logging.ERROR)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir)
@@ -30,14 +24,29 @@ def main(omegaConf: DictConfig) -> None:
 
     Usage:
 
-        $ python run.py bench.task='run' bench.device='gpu'
+        $ python run.py bench.task='single_run' bench.device='gpu'
 
     Examples:
 
-        $ taskset -c 0 python run.py bench.task='run' bench.device='gpu'
+        $ taskset -c 0 python run.py bench.task='single_run' bench.device='gpu'
 
-        $ python run.py benchmarks/equation_of_state bench.task='run' bench.device='gpu' run_params.nb_init_search=64 world_params.nb_channels=16
+        $ python run.py bench.task='single_run' bench.device='gpu' run_params.nb_init_search=64 world_params.nb_channels=16
     """
+    device = omegaConf.bench.device
+    os.environ.update(
+        XLA_FLAGS=(
+            "--xla_cpu_multi_thread_eigen=false "
+            "intra_op_parallelism_threads=1 "
+            "inter_op_parallelism_threads=1 "
+        ),
+    )
+
+    if device in ("cpu", "gpu"):
+        os.environ.update(JAX_PLATFORMS=device)
+    import jax
+
+    from leniax import utils as leniax_utils
+
     config = leniax_utils.get_container(omegaConf, config_path)
     leniax_utils.set_log_level(config)
 
@@ -49,7 +58,6 @@ def main(omegaConf: DictConfig) -> None:
     rng_key = leniax_utils.seed_everything(config['run_params']['seed'])
 
     task = config['bench']['task']
-    device = config['bench']['device']
     burnin = config['bench']['burnin']
     multipliers = config['bench']['multipliers']
     repetitions = config['bench']['repetitions']
@@ -60,50 +68,44 @@ def main(omegaConf: DictConfig) -> None:
         logging.info(f"Error while loading benchmark {task}: {e!s}", err=True)
         exit(1)
 
-    try:
-        with setup_functions['jax'](device=device) as bmod:
-            logging.info(f"Using jax version {bmod.__version__}")
-    except BackendNotSupported as e:
-        logging.info(f'Setup for backend "jax" failed (skipping), reason: {e!s}', err=True)
-        exit(1)
-
     runs = sorted(itertools.product(['jax'], multipliers))
+
+    for i, run in enumerate(runs):
+        rng_key, subkey = jax.random.split(rng_key)
+        run_func = task_module.make_run_fn(subkey, copy.deepcopy(config), run[1])
+        runs[i] = (run[0], run[1], run_func)
+
     if len(runs) == 0:
         logging.info("Nothing to do")
         return
 
-    timings = {run: [] for run in runs}
+    timings = {(b, s): [] for b, s, run_func in runs}
 
     if repetitions is None:
         logging.info("Estimating repetitions...")
         repetitions = {}
 
-        for b, s in runs:
+        for b, s, run_func in runs:
             # use end-to-end runtime for repetition estimation
-            def run_func():
-                run = task_module.make_run_fn(rng_key, copy.deepcopy(config), s)
-                with setup_functions[b](device=device):
-                    run()
-
             repetitions[(b, s)] = estimate_repetitions(run_func)
     else:
-        repetitions = {(b, s): repetitions for b, s in runs}
+        repetitions = {(b, s): repetitions for b, s, run_func in runs}
 
-    all_runs = list(itertools.chain.from_iterable([run] * (repetitions[run] + burnin) for run in runs))
+    all_runs = list(
+        itertools.chain.from_iterable([(b, s, run_func)] * (repetitions[(b, s)] + burnin) for b, s, run_func in runs)
+    )
     random.shuffle(all_runs)
 
     results = {}
-    checked = {r: False for r in runs}
+    checked = {(b, s): False for b, s, run_func in runs}
 
     pbar = click.progressbar(label=f"Running {len(all_runs)} benchmarks...", length=len(runs))
 
     try:
         with pbar:
-            for size in all_runs:
-                with setup_functions[b](device=device):
-                    run = task_module.make_run_fn(rng_key, copy.deepcopy(config), s)
-                    with Timer() as t:
-                        res = run()
+            for b, size, run_func in all_runs:
+                with Timer() as t:
+                    res = run_func()
 
                 # YOWO (you only warn once)
                 if not checked[(b, size)]:
@@ -124,12 +126,14 @@ def main(omegaConf: DictConfig) -> None:
             # push pbar to 100%
             pbar.update(1.0)
 
-        for run in runs:
-            assert len(timings[run]) == repetitions[run] + burnin
+        for b, s, _ in runs:
+            assert len(timings[(b, s)]) == repetitions[(b, s)] + burnin
 
     finally:
         stats = compute_statistics(timings)
         logging.info(format_output(stats, task_identifier, device=device))
+
+        shutil.rmtree(save_dir)
 
 
 if __name__ == "__main__":

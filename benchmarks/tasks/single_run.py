@@ -50,34 +50,28 @@ def make_run_fn(rng_key, config, multiplier):
     )
     compute_stats_fn = leniax_stat.build_compute_stats_fn(config['world_params'], config['render_params'])
 
-    if config['bench']['with_jit'] is True:
-        run_fn = functools.partial(
-            leniax_runner.run_scan,
-            rng_key=rng_key,
-            cells0=cells,
-            K=K,
-            gf_params=gf_params,
-            kernels_weight_per_channel=kernels_weight_per_channel,
-            T=T,
-            max_run_iter=max_run_iter,
-            R=R,
-            update_fn=update_fn,
-            compute_stats_fn=compute_stats_fn
-        )
-    else:
-        run_fn = functools.partial(
-            leniax_runner.run,
-            rng_key=rng_key,
-            cells=cells,
-            K=K,
-            gf_params=gf_params,
-            kernels_weight_per_channel=kernels_weight_per_channel,
-            T=T,
-            max_run_iter=max_run_iter,
-            R=R,
-            update_fn=update_fn,
-            compute_stats_fn=compute_stats_fn,
-            stat_trunc=False
-        )
+    run_fn = functools.partial(
+        leniax_runner.run_scan,
+        rng_key=rng_key,
+        cells0=cells,
+        K=K,
+        gf_params=gf_params,
+        kernels_weight_per_channel=kernels_weight_per_channel,
+        T=T,
+        max_run_iter=max_run_iter,
+        R=R,
+        update_fn=update_fn,
+        compute_stats_fn=compute_stats_fn
+    )
 
-    return run_fn
+    K.block_until_ready()
+    gf_params.block_until_ready()
+
+    def bench_fn():
+        cells, field, potential, stats = run_fn()
+        cells.block_until_ready()
+        field.block_until_ready()
+        potential.block_until_ready()
+        stats['N'].block_until_ready()
+
+    return bench_fn

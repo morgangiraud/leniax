@@ -55,7 +55,7 @@ def compute_statistics(timings, burnin=1):
             mean = stdev = float("nan")
             percentiles = [float("nan")] * 5
 
-        stats.append((size, backend, repetitions, mean, stdev, *percentiles, float("nan")))
+        stats.append((size, backend, repetitions, mean, stdev, *percentiles))  # , float("nan")))
 
     stats = np.array(
         stats,
@@ -69,23 +69,22 @@ def compute_statistics(timings, burnin=1):
             ("25%", "f4"),
             ("median", "f4"),
             ("75%", "f4"),
-            ("max", "f4"),
-            ("Δ", "f4"),
+            ("max", "f4"),  # ("Δ", "f4"),
         ],
     )
 
-    # add deltas
-    sizes = np.unique(stats["size"])
-    for s in sizes:
-        mask = stats["size"] == s
+    # # add deltas
+    # sizes = np.unique(stats["size"])
+    # for s in sizes:
+    #     mask = stats["size"] == s
 
-        # measure relative to NumPy if present, otherwise worst backend
-        if "numpy" in stats["backend"][mask]:
-            reference_time = stats["mean"][mask & (stats["backend"] == "numpy")]
-        else:
-            reference_time = np.nanmax(stats["mean"][mask])
+    #     # measure relative to NumPy if present, otherwise worst backend
+    #     if "numpy" in stats["backend"][mask]:
+    #         reference_time = stats["mean"][mask & (stats["backend"] == "numpy")]
+    #     else:
+    #         reference_time = np.nanmax(stats["mean"][mask])
 
-        stats["Δ"][mask] = reference_time / stats["mean"][mask]
+    #     stats["Δ"][mask] = reference_time / stats["mean"][mask]
 
     return stats
 

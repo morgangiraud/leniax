@@ -4,8 +4,7 @@ bench:
   burnin: 1  # Number of initial iterations that are disregarded for final statistics
   nb_k: 1
   fft: False
-  with_jit: True
-  multipliers: [1, 2, 4]
+  multipliers: [1, 2]
   repetitions: null
 other:
   log_level: 20
@@ -13,7 +12,7 @@ render_params:
   pixel_border_size: 0
   pixel_size: 4
   pixel_size_power2: 2
-  size_power2: 8
+  size_power2: 7
   world_size: MISSING
 run_params:
   max_run_iter: 64

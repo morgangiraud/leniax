@@ -215,9 +215,9 @@ def init_counters(N: int) -> Dict[str, jnp.ndarray]:
         Adictionnary of counters
     """
     return {
-        'nb_monotone_step': jnp.zeros(N),
-        'nb_slow_mass_step': jnp.zeros(N),
-        'nb_max_volume_step': jnp.zeros(N),
+        'nb_monotone_step': jnp.zeros(N, dtype=jnp.int32),
+        'nb_slow_mass_step': jnp.zeros(N, dtype=jnp.int32),
+        'nb_max_volume_step': jnp.zeros(N, dtype=jnp.int32),
     }
 
 

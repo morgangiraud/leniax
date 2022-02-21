@@ -2,6 +2,7 @@
 # File taken from https://github.com/dionhaefner/pyhpc-benchmarks
 ###
 
+import os
 import time
 import math
 import collections
@@ -156,3 +157,30 @@ def get_task(task_id):
     task_module = importlib.import_module(f".{task_id}", 'tasks')
 
     return task_module, task_id
+
+class BackendNotSupported(Exception):
+    pass
+
+def setup_jax(device):
+    if device not in ["cpu", "gpu", "tpu"]:
+        raise BackendNotSupported(f"Device {device} not supported.")
+
+    os.environ.update(
+        XLA_FLAGS=(
+            "--xla_cpu_multi_thread_eigen=false "
+            "intra_op_parallelism_threads=1 "
+            "inter_op_parallelism_threads=1 "
+        ),
+    )
+
+    import jax
+    from jax.config import config
+
+    if device in ["cpu", "gpu"]:
+        config.FLAGS.jax_platforms = device
+
+    if device == "tpu":
+        config.FLAGS.jax_platforms = "tpu_driver"
+        config.FLAGS.jax_backend_target = "grpc://" + os.environ['COLAB_TPU_ADDR']
+
+    return jax

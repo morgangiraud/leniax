@@ -11,7 +11,7 @@ import hydra
 import numpy as np
 import click
 
-from utilities import (Timer, estimate_repetitions, format_output, compute_statistics, check_consistency, get_task)
+from utilities import (Timer, estimate_repetitions, format_output, compute_statistics, check_consistency, get_task, setup_jax)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir)
@@ -33,18 +33,8 @@ def main(omegaConf: DictConfig) -> None:
         $ python run.py bench.task='single_run' bench.device='gpu' run_params.nb_init_search=64 world_params.nb_channels=16
     """
     device = omegaConf.bench.device
-    os.environ.update(
-        XLA_FLAGS=(
-            "--xla_cpu_multi_thread_eigen=false "
-            "intra_op_parallelism_threads=1 "
-            "inter_op_parallelism_threads=1 "
-        ),
-    )
-
-    if device in ("cpu", "gpu"):
-        os.environ.update(JAX_PLATFORMS=device)
-    import jax
-
+    jax = setup_jax(device)
+    
     from leniax import utils as leniax_utils
 
     config = leniax_utils.get_container(omegaConf, config_path)

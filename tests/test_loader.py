@@ -65,5 +65,6 @@ class TestUtils(unittest.TestCase):
         np.testing.assert_array_almost_equal(cells, cells_out, decimal=4)
 
         new_st = leniax_loader.compress_array(cells)
+        cells_out = leniax_loader.decompress_array(new_st, 1)
 
-        assert st == new_st
+        np.testing.assert_array_almost_equal(cells, cells_out, decimal=4)

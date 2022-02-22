@@ -380,7 +380,7 @@ def build_update_fn(
 
 def build_get_potential_fn(
     kernel_shape: Tuple[int, ...],
-    true_channels: Optional[jnp.ndarray] = None,
+    true_channels: Optional[List[bool]] = None,
     fft: bool = True,
 ) -> Callable:
     """Construct an Leniax potential function
@@ -396,28 +396,36 @@ def build_get_potential_fn(
         A Leniax potential function
     """
     # First 2 dimensions are for fake batch dim and nb_channels
+    if true_channels is not None:
+        tc_indices_l = []
+        for i in range(len(true_channels)):
+            if true_channels[i] is True:
+                tc_indices_l.append(i)
+        tc_indices = tuple(tc_indices_l)
+    else:
+        tc_indices = None
+
     if fft is True:
-        max_k_per_channel = kernel_shape[1]
-        C = kernel_shape[2]
+        max_k_per_channel = kernel_shape[2]
         nb_dims = len(kernel_shape) - 3
         wdims_axes = tuple(range(-1, -nb_dims - 1, -1))
 
         return functools.partial(
             leniax_core.get_potential_fft,
             max_k_per_channel=max_k_per_channel,
-            C=C,
             wdims_axes=wdims_axes,
-            true_channels=true_channels,
+            tc_indices=tc_indices,
         )
     else:
-        pad_l = [[0, 0], [0, 0]]
+        pad_l = [(0, 0), (0, 0)]
         for dim in kernel_shape[2:]:
             if dim % 2 == 0:
-                pad_l += [[dim // 2, dim // 2 - 1]]
+                pad_l += [(dim // 2, dim // 2 - 1)]
             else:
-                pad_l += [[dim // 2, dim // 2]]
-        padding = jnp.array(pad_l)
-        return functools.partial(leniax_core.get_potential, padding=padding, true_channels=true_channels)
+                pad_l += [(dim // 2, dim // 2)]
+        padding = tuple(pad_l)
+
+        return functools.partial(leniax_core.get_potential, tc_indices=tc_indices, padding=padding)
 
 
 def build_get_field_fn(cin_gfs: List[List[str]], average: bool = True) -> Callable:

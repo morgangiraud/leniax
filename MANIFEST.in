@@ -8,9 +8,7 @@ include experiments/**/*.yaml
 include experiments/013_descendants/official_all_metadata.json
 include experiments/019_neural_lenia/emoji*.png
 
-benchmarks/run.py
-benchmarks/README.md
-benchmarks/backends.py
-benchmarks/utilities.py
-benchmarks/base.yaml
-benchmarks/tasks/single_run.py
+include benchmarks/*.py
+include benchmarks/README.md
+include benchmarks/base.yaml
+include benchmarks/tasks/*.py

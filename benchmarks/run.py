@@ -11,7 +11,9 @@ import hydra
 import numpy as np
 import click
 
-from utilities import (Timer, estimate_repetitions, format_output, compute_statistics, check_consistency, get_task, setup_jax)
+from utilities import (
+    Timer, estimate_repetitions, format_output, compute_statistics, check_consistency, get_task, setup_jax
+)
 
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir)
@@ -34,7 +36,7 @@ def main(omegaConf: DictConfig) -> None:
     """
     device = omegaConf.bench.device
     jax = setup_jax(device)
-    
+
     from leniax import utils as leniax_utils
 
     config = leniax_utils.get_container(omegaConf, config_path)
@@ -47,77 +49,78 @@ def main(omegaConf: DictConfig) -> None:
     # We seed the whole python environment.
     rng_key = leniax_utils.seed_everything(config['run_params']['seed'])
 
-    task = config['bench']['task']
+    tasks = config['bench']['task']
+    if type(tasks) != list:
+        tasks = [tasks]
     burnin = config['bench']['burnin']
     multipliers = config['bench']['multipliers']
     repetitions = config['bench']['repetitions']
 
-    try:
+    all_tasks = {}
+    for task in tasks:
         task_module, task_identifier = get_task(task)
-    except ImportError as e:
-        logging.info(f"Error while loading benchmark {task}: {e!s}", err=True)
-        exit(1)
+        all_tasks[task_identifier] = {'tm': task_module}
 
-    runs = sorted(itertools.product(['jax'], multipliers))
+    runs = sorted(itertools.product(all_tasks.keys(), multipliers))
 
-    for i, run in enumerate(runs):
+    for run in runs:
         rng_key, subkey = jax.random.split(rng_key)
-        run_func = task_module.make_run_fn(subkey, copy.deepcopy(config), run[1])
-        runs[i] = (run[0], run[1], run_func)
+        current_task = all_tasks[run[0]]
+        run_fn = current_task['tm'].make_run_fn(subkey, copy.deepcopy(config), run[1])
+        current_task['fn'] = run_fn
 
     if len(runs) == 0:
         logging.info("Nothing to do")
         return
 
-    timings = {(b, s): [] for b, s, run_func in runs}
+    timings = {(run_id, mul): [] for run_id, mul in runs}
 
     if repetitions is None:
         logging.info("Estimating repetitions...")
         repetitions = {}
 
-        for b, s, run_func in runs:
+        for run_id, mul in runs:
             # use end-to-end runtime for repetition estimation
-            repetitions[(b, s)] = estimate_repetitions(run_func)
+            repetitions[(run_id, mul)] = estimate_repetitions(all_tasks[run_id]['fn'])
     else:
-        repetitions = {(b, s): repetitions for b, s, run_func in runs}
+        repetitions = {(run_id, mul): repetitions for run_id, mul in runs}
 
     all_runs = list(
-        itertools.chain.from_iterable([(b, s, run_func)] * (repetitions[(b, s)] + burnin) for b, s, run_func in runs)
+        itertools.chain.from_iterable([(run_id, mul)] * (repetitions[(run_id, mul)] + burnin) for run_id, mul in runs)
     )
     random.shuffle(all_runs)
 
     results = {}
-    checked = {(b, s): False for b, s, run_func in runs}
+    checked = {(run_id, mul): False for run_id, mul in runs}
 
     pbar = click.progressbar(label=f"Running {len(all_runs)} benchmarks...", length=len(runs))
-
     try:
         with pbar:
-            for b, size, run_func in all_runs:
+            for run_id, mul in all_runs:
                 with Timer() as t:
-                    res = run_func()
+                    res = all_tasks[run_id]['fn']()
 
                 # YOWO (you only warn once)
-                if not checked[(b, size)]:
-                    if size in results:
-                        is_consistent = check_consistency(results[size], np.asarray(res))
+                if not checked[(run_id, mul)]:
+                    if (run_id, mul) in results:
+                        is_consistent = check_consistency(results[(run_id, mul)], np.asarray(res))
                         if not is_consistent:
                             logging.info(
-                                f"\nWarning: inconsistent results for size {size}",
+                                f"\nWarning: inconsistent results for multiplier {mul}",
                                 err=True,
                             )
                     else:
-                        results[size] = np.asarray(res)
-                    checked[(b, size)] = True
+                        results[(run_id, mul)] = np.asarray(res)
+                    checked[(run_id, mul)] = True
 
-                timings[(b, size)].append(t.elapsed)
-                pbar.update(1.0 / (repetitions[(b, size)] + burnin))
+                timings[(run_id, mul)].append(t.elapsed)
+                pbar.update(1.0 / (repetitions[(run_id, mul)] + burnin))
 
             # push pbar to 100%
             pbar.update(1.0)
 
-        for b, s, _ in runs:
-            assert len(timings[(b, s)]) == repetitions[(b, s)] + burnin
+        for run_id, mul in runs:
+            assert len(timings[(run_id, mul)]) == repetitions[(run_id, mul)] + burnin
 
     finally:
         stats = compute_statistics(timings)

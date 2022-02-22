@@ -49,13 +49,14 @@ def update(
     return state, field, potential
 
 
+@functools.partial(jit, static_argnums=(2, 3, 4, 5))
 def get_potential_fft(
     state: jnp.ndarray,
     K: jnp.ndarray,
     max_k_per_channel: int,
-    C: int,
     wdims_axes: Tuple[int, ...],
-    true_channels: Optional[jnp.ndarray] = None,
+    tc_indices: Optional[Tuple] = None,
+    dimension_numbers: Tuple[str, str, str] = ('NCHW', 'OIHW', 'NCHW'),
 ) -> jnp.ndarray:
     """Compute the potential using FFT
 
@@ -64,7 +65,7 @@ def get_potential_fft(
     Args:
         state: cells state ``[N, nb_channels, world_dims...]``
         K: Kernels ``[1, nb_channels, max_k_per_channel, world_dims...]``
-        true_channels: ``1-dim`` array of boolean values ``[nb_channels]``
+        tc_indeices: ``1-dim`` array of boolean values ``[nb_channels]``
         max_k_per_channel: Maximum number of kernels applied per channel
         C: nb_channels
         wdims_axes: Dimensions index representing the world dimensions (H, W, etc...)
@@ -72,6 +73,9 @@ def get_potential_fft(
     Returns:
         An array containing the potential
     """
+    channel_dim = dimension_numbers[0].index('C')
+    C = state.shape[channel_dim]
+
     fft_cells = jnp.fft.fftn(state, axes=wdims_axes)[:, :, jnp.newaxis, ...]  # [N, nb_channels, 1, world_dims...]
     fft_out = fft_cells * K
     conv_out = jnp.real(jnp.fft.ifftn(fft_out, axes=wdims_axes))  # [N, nb_channels, max_k_per_channel, world_dims...]
@@ -80,19 +84,21 @@ def get_potential_fft(
     final_shape = (-1, max_k_per_channel * C) + world_shape
     conv_out_reshaped = conv_out.reshape(final_shape)
 
-    if true_channels is not None:
-        potential = conv_out_reshaped[:, true_channels]  # [N, nb_kernels, world_dims...]
+    if tc_indices is not None:
+        potential = jnp.take(conv_out_reshaped, jnp.array(tc_indices), axis=channel_dim)
     else:
         potential = conv_out_reshaped
 
     return potential
 
 
+@functools.partial(jit, static_argnums=(2, 3, 4))
 def get_potential(
     state: jnp.ndarray,
     K: jnp.ndarray,
-    padding: jnp.ndarray,
-    true_channels: Optional[jnp.ndarray] = None,
+    padding: Tuple,
+    tc_indices: Optional[Tuple] = None,
+    dimension_numbers: Tuple[str, str, str] = ('NCHW', 'OIHW', 'NCHW'),
 ) -> jnp.ndarray:
     """Compute the potential using lax.conv_general_dilated
 
@@ -102,17 +108,27 @@ def get_potential(
         state: cells state ``[N, nb_channels, world_dims...]``
         K: Kernels ``[K_o=nb_channels * max_k_per_channel, K_i=1, kernel_dims...]``
         padding: array with padding informations, ``[nb_world_dims, 2]``
-        true_channels: ``1-dim`` array of boolean values ``[nb_channels]``
+        tc_indices: ``1-dim`` array of boolean values ``[nb_channels]``
+        dimension_numbers: see ``https://jax.readthedocs.io/en/latest/_autosummary/jax.lax.conv_general_dilated.html``
 
     Returns:
         An array containing the potential
     """
-    padded_state = jnp.pad(state, padding, mode='wrap')
-    nb_channels = state.shape[1]
-    conv_out_reshaped = lax.conv_general_dilated(padded_state, K, (1, 1), 'VALID', feature_group_count=nb_channels)
+    channel_dim = dimension_numbers[0].index('C')
+    C = state.shape[channel_dim]
 
-    if true_channels is not None:
-        potential = conv_out_reshaped[:, true_channels]  # [N, nb_kernels, world_dims...]
+    padded_state = jnp.pad(state, padding, mode='wrap')
+    conv_out_reshaped = lax.conv_general_dilated(
+        padded_state,
+        K,
+        (1, 1),
+        'VALID',
+        feature_group_count=C,
+        dimension_numbers=dimension_numbers,
+    )
+
+    if tc_indices is not None:
+        potential = jnp.take(conv_out_reshaped, jnp.array(tc_indices), axis=channel_dim)
     else:
         potential = conv_out_reshaped
 

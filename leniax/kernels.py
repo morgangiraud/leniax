@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass
-from typing import List, Dict, Tuple, Callable
+from typing import List, Dict, Tuple, Callable, Optional
 import jax.numpy as jnp
 
 from . import utils as leniax_utils
@@ -25,7 +25,7 @@ class KernelMapping(object):
     cin_gfs: List[List[str]]
     cin_gf_params: List[List]
     kernels_weight_per_channel: List[List[float]]
-    true_channels: jnp.ndarray
+    true_channels: Optional[List[bool]] = None
 
     def __init__(self, nb_channels: int, nb_kernels: int):
         self.cin_kernels = [[] for _ in range(nb_channels)]
@@ -131,13 +131,16 @@ def get_kernels_and_mapping(
         # We create the mask
         nb_k = K_tmp.shape[0]
         nb_missing = max_k_per_channel - nb_k
-        true_channels.append(jnp.array([True] * nb_k + [False] * nb_missing))
+        true_channels += [True] * nb_k + [False] * nb_missing
         if nb_missing > 0:
             K_tmp = jnp.vstack([K_tmp, jnp.zeros([nb_missing, K_h, K_w])])  # [O=max_k_per_channel, K_h, K_w]
 
         K_tmp = K_tmp[:, jnp.newaxis, ...]  # [O=max_k_per_channel, I=1, K_h, K_w]
         kernels_per_channel.append(K_tmp)
-    mapping.true_channels = jnp.concatenate(true_channels)
+    if bool(jnp.prod(jnp.array(true_channels))) is True:
+        mapping.true_channels = None
+    else:
+        mapping.true_channels = true_channels
 
     if fft is True:
         axes = list(range(-1, -len(world_size) - 1, -1))

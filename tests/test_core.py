@@ -72,7 +72,7 @@ class TestCore(unittest.TestCase):
         K = K.at[2].set(0.3)
         K = K.at[3].set(0)
 
-        true_channels = jnp.array([True, True, True, False])
+        true_channels = [True, True, True, False]
 
         get_potential = leniax_helpers.build_get_potential_fn(K.shape, true_channels, False)
         jit_fn = jax.jit(get_potential)

@@ -9,6 +9,7 @@ import json
 import importlib
 
 import numpy as np
+import pandas as pd
 
 
 class Timer:
@@ -82,7 +83,10 @@ def compute_statistics(timings, burnin=1):
         reference_time = np.nanmax(stats["mean"][mask])
         stats["Δ"][mask] = reference_time / stats["mean"][mask]
 
-    return stats
+    stats = np.sort(stats, axis=0, order=["size", "mean", "max", "median"])
+    stats_df = pd.DataFrame(stats)
+    
+    return stats_df
 
 
 def format_output(stats_df, benchmark_title, device="cpu"):
@@ -120,25 +124,18 @@ def get_task(task_id):
     return task_module, task_id
 
 
-def update_results(results_fullpath, prefix, job_id, stats_df):
+def update_results(results_fullpath, stats_df):
     if os.path.isfile(results_fullpath):
-        with open(results_fullpath, 'r') as json_file:
-            results = json.load(json_file)
+        results_df = pd.read_json(results_fullpath)
+        results_df = results_df.set_index(['job_id', 'day', 'size', 'task']).sort_index()
+
+        results_df = stats_df.combine_first(results_df)
     else:
-        results = {}
+        results_df = stats_df
 
-    if prefix not in results:
-        results[prefix] = {}
+    results_df.reset_index().to_json(results_fullpath)
 
-    if job_id not in results[prefix]:
-        results[prefix][job_id] = {}
-
-    results[prefix][job_id] = stats_df.to_json()
-
-    with open(results_fullpath, 'w') as f:
-        f.write(json.dumps(results))
-
-    return results
+    return results_df
 
 
 class BackendNotSupported(Exception):

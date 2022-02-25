@@ -12,7 +12,7 @@ from hydra.experimental.callback import Callback
 import numpy as np
 import pandas as pd
 import click
-
+from matplotlib.pyplot import plot as plt
 from utilities import (
     Timer,
     estimate_repetitions,
@@ -35,15 +35,16 @@ class RunCB(Callback):
     def on_job_end(self, config: DictConfig, job_return) -> None:
         ret = job_return.return_value
         job_id = job_return.hydra_cfg.hydra.job.config_name
-
+        date_val = job_return.working_dir.split('/')[1]
         timings = ret['timings']
         device = ret['device']
         save_dir = ret['save_dir']
 
-        stats = compute_statistics(timings)
-        stats = np.sort(stats, axis=0, order=["size", "mean", "max", "median"])
+        stats_df = compute_statistics(timings)
 
-        stats_df = pd.DataFrame(stats).set_index(['task', 'size']).sort_index()
+        stats_df['job_id'] =  job_id
+        stats_df['day'] =  date_val
+        stats_df = stats_df.set_index(['job_id', 'day', 'size', 'task']).sort_index()
         logging.info(format_output(stats_df, job_id, device=device))
 
         shutil.rmtree(save_dir)
@@ -52,13 +53,20 @@ class RunCB(Callback):
         leniax_utils.check_dir(results_dir)
 
         results_fullpath = os.path.join(results_dir, 'results.json')
-        prefix = job_return.working_dir.split('/')[1]
-        _ = update_results(results_fullpath, prefix, job_id, stats_df)
-
-        ax = stats_df['mean'].plot.hist()
-        fig = ax.get_figure()
-        fig.savefig(os.path.join(results_dir, 'last_stats.png'))
-        breakpoint()
+        
+        all_results_df = update_results(results_fullpath, stats_df)
+        nb_days = all_results_df.groupby(level=0)
+        for job_id, sub_results_df in all_results_df.groupby(level=0):
+            means = sub_results_df['mean']
+            stds = sub_results_df['stdev']
+            ax = means.unstack().plot.bar(
+                yerr=stds.unstack(),
+                title=job_id,
+                ylabel='Mean duration',
+            )
+            ax.legend(loc='lower right')
+            fig = ax.get_figure()
+            fig.savefig(os.path.join(results_dir, 'last_stats.png'))
 
 
 @hydra.main(config_path=config_path, config_name=config_name)

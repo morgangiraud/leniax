@@ -41,3 +41,12 @@ kernels_params:
   kf_params:
   - 4
   kf_slug: poly_quad
+
+
+###
+# Hydra conf
+###
+hydra:
+  callbacks:
+    run_cb:
+      _target_: run.RunCB

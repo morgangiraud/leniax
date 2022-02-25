@@ -1,6 +1,6 @@
 bench:
   device: cpu
-  tasks: ['potential_cfirst', 'potential_clast', 'potential_cfirst_tcnone', 'potential_clast_tcnone']
+  tasks: ['potential_cfirst_raw_conv', 'potential_cfirst', 'potential_clast', 'potential_cfirst_tcnone', 'potential_clast_tcnone']
   burnin: 1  # Number of initial iterations that are disregarded for final statistics
   nb_k: 1
   fft: False
@@ -41,11 +41,3 @@ kernels_params:
   kf_params:
   - 4
   kf_slug: poly_quad
-
-###
-# Hydra conf
-###
-hydra:
-  callbacks:
-    run_cb:
-      _target_: run.RunCB

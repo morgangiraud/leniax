@@ -382,6 +382,7 @@ def build_get_potential_fn(
     kernel_shape: Tuple[int, ...],
     true_channels: Optional[List[bool]] = None,
     fft: bool = True,
+    channel_first: bool = True,
 ) -> Callable:
     """Construct an Leniax potential function
 
@@ -406,15 +407,10 @@ def build_get_potential_fn(
         tc_indices = None
 
     if fft is True:
-        max_k_per_channel = kernel_shape[2]
-        nb_dims = len(kernel_shape) - 3
-        wdims_axes = tuple(range(-1, -nb_dims - 1, -1))
-
         return functools.partial(
             leniax_core.get_potential_fft,
-            max_k_per_channel=max_k_per_channel,
-            wdims_axes=wdims_axes,
             tc_indices=tc_indices,
+            channel_first=channel_first,
         )
     else:
         pad_l = [(0, 0), (0, 0)]
@@ -425,7 +421,12 @@ def build_get_potential_fn(
                 pad_l += [(dim // 2, dim // 2)]
         padding = tuple(pad_l)
 
-        return functools.partial(leniax_core.get_potential, tc_indices=tc_indices, padding=padding)
+        return functools.partial(
+            leniax_core.get_potential,
+            tc_indices=tc_indices,
+            padding=padding,
+            channel_first=channel_first,
+        )
 
 
 def build_get_field_fn(cin_gfs: List[List[str]], average: bool = True) -> Callable:

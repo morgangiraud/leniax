@@ -5,7 +5,7 @@
 import os
 import time
 import math
-import collections
+import json
 import importlib
 
 import numpy as np
@@ -85,52 +85,18 @@ def compute_statistics(timings, burnin=1):
     return stats
 
 
-def format_output(stats, benchmark_title, device="cpu"):
-    stats = np.sort(stats, axis=0, order=["size", "mean", "max", "median"])
-
-    header = stats.dtype.names
-    col_widths = collections.defaultdict(lambda: 8)
-    col_widths.update(size=12, backend=10)
-
-    def format_col(col_name, value, is_time=False):
-        col_width = col_widths[col_name]
-
-        if np.issubdtype(type(value), np.integer):
-            typecode = ","
-        else:
-            typecode = ".3f"
-
-        if is_time:
-            format_string = f"{{value:>{col_width}{typecode}}}"
-        else:
-            format_string = f"{{value:<{col_width}}}"
-
-        return format_string.format(value=value)
-
+def format_output(stats_df, benchmark_title, device="cpu"):
     out = [
         "",
         benchmark_title,
         "=" * len(benchmark_title),
         f"Running on {device.upper()}",
-        "",
-        "  ".join(format_col(s, s) for s in header),
     ]
-
     out.append("-" * len(out[-1]))
-
-    current_size = None
-    for row in stats:
-        # print empty line on size change
-        size = row[0]
-        if current_size is not None and size != current_size:
-            out.append("")
-        current_size = size
-
-        out.append("  ".join(format_col(n, s, not isinstance(s, str)) for n, s in zip(header, row)))
-
+    out.append(stats_df.to_string())
     out.extend([
         "",
-        "(time in wall seconds, less is better)",
+        "(time in wall seconds, less is better; delta is computed in the other direction: 1 is the slowest)",
     ])
 
     return "\n".join(out)
@@ -152,6 +118,27 @@ def get_task(task_id):
     task_module = importlib.import_module(f".{task_id}", 'tasks')
 
     return task_module, task_id
+
+
+def update_results(results_fullpath, prefix, job_id, stats_df):
+    if os.path.isfile(results_fullpath):
+        with open(results_fullpath, 'r') as json_file:
+            results = json.load(json_file)
+    else:
+        results = {}
+
+    if prefix not in results:
+        results[prefix] = {}
+
+    if job_id not in results[prefix]:
+        results[prefix][job_id] = {}
+
+    results[prefix][job_id] = stats_df.to_json()
+
+    with open(results_fullpath, 'w') as f:
+        f.write(json.dumps(results))
+
+    return results
 
 
 class BackendNotSupported(Exception):

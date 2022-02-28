@@ -5,7 +5,6 @@
 import os
 import time
 import math
-import json
 import importlib
 
 import numpy as np
@@ -85,7 +84,7 @@ def compute_statistics(timings, burnin=1):
 
     stats = np.sort(stats, axis=0, order=["size", "mean", "max", "median"])
     stats_df = pd.DataFrame(stats)
-    
+
     return stats_df
 
 

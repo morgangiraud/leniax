@@ -10,9 +10,7 @@ from omegaconf import DictConfig
 import hydra
 from hydra.experimental.callback import Callback
 import numpy as np
-import pandas as pd
 import click
-from matplotlib.pyplot import plot as plt
 from utilities import (
     Timer,
     estimate_repetitions,
@@ -42,8 +40,8 @@ class RunCB(Callback):
 
         stats_df = compute_statistics(timings)
 
-        stats_df['job_id'] =  job_id
-        stats_df['day'] =  date_val
+        stats_df['job_id'] = job_id
+        stats_df['day'] = date_val
         stats_df = stats_df.set_index(['job_id', 'day', 'size', 'task']).sort_index()
         logging.info(format_output(stats_df, job_id, device=device))
 
@@ -53,20 +51,20 @@ class RunCB(Callback):
         leniax_utils.check_dir(results_dir)
 
         results_fullpath = os.path.join(results_dir, 'results.json')
-        
+
         all_results_df = update_results(results_fullpath, stats_df)
-        nb_days = all_results_df.groupby(level=0)
-        for job_id, sub_results_df in all_results_df.groupby(level=0):
-            means = sub_results_df['mean']
-            stds = sub_results_df['stdev']
+        max_val = all_results_df['mean'].max() + all_results_df['stdev'].max()
+        for indexes, sub_results_df in all_results_df.groupby(level=(0, 1)):
+            means = sub_results_df.loc[indexes]['mean']
+            stds = sub_results_df.loc[indexes]['stdev']
             ax = means.unstack().plot.bar(
                 yerr=stds.unstack(),
                 title=job_id,
                 ylabel='Mean duration',
+                ylim=[0, max_val],
             )
-            ax.legend(loc='lower right')
             fig = ax.get_figure()
-            fig.savefig(os.path.join(results_dir, 'last_stats.png'))
+            fig.savefig(os.path.join(results_dir, f'{indexes[0]}-{indexes[1]}.png'))
 
 
 @hydra.main(config_path=config_path, config_name=config_name)

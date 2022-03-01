@@ -395,25 +395,25 @@ def get_image(cells_buffer: np.ndarray, pixel_size: int, colormap) -> Image:
     """Convert a numpy array into a PIL image
 
     Args:
-        cells_buffer: A Lenia state
+        cells_buffer: A Lenia state of shape ``[C, world_dims...]``
         pixel_size: Size of each state pixels in the image
         colormap: A matplotlib compatible colormap
 
     Returns:
         A PIL image
     """
-    nb_dims = len(cells_buffer.shape) - 1
+    nb_world_dims = len(cells_buffer.shape) - 1
 
     if pixel_size != 1:
-        for i in range(nb_dims):
+        for i in range(nb_world_dims):
             cells_buffer = np.repeat(cells_buffer, pixel_size, axis=i + 1)
 
-    if nb_dims == 2:
+    if nb_world_dims == 2:
         cells_buffer = np.transpose(cells_buffer, (1, 2, 0))
         img = colormap(cells_buffer)[:, :, 0]
         rgba_uint8 = np.uint8(img * 255)
         final_img = Image.fromarray(rgba_uint8, 'RGBA')
-    elif nb_dims == 3:
+    elif nb_world_dims == 3:
         fig = plt.figure()
         ax = fig.gca()
         ax.axis('off')
@@ -426,7 +426,7 @@ def get_image(cells_buffer: np.ndarray, pixel_size: int, colormap) -> Image:
         image_from_plot = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
         final_img = image_from_plot.reshape(fig.canvas.get_width_height()[::-1] + (3, ))
     else:
-        raise ValueError("nb_dims > 3 not supported")
+        raise ValueError("nb_world_dims > 3 not supported")
 
     return final_img
 

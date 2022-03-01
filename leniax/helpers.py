@@ -413,12 +413,22 @@ def build_get_potential_fn(
             channel_first=channel_first,
         )
     else:
-        pad_l = [(0, 0), (0, 0)]
-        for dim in kernel_shape[2:]:
-            if dim % 2 == 0:
-                pad_l += [(dim // 2, dim // 2 - 1)]
-            else:
-                pad_l += [(dim // 2, dim // 2)]
+        if channel_first is True:
+            pad_l = [(0, 0), (0, 0)]
+            for dim in kernel_shape[2:]:
+                if dim % 2 == 0:
+                    pad_l += [(dim // 2, dim // 2 - 1)]
+                else:
+                    pad_l += [(dim // 2, dim // 2)]
+        else:
+            pad_l = [(0, 0)]
+            for dim in kernel_shape[:2]:
+                if dim % 2 == 0:
+                    pad_l += [(dim // 2, dim // 2 - 1)]
+                else:
+                    pad_l += [(dim // 2, dim // 2)]
+            pad_l += [(0, 0)]
+
         padding = tuple(pad_l)
 
         return functools.partial(

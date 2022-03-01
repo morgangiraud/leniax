@@ -24,7 +24,6 @@ from typing import Tuple, Callable
 import leniax.utils as leniax_utils
 import leniax.helpers as leniax_helpers
 import leniax.colormaps as leniax_colormaps
-from leniax.kernels import get_kernels_and_mapping
 from leniax.runner import make_gradient_fn, make_pipeline_fn
 from leniax.video import render_video
 
@@ -33,62 +32,75 @@ absl_logging.set_verbosity(absl_logging.ERROR)
 
 
 def get_jax_living_mask(x):
-    alpha = jnp.moveaxis(x[:, 3:4], 1, -1)
+    alpha = jnp.take(x, jnp.array([3]), axis=-1)
     is_alive = nn.max_pool(alpha, (3, 3), (1, 1), 'SAME') > 0.1
-    return jnp.moveaxis(is_alive, -1, 1)
+    return is_alive
+
+
+def K_init(rng, shape):
+    K = jax.random.uniform(rng, shape)
+    K = K / K.sum(axis=[-1, -2, -3], keepdims=True)
+
+    return K
 
 
 class LeniaModel(nn.Module):
     features: Tuple[int, ...]
     fire_rate: float
-    K: jnp.ndarray
+    K_shape: Tuple[int, int, int, int]
     get_potential_fn: Callable
 
     @nn.compact
-    def __call__(self, rng_key, x, dt=1.0):
-        pre_life_mask = get_jax_living_mask(x)
+    def __call__(self, rng_key, cells_state, dt=1.0):
+        pre_life_mask = get_jax_living_mask(cells_state)
 
-        potential = self.get_potential_fn(x, self.K)
+        K = self.param('K', K_init, self.K_shape)
+        potential = self.get_potential_fn(cells_state, K)
 
-        y = jnp.moveaxis(potential, 1, -1)
+        y = potential
         for feat in self.features[:-1]:
             y = nn.Conv(features=feat, kernel_size=(1, 1))(y)
             y = nn.relu(y)
         dx = nn.Conv(features=self.features[-1], kernel_size=(1, 1), kernel_init=nn.initializers.zeros)(y)
-        dx = jnp.moveaxis(dx, -1, 1)
 
-        update_mask = jax.random.uniform(rng_key, dx[:, :1, :, :].shape) <= self.fire_rate
-
+        update_mask = jax.random.uniform(rng_key, dx[:, :, :, :1].shape) <= self.fire_rate
         field = dx * jnp.array(update_mask, jnp.float32)
-        x += dt * field
 
-        post_life_mask = get_jax_living_mask(x)
+        new_cells_state = cells_state + dt * field
+
+        post_life_mask = get_jax_living_mask(new_cells_state)
         life_mask = pre_life_mask & post_life_mask
+        new_cells_state = new_cells_state * jnp.array(life_mask, dtype=jnp.float32)
 
-        return x * jnp.array(life_mask, dtype=jnp.float32), potential, field
+        return new_cells_state, potential, field
 
 
 def all_states_loss_fn(rng_key, preds, targets):
-    all_cells = preds['cells']  # [N_iter, N_init, C, H, W]
+    all_cells = preds['cells']  # [N_iter, N_init, H, W, C]
     nb_steps = all_cells.shape[0]
-    x_true = targets['cells']  # [1, 4, H, W]
+    x_true = targets['cells']  # [1, H, W, 4]
 
     iter_idx = jax.random.randint(rng_key, [], int(0.8 * nb_steps), nb_steps)
-    x = all_cells[iter_idx, :, :4]  # [N_init, 4, H, W]
+    x = all_cells[iter_idx, :, :, :, :4]  # [N_init, H, W, 4]
 
     diffs = jnp.square(x - x_true)  # [N_init, C, H, W]
     batch_diffs = jnp.mean(diffs, axis=[-3, -2, -1])  # [N_init]
     loss = jnp.mean(batch_diffs)  # []
 
-    return loss, all_cells[-1]
+    overflow_reg = jnp.mean(jnp.abs(x - jnp.clip(x, 0, 1)))
+
+    return loss + 1e-5 * overflow_reg, all_cells[-1]
 
 
 def eval_fake_loss_fn(rng_key, preds, targets):
     all_cells = preds['cells']
-    rgb = all_cells[:, 0, :3]
-    alpha = jnp.clip(all_cells[:, 0, 3:4], 0, 1)
+    single_run = all_cells[:, 0]
+    rgb = single_run[:, :, :, :3]
+    alpha = jnp.clip(single_run[:, :, :, 3:4], 0, 1)
 
-    return 0, 1.0 - alpha + rgb
+    loss = 0.
+
+    return loss, 1.0 - alpha + rgb  # white background
 
 
 def save_checkpoint(save_dir, state):
@@ -104,7 +116,7 @@ def save_checkpoint(save_dir, state):
 ###
 cdir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(cdir, '..', 'experiments', '019_neural_lenia')
-config_name = "config"
+config_name = "nlenia"
 
 
 @hydra.main(config_path=config_path, config_name=config_name)
@@ -128,7 +140,7 @@ def run(omegaConf: DictConfig) -> None:
     nb_init = config['run_params']['nb_init_search']
     max_iter = config['run_params']['max_run_iter']
     nb_epochs = config['run_params']['nb_epochs']
-    cells_shape = [nb_init, C] + world_size
+    cells_shape = [nb_init] + world_size + [C]
 
     # We load the target image
     img = PIL.Image.open(os.path.join(config_path, 'emoji_u1f98e.png'))
@@ -137,41 +149,26 @@ def run(omegaConf: DictConfig) -> None:
     img = np.float32(img) / 255.
     img[..., :3] *= img[..., 3:]  # premultiply RGB by Alpha
     img = jnp.pad(img, pad_width=[[p, p], [p, p], [0, 0]])
-    img = jnp.moveaxis(img, -1, 0)[jnp.newaxis]  # [1, C, H, W]
+    img = img[jnp.newaxis]  # [1, H, W, C]
     targets = {'cells': img}
-
-    ###
-    # We define the final kernel K
-    # We add to the existing 2 sobel kernels + identity kernel, 2 directionnal Lenia kernel
-    ###
-    # Lenia kernels
-    k, _ = get_kernels_and_mapping(config['kernels_params'], world_size, C, R, fft=False)
-    k = k[:2]
-    k = k.at[:, :, R, R].set(0.)
-    # Identity kernel
-    k_identity = jnp.zeros_like(k[:1]).at[:, :, R, R].set(1.0)
-    # sobel kernels
-    k_dx = jnp.array(np.outer([1, 2, 1], [-1, 0, 1]), dtype=jnp.float32) / 8.0  # Sobel filter
-    k_H, k_W = k.shape[2], k.shape[3]
-    pad_h, pad_w = k_H - 3, k_W - 3
-    k_dx = jnp.pad(k_dx, [[pad_h // 2, k_H - 3 - pad_h // 2], [pad_w // 2, k_W - 3 - pad_w // 2]], mode='constant')
-    k_dy = k_dx.T
-    k = jnp.vstack([k_dx[jnp.newaxis, jnp.newaxis], k_dy[jnp.newaxis, jnp.newaxis], k,
-                    k_identity])  # [K_o=3, K_i=1, H, W]
-    K = jnp.repeat(k, C, axis=0)  # [K_o=3*c, K_i=1, H, W]
 
     # We use a simple init_cells: only pixel set to 1 in the center
     init_cells = jnp.zeros(cells_shape, dtype=jnp.float32)
     midpoint = jnp.array(world_size) // 2
-    init_cells = init_cells.at[:, 3:, midpoint[0], midpoint[1]].set(1.)
+    init_cells = init_cells.at[:, midpoint[0], midpoint[1], 3:].set(1.)
 
     train_log_dir = os.path.join(save_dir, 'train')
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
     colormaps = [leniax_colormaps.get(cmap_name) for cmap_name in config['render_params']['colormaps']]
 
     # Initialize the model
-    get_potential_fn = leniax_helpers.build_get_potential_fn(K.shape, fft=False)
-    ca = LeniaModel(features=[128, C], fire_rate=.5, K=K, get_potential_fn=get_potential_fn)
+    K_shape = (2 * R, 2 * R, 1, 32)
+    ca = LeniaModel(
+        features=[128, C],
+        fire_rate=.5,
+        K_shape=K_shape,
+        get_potential_fn=leniax_helpers.build_get_potential_fn(K_shape, fft=False, channel_first=False)
+    )
     rng_key, subkey = jax.random.split(rng_key)
     variables = ca.init(rng_key, subkey, jnp.ones(cells_shape))
     vars, params = variables.pop('params')
@@ -179,8 +176,8 @@ def run(omegaConf: DictConfig) -> None:
 
     # Make the optimizer
     lr = 1e-3
-    lr_sched = optax.piecewise_constant_schedule(lr, {2000: 0.1})
-    optimizer = optax.adam(learning_rate=lr_sched)
+    lr_sched = optax.piecewise_constant_schedule(lr, {5000: 0.1})
+    optimizer = optax.adamw(learning_rate=lr_sched)
 
     # Initialize the state
     t_state = train_state.TrainState.create(
@@ -209,7 +206,7 @@ def run(omegaConf: DictConfig) -> None:
         # We copy some end state to the initial cells
         # To help the network learn to stabilize its outputs
         final_cells = aux[0]
-        init_cells = init_cells.at[-2:].set(final_cells[:2])
+        init_cells = init_cells.at[-4:].set(final_cells[1:5])
 
         with train_summary_writer.as_default():
             tf.summary.scalar('loss', loss, step=i)
@@ -218,8 +215,8 @@ def run(omegaConf: DictConfig) -> None:
             logging.info(F"Iteration {i}, loss: {loss}")
 
             with train_summary_writer.as_default():
-                vis0 = jnp.hstack(jnp.moveaxis(init_cells[:, :4], 1, -1))
-                vis1 = jnp.hstack(jnp.moveaxis(final_cells[:, :4], 1, -1))
+                vis0 = jnp.hstack(init_cells[:, :, :, :4])
+                vis1 = jnp.hstack(final_cells[:, :, :, :4])
                 vis = np.vstack([vis0, vis1])
                 tf.summary.image("Batch", vis[jnp.newaxis], step=i)
 
@@ -227,7 +224,11 @@ def run(omegaConf: DictConfig) -> None:
             _, aux = eval_pipeline_fn(subkey, t_state.params, vars, init_cells[:1], targets)
             all_cells = aux[0]
             render_video(
-                save_dir, all_cells, config['render_params'], colormaps, prefix=f"{str(i).zfill(4)}_neural_lenia"
+                save_dir,
+                jnp.transpose(all_cells, (0, 3, 1, 2)),
+                config['render_params'],
+                colormaps,
+                prefix=f"{str(i).zfill(4)}_neural_lenia"
             )
             save_checkpoint(save_dir, t_state)
 

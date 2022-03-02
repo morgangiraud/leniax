@@ -56,10 +56,10 @@ docs: ## generate Sphinx HTML documentation, including API docs
 # CI
 ###
 yapf:
-	yapf --style tox.ini -r -i leniax/. tests/. examples/. scripts/. tools/.
+	yapf --style tox.ini -r -i leniax/. tests/. examples/. scripts/. tools/. benchmarks/.
 
 lint:
-	flake8 leniax/. tests/. examples/. scripts/. tools/.
+	flake8 leniax/. tests/. examples/. scripts/. tools/. benchmarks/.
 
 typecheck:
 	mypy $(CURRENT_DIR)/leniax $(CURRENT_DIR)/examples $(CURRENT_DIR)/scripts

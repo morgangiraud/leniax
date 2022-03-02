@@ -61,12 +61,12 @@ def run(
     init_mass = cells.sum()
 
     previous_mass = init_mass
-    previous_sign = jnp.zeros(N)
+    previous_sign = jnp.zeros(N, dtype=jnp.int32)
     counters = leniax_stat.init_counters(N)
-    should_continue = jnp.ones(N)
+    should_continue = jnp.ones(N, dtype=jnp.int32)
     total_shift_idx = jnp.zeros([N, nb_world_dims], dtype=jnp.int32)
-    mass_centroid = jnp.zeros([nb_world_dims, N])
-    mass_angle = jnp.zeros([N])
+    mass_centroid = jnp.zeros([nb_world_dims, N], dtype=jnp.int32)
+    mass_angle = jnp.zeros([N], dtype=jnp.int32)
     subkeys = jax.random.split(rng_key, max_run_iter)
     for current_iter in range(max_run_iter):
         new_cells, field, potential = update_fn(subkeys[current_iter], cells, K, gf_params, kernels_weight_per_channel, 1. / T)

@@ -49,13 +49,12 @@ def update(
     return state, field, potential
 
 
+@functools.partial(jit, static_argnums=(2, 3))
 def get_potential_fft(
     state: jnp.ndarray,
     K: jnp.ndarray,
-    max_k_per_channel: int,
-    C: int,
-    wdims_axes: Tuple[int, ...],
-    true_channels: Optional[jnp.ndarray] = None,
+    tc_indices: Optional[Tuple] = None,
+    channel_first: bool = True,
 ) -> jnp.ndarray:
     """Compute the potential using FFT
 
@@ -64,35 +63,52 @@ def get_potential_fft(
     Args:
         state: cells state ``[N, nb_channels, world_dims...]``
         K: Kernels ``[1, nb_channels, max_k_per_channel, world_dims...]``
-        true_channels: ``1-dim`` array of boolean values ``[nb_channels]``
-        max_k_per_channel: Maximum number of kernels applied per channel
-        C: nb_channels
-        wdims_axes: Dimensions index representing the world dimensions (H, W, etc...)
+        tc_indices: Optional ``1-dim`` array channels indices to keep
+        channel_first: see ``https://jax.readthedocs.io/en/latest/_autosummary/jax.lax.conv_general_dilated.html``
 
     Returns:
         An array containing the potential
     """
-    fft_cells = jnp.fft.fftn(state, axes=wdims_axes)[:, :, jnp.newaxis, ...]  # [N, nb_channels, 1, world_dims...]
+    dim_numbers = _conv_dimension_numbers(state.shape, channel_first)
+    channel_dim = dim_numbers.lhs_spec[1]
+    C = state.shape[channel_dim]
+
+    if channel_first is True:
+        world_dims = tuple(range(-1, -len(state.shape) + 1, -1))
+    else:
+        world_dims = tuple(range(-2, -len(state.shape), -1))
+
+    fft_cells = jnp.fft.fftn(state, axes=world_dims)
+    if channel_first is True:
+        fft_cells = fft_cells[:, :, jnp.newaxis]  # [N, nb_channels, 1, world_dims...]
+    else:
+        fft_cells = fft_cells[..., jnp.newaxis]  # [N, world_dims..., nb_channels, 1]
     fft_out = fft_cells * K
-    conv_out = jnp.real(jnp.fft.ifftn(fft_out, axes=wdims_axes))  # [N, nb_channels, max_k_per_channel, world_dims...]
+    conv_out = jnp.real(jnp.fft.ifftn(fft_out, axes=world_dims))
 
-    world_shape = state.shape[2:]
-    final_shape = (-1, max_k_per_channel * C) + world_shape
-    conv_out_reshaped = conv_out.reshape(final_shape)
+    if channel_first is True:
+        max_k_per_channel = K.shape[2]
+        conv_shape = (-1, max_k_per_channel * C) + state.shape[2:]
+    else:
+        max_k_per_channel = K.shape[-1]
+        conv_shape = state.shape[0:-1] + (max_k_per_channel * C, )
+    conv_out_reshaped = conv_out.reshape(conv_shape)
 
-    if true_channels is not None:
-        potential = conv_out_reshaped[:, true_channels]  # [N, nb_kernels, world_dims...]
+    if tc_indices is not None:
+        potential = jnp.take(conv_out_reshaped, jnp.array(tc_indices), axis=channel_dim)
     else:
         potential = conv_out_reshaped
 
     return potential
 
 
+@functools.partial(jit, static_argnums=(2, 3, 4))
 def get_potential(
     state: jnp.ndarray,
     K: jnp.ndarray,
-    padding: jnp.ndarray,
-    true_channels: Optional[jnp.ndarray] = None,
+    padding: Tuple,
+    tc_indices: Optional[Tuple] = None,
+    channel_first: bool = True,
 ) -> jnp.ndarray:
     """Compute the potential using lax.conv_general_dilated
 
@@ -102,21 +118,46 @@ def get_potential(
         state: cells state ``[N, nb_channels, world_dims...]``
         K: Kernels ``[K_o=nb_channels * max_k_per_channel, K_i=1, kernel_dims...]``
         padding: array with padding informations, ``[nb_world_dims, 2]``
-        true_channels: ``1-dim`` array of boolean values ``[nb_channels]``
+        tc_indices: Optional ``1-dim`` array channels indices to keep
+        channel_first: see ``https://jax.readthedocs.io/en/latest/_autosummary/jax.lax.conv_general_dilated.html``
 
     Returns:
         An array containing the potential
     """
-    padded_state = jnp.pad(state, padding, mode='wrap')
-    nb_channels = state.shape[1]
-    conv_out_reshaped = lax.conv_general_dilated(padded_state, K, (1, 1), 'VALID', feature_group_count=nb_channels)
+    dim_numbers = _conv_dimension_numbers(state.shape, channel_first)
+    channel_dim = dim_numbers.lhs_spec[1]
+    C = state.shape[channel_dim]
 
-    if true_channels is not None:
-        potential = conv_out_reshaped[:, true_channels]  # [N, nb_kernels, world_dims...]
+    padded_state = jnp.pad(state, padding, mode='wrap')
+    conv_out_reshaped = lax.conv_general_dilated(
+        padded_state,
+        K,
+        (1, 1),
+        'VALID',
+        feature_group_count=C,
+        dimension_numbers=dim_numbers,
+    )
+
+    if tc_indices is not None:
+        potential = jnp.take(conv_out_reshaped, jnp.array(tc_indices), axis=channel_dim)
     else:
         potential = conv_out_reshaped
 
     return potential
+
+
+def _conv_dimension_numbers(input_shape, channel_first=True):
+    """Computes the dimension numbers based on the input shape."""
+    ndim = len(input_shape)
+    if channel_first is True:
+        lhs_spec = tuple(range(0, ndim))
+        rhs_spec = tuple(range(0, ndim))
+    else:
+        lhs_spec = (0, ndim - 1) + tuple(range(1, ndim - 1))
+        rhs_spec = (ndim - 1, ndim - 2) + tuple(range(0, ndim - 2))
+    out_spec = lhs_spec
+
+    return lax.ConvDimensionNumbers(lhs_spec, rhs_spec, out_spec)
 
 
 @functools.partial(jit, static_argnums=(3, 4))

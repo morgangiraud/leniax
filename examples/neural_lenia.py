@@ -39,7 +39,7 @@ def get_jax_living_mask(x):
 
 def K_init(rng, shape):
     K = jax.random.uniform(rng, shape)
-    K = K / K.sum(axis=[-1, -2, -3], keepdims=True)
+    K = K / K.sum(axis=[0, 1, 2], keepdims=True)
 
     return K
 

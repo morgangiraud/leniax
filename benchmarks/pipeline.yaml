@@ -1,6 +1,6 @@
 bench:
   device: cpu
-  tasks: ['pipeline']
+  tasks: ['pipeline', 'pipeline_with_rng']
   burnin: 1  # Number of initial iterations that are disregarded for final statistics
   nb_k: 1
   fft: False

@@ -88,9 +88,15 @@ def make_run_fn(rng_key, config, multiplier):
         max_iter, 1 / T, t_state.apply_fn, all_states_loss_fn, keep_intermediary_data=False, keep_all_timesteps=False
     )
 
-    def bench_fn():
+    @jax.jit
+    def apply_fn(rng_key, params, vars, init_cells, targets):
         subkeys = jax.random.split(rng_key)
-        loss, _ = pipeline_fn(subkeys[0], t_state.params, vars, init_cells, targets)
+        loss, _ = pipeline_fn(subkeys[0], params, vars, init_cells, targets)
+
+        return loss
+
+    def bench_fn():
+        loss = apply_fn(rng_key, t_state.params, vars, init_cells, targets)
         loss.block_until_ready()
         return loss
 

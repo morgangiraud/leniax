@@ -42,7 +42,10 @@ class RunCB(Callback):
 
         stats_df['job_id'] = job_id
         stats_df['day'] = date_val
-        stats_df = stats_df.sort_values(['job_id', 'day', 'size', 'delta']).set_index(['job_id', 'day', 'size', 'task'])
+        stats_df = stats_df.sort_values(
+            ['job_id', 'day', 'size', 'delta'], 
+            ascending=[True, False, True, False]
+        ).set_index(['job_id', 'day', 'size', 'task'])
         logging.info(format_output(stats_df, job_id, device=device))
 
         shutil.rmtree(save_dir)

@@ -10,5 +10,5 @@ include experiments/019_neural_lenia/emoji*.png
 
 include benchmarks/*.py
 include benchmarks/README.md
-include benchmarks/base.yaml
+include benchmarks/*.yaml
 include benchmarks/tasks/*.py

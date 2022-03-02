@@ -71,7 +71,7 @@ def compute_statistics(timings, burnin=1):
             ("median", "f4"),
             ("75%", "f4"),
             ("max", "f4"),
-            ("Δ", "f4"),
+            ("delta", "f4"),
         ],
     )
 
@@ -80,7 +80,7 @@ def compute_statistics(timings, burnin=1):
     for s in sizes:
         mask = stats["size"] == s
         reference_time = np.nanmax(stats["mean"][mask])
-        stats["Δ"][mask] = reference_time / stats["mean"][mask]
+        stats["delta"][mask] = reference_time / stats["mean"][mask]
 
     stats = np.sort(stats, axis=0, order=["size", "mean", "max", "median"])
     stats_df = pd.DataFrame(stats)

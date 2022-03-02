@@ -31,9 +31,13 @@ def make_run_fn(rng_key, config, multiplier):
 
     K.block_until_ready()
 
-    def bench_fn():
+    @jax.jit
+    def apply_fn(state):
         padded_state = jax.numpy.pad(state, padding, mode='wrap')
-        potential = jax.lax.conv_general_dilated(padded_state, K, (1, 1), 'VALID', feature_group_count=C)
+        return jax.lax.conv_general_dilated(padded_state, K, (1, 1), 'VALID', feature_group_count=C)
+
+    def bench_fn():
+        potential = apply_fn(state)
         potential.block_until_ready()
         return potential
 

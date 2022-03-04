@@ -1,16 +1,23 @@
 # 014 - 2 channels
 
-In this experiment we explore how the current QD algorithm works in the following settings
-- 2 channels
-- 4 kernels (kernels can influence eachothers)
+### Decription
+In this experiment, we explore how the current QD algorithm works in 
+
+The setting is:
+- The original Lenia update function
+- 1 channel
+- 2 kernels
 
 2 variations:
 - raw search
-- 1 kernel frozen to orbium found in experiment 014_2channels
+- 1 kernel frozen to Orbium found in experiment 014_2channels
 
-Goal: See if the current QD algorithm scale well to this setting
+### Hypothesis
+Current QD algorithm scale well to this setting.
 
-Results: ok in both settings
+### Results
+Right in both settings
 
-Notes:
-Creatures are surpringly interesting and the algorithm is working well. Gives me hope that it will scale to higher dimensions.
+The solitons are surprisingly interesting and the algorithm is working well!
+
+Gives me hope that it will scale to higher dimensions!

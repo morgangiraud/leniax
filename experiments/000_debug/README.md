@@ -1,3 +1,3 @@
 # 000 - debug
 
-This folders is used for debugging.
+This folder is used for debugging.

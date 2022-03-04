@@ -27,23 +27,11 @@ tools/shuffler/*
 !tools/shuffler/*.py
 
 ## Experiments
-experiments/*
-!experiments/readme.md
-!experiments/007_beta_cube_4/
-experiments/007_beta_cube_4/*
-!experiments/007_beta_cube_4/config.yaml
-!experiments/013_descendants_1c2k/
-experiments/013_descendants_1c2k/*
-!experiments/013_descendants_1c2k/config.yaml
-!experiments/013_descendants_1c2k/readme.md
-!experiments/014_2channels/
-experiments/014_2channels/*
-!experiments/014_2channels/config.yaml
-!experiments/014_2channels/readme.md
-!experiments/015_3channels/
-experiments/015_3channels/*
-!experiments/015_3channels/config.yaml
-!experiments/015_3channels/readme.md
+experiments/*/*
+!experiments/**/README.md
+!experiments/**/*.png
+!experiments/**/*.yaml
+!experiments/**/*.csv
 
 # OSX
 .DS_Store

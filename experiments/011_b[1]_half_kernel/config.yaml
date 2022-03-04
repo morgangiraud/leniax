@@ -1,0 +1,70 @@
+algo:
+  batch_size: 16
+  budget: 8192
+  ignore_if_not_added_to_container: false
+  mut_sigma0: 0.01
+  sampling_domain:
+  - 0.0
+  - 1.0
+  separable_cma: false
+  sigma0: 0.15
+genotype:
+- domain:
+  - 0.1
+  - 0.6
+  key: kernels_params.k.0.m
+  type: float
+- domain:
+  - 0.0
+  - 0.1
+  key: kernels_params.k.0.s
+  type: float
+grid:
+  features_domain:
+  - - 0.0
+    - 1.0
+  - - 0.0
+    - 10
+  shape:
+  - 25
+  - 25
+kernels_params:
+  k:
+  - b:
+    - 1.0
+    c_in: 0
+    c_out: 0
+    gf_id: 0
+    h: 1
+    k_id: 0
+    m: 0.17
+    q: 4
+    r: 1
+    s: 0.015
+main_path: ''
+other:
+  dump_bests: true
+phenotype:
+- behaviours.mass_density
+- behaviours.mass_volume
+render_params:
+  pixel_border_size: 0
+  pixel_size: 4
+  pixel_size_power2: 2
+  size_power2: 7
+  world_size:
+  - 128
+  - 128
+run_params:
+  cells: MISSING
+  code: 604f9a53-cdce-471a-95f9-88af967f05a0
+  max_run_iter: 1024
+  nb_init_search: 128
+  seed: 1
+world_params:
+  R: 13
+  T: 10
+  nb_channels: 1
+  nb_dims: 2
+  update_fn_version: v1
+  weighted_average: true

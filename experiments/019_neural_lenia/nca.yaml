@@ -1,0 +1,19 @@
+other:
+  log_level: 20
+render_params:
+  pixel_size: 4
+  world_size:
+  - 72
+  - 72
+run_params:
+  max_run_iter: 96
+  nb_init_search: 8
+  nb_epochs: 8001
+  seed: 1
+version: 2
+world_params:
+  R: 7
+  T: 1
+  nb_channels: 16
+  nb_dims: 2
+  scale: 1.0

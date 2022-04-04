@@ -29,10 +29,10 @@ You can make sure that everything is working fine by running the following comma
 We provide multiple commented examples that you can explore in the [examples](examples) folder. See the folder [README.md](examples/README.md) for more information.
 
 ### Tutorials
-You can also find multiple tutorials mirroring the examples as notebooks. Check the `Tutorials` section in the [documentation](https://leniax.github.com).
+You can also find multiple tutorials mirroring the examples as notebooks. Check the `Tutorials` section in the [documentation](https://leniax.readthedocs.io).
 
 ## Documentation
-See here for the documentation: https://leniax.github.com
+See here for the documentation: https://leniax.readthedocs.io
 
 To serve the documentation locally, run the following commands:
 ```
@@ -116,7 +116,7 @@ To cite this repository:
   author = {Morgan Giraud},
   title = {{Leniax}: efficient and differentiable Lenia simulator},
   url = {http://github.com/morgangiraud/leniax},
-  version = {1.0.0},
+  version = {0.2.1},
   year = {2022},
 }
 ```

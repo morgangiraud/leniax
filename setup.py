@@ -35,10 +35,10 @@ extras_require = {
     
 setup(
     name="leniax",
-    version='0.2.0',
+    version='0.2.1',
     python_requires='>=3.7.9',  # I keep this minimum python version for Google Collab
     description='Lenia using the JAX library',
-    url='https://github.com/stockmouton/leniax',
+    url='https://github.com/morgangiraud/leniax',
     author='Morgan Giraud',
     classifiers=[
         'Development Status :: 5 - Production/Stable',

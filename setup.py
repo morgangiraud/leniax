@@ -15,7 +15,8 @@ install_requires = [
     'ffmpeg-python>=0.2.0', 
     'hilbertcurve>=2.0.5',
     'hydra-core>=1.1.1',
-    'jax>=0.2.25', 
+    'jax>=0.3.4', 
+    'jaxlib>=0.3.2', 
     'PyYAML>=6.0',
     'ribs>=0.4.0',
 ]

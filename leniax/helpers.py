@@ -189,6 +189,55 @@ def init_and_run(
     return all_cells, all_fields, all_potentials, stats_dict
 
 
+def multi_init_and_run(rng_key, main_config, configs, use_init_cells, fft):
+    main_config = copy.deepcopy(main_config)
+    world_params = main_config['world_params']
+    get_state_fn_slug = world_params['get_state_fn_slug'] if 'get_state_fn_slug' in world_params else 'v1'
+    weighted_average = world_params['weighted_average'] if 'weighted_average' in world_params else True
+    R = main_config['world_params']['R']
+    max_run_iter = main_config['run_params']['max_run_iter']
+
+    _, K, mapping = init(main_config, use_init_cells, fft)
+    update_fn = build_update_fn(K.shape, mapping, get_state_fn_slug, weighted_average, fft)
+    compute_stats_fn = leniax_stat.build_compute_stats_fn(world_params, main_config['render_params'])
+
+    multi_run_fn = jax.vmap(leniax_runner.run_scan, in_axes=(None, 0, 0, 0, 0, 0, None, None, None, None), out_axes=0)
+
+    multi_cells = []
+    multi_K = []
+    multi_gf_params = []
+    multi_kernels_weight_per_channel = []
+    multi_T = []
+    for config in configs:
+        cells, K, mapping = init(config, use_init_cells, fft)
+        gf_params = mapping.get_gf_params()
+        kernels_weight_per_channel = mapping.get_kernels_weight_per_channel()
+        T = jnp.array(config['world_params']['T'], dtype=jnp.float32)
+
+        multi_cells.append(cells)
+        multi_K.append(K)
+        multi_gf_params.append(gf_params)
+        multi_kernels_weight_per_channel.append(kernels_weight_per_channel)
+        multi_T.append(T)
+
+    all_cells, all_fields, all_potentials, stats_dict = multi_run_fn(
+        rng_key,
+        jnp.array(multi_cells),
+        jnp.array(multi_K),
+        jnp.array(multi_gf_params),
+        jnp.array(multi_kernels_weight_per_channel),
+        jnp.array(multi_T),
+        max_run_iter,
+        R,
+        update_fn,
+        compute_stats_fn
+    )
+
+    stats_dict = {k: v.squeeze() for k, v in stats_dict.items()}
+
+    return all_cells, all_fields, all_potentials, stats_dict
+
+
 def search_for_mutation(
     rng_key: jax.random.KeyArray,
     config: Dict,

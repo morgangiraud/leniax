@@ -18,8 +18,9 @@ import tensorflow as tf
 import jax
 import numpy as np
 import jax.numpy as jnp
-import jax.example_libraries.optimizers as jax_opt
+import optax
 import flax.linen as nn
+from flax.training import checkpoints, train_state
 import matplotlib.pyplot as plt
 from typing import Tuple, Callable
 
@@ -46,21 +47,19 @@ class Step(nn.Module):
     update_fn: Callable
 
     @nn.compact
-    def __call__(self, rng_key, x, dt):
-        K = self.param('K', self.kernel_init, self.kernel_shape, jnp.float32)
+    def __call__(self, rng_key, cells_state, dt):
+        K = self.param('K', self.kernel_init, self.kernel_shape)
 
-        state, field, potential = self.update_fn(rng_key, x, K, self.gf_params, self.kernels_weight_per_channel, dt=dt)
+        state, field, potential = self.update_fn(rng_key, cells_state, K, self.gf_params, self.kernels_weight_per_channel, dt=dt)
 
         return state, field, potential
 
 
-def kernel_init(rng_key, kernel_shape, dtype):
-    rng_key, subkey = jax.random.split(rng_key)
-    K_params = jax.random.uniform(subkey, shape=kernel_shape)
+def kernel_init(rng_key, kernel_shape):
+    K = jax.random.uniform(rng_key, shape=kernel_shape)
+    K = K / K.sum()
 
-    K = K_params / K_params.sum()
-
-    return jnp.asarray(K, dtype=dtype)
+    return K
 
 
 def all_states_loss_fn(rng_key, preds, target):
@@ -69,11 +68,14 @@ def all_states_loss_fn(rng_key, preds, target):
 
     diffs = 0.5 * jnp.square(x - x_true)
     errors = jnp.sum(diffs, axis=(1, 2, 3))
-    cells_batch_loss = jnp.mean(errors)
-
-    loss = cells_batch_loss
+    loss = jnp.mean(errors)
 
     return loss, x
+
+
+def save_checkpoint(save_dir, state):
+    step = int(state.step)
+    checkpoints.save_checkpoint(save_dir, state, step, keep=2)
 
 
 ###
@@ -118,13 +120,14 @@ def run(omegaConf: DictConfig) -> None:
 
     nb_init = nb_channels * nb_init_search
     rng_key, noises = leniax_init.register[init_slug](rng_key, nb_init, world_size, R, kernels_params[0]['gf_params'])
-    all_init_cells = noises.reshape([nb_init_search, 1] + world_size)
+    all_init_cells = noises.reshape([nb_init_search, nb_channels] + world_size)
     config_target['run_params']['init_cells'] = all_init_cells
 
     logging.info("Rendering target: start")
     start_time = time.time()
+    rng_key, subkey = jax.random.split(rng_key)
     all_cells_target, all_fields_target, all_potentials_target, _ = leniax_helpers.init_and_run(
-        rng_key, config_target, use_init_cells=True, with_jit=True, fft=True, stat_trunc=False
+        subkey, config_target, use_init_cells=True, with_jit=True, fft=True, stat_trunc=False
     )  # [nb_max_iter, N=1, C, world_dims...]
     total_time = time.time() - start_time
     nb_iter_done = len(all_cells_target)
@@ -164,29 +167,36 @@ def run(omegaConf: DictConfig) -> None:
     gf_params = mapping.get_gf_params()
     kwpc = mapping.get_kernels_weight_per_channel()
     update_fn = leniax_helpers.build_update_fn(K.shape, mapping, 'v1', True, fft=False)
-
-    # We build the simulation function
-    steper = Step(K.shape, kernel_init, gf_params, kwpc, update_fn)  # type: ignore
-    pipeline_fn = make_pipeline_fn(
-        nb_steps_to_train,
-        1 / T,
-        steper.apply,
-        all_states_loss_fn,
-        keep_intermediary_data=False,
-        keep_all_timesteps=True
-    )
-    gradient = make_gradient_fn(pipeline_fn, normalize=True)
-
     train_log_dir = os.path.join(save_dir, 'train')
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
 
-    lr = 1e-4
-    opt_init, opt_update, get_params = jax_opt.adam(lr)
+    # Initialize the model
+    steper = Step(K.shape, kernel_init, gf_params, kwpc, update_fn)  # type: ignore
     rng_key, params_key, subkey = jax.random.split(rng_key, 2 + 1)
     variables = steper.init(params_key, subkey, jnp.ones(all_init_cells.shape), 1.)
     vars, params = variables.pop('params')
     del variables  # Delete variables to avoid wasting resources
-    opt_state = opt_init(params)
+
+    # Make the optimizer
+    lr = 1e-4
+    optimizer = optax.adam(learning_rate=lr)
+
+    # Initialize the state
+    t_state = train_state.TrainState.create(
+        apply_fn=steper.apply,
+        params=params,
+        tx=optimizer,
+    )
+
+    pipeline_fn = make_pipeline_fn(
+        nb_steps_to_train,
+        1 / T,
+        t_state.apply_fn,
+        all_states_loss_fn,
+        keep_intermediary_data=False,
+        keep_all_timesteps=False
+    )
+    gradient = make_gradient_fn(pipeline_fn, normalize=True)
 
     for i, training_data in enumerate(dataset):
         x = training_data['input_cells']
@@ -196,24 +206,21 @@ def run(omegaConf: DictConfig) -> None:
             'potentials': training_data['target_potentials'],
         }
 
-        # In JAX, you need to manually retrieve the current state of your parameters at each timestep,
-        # so you can use them in your update function
-        params = get_params(opt_state)
-
         # We compute the gradients on a batch.
         rng_key, subkey = jax.random.split(rng_key)
-        (loss, aux), grads = gradient(subkey, params, vars, x, y)
+        (loss, _), grads = gradient(subkey, t_state.params, vars, x, y)
 
         # Finally we update our parameters
-        opt_state = opt_update(i, grads, opt_state)
+        t_state = t_state.apply_gradients(grads=grads)
 
         with train_summary_writer.as_default():
             tf.summary.scalar('loss', loss, step=i)
 
         if i % 20 == 0:
             logging.info(F"Iteration {i}, loss: {loss}")
-
+            params = t_state.params
             K_params = params['K']
+
             np.save(f"{save_dir}/K-{str(i).zfill(4)}.npy", K_params, allow_pickle=True, fix_imports=True)
 
             fig = plt.figure(figsize=(6, 6))
@@ -244,6 +251,9 @@ def run(omegaConf: DictConfig) -> None:
                 image = tf.expand_dims(image, 0)
                 tf.summary.image("Training data", image, step=i)
             plt.close(fig)
+
+        if i % 512 == 0:
+            save_checkpoint(save_dir, t_state)
 
 
 if __name__ == '__main__':

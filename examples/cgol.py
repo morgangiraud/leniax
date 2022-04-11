@@ -3,7 +3,7 @@
 This is a simple example on how to use Leniax to render a Lenia simulation.
 
 Usage:
-    ``python examples/run.py -cn config_name -cp config_path``
+    ``python examples/cgol.py -cn config_name -cp config_path``
 """
 import time
 import os
@@ -27,7 +27,7 @@ absl_logging.set_verbosity(absl_logging.ERROR)
 
 # We define our own CGOL kernel
 # Leniax convention is [C, H, W] in float32
-# (I know this is not efficient, I'll see later if I can configure dtypes)
+# (TODO: I know this is not efficient, I'll see later if I can configure dtypes)
 def cgol_2d(*args, **kwargs):
     return jnp.array([[
         [1., 1., 1.],
@@ -39,7 +39,7 @@ def cgol_2d(*args, **kwargs):
 kernels_register['cgol_2d'] = cgol_2d
 
 
-# We define a custom cgol function
+# We define our own CGOL update function
 def get_state_cgol(
     rng_key: jax.random.KeyArray,
     state: jnp.ndarray,
@@ -78,9 +78,10 @@ def run(omegaConf: DictConfig) -> None:
     rng_key = leniax_utils.seed_everything(config['run_params']['seed'])
 
     # We sample some initialize state
-    cells_shape = [1] + config['render_params']['world_size']
+    cells_shape = [config['world_params']['nb_channels']] + config['render_params']['world_size']
     rng_key, subkey = jax.random.split(rng_key)
     config['run_params']['init_cells'] = jnp.array(jax.random.randint(subkey, cells_shape, 0, 2), dtype=jnp.float32)
+
     # This is the main call which runs and returns data of the simulation
     # Ony the configuration parameter is mandatory.
     # In this case:

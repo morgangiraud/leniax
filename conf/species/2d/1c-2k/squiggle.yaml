@@ -75,8 +75,8 @@ phenotype:
 - behaviours.mass_speed
 render_params:
   pixel_border_size: 0
-  pixel_size: 4
-  pixel_size_power2: 2
+  pixel_size: 1
+  pixel_size_power2: 0
   size_power2: 7
   world_size:
   - 128

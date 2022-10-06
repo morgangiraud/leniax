@@ -18,7 +18,7 @@ install_requires = [
     'jax>=0.3.4', 
     'jaxlib>=0.3.2', 
     'PyYAML>=6.0',
-    'ribs>=0.4.0',
+    'ribs==0.4.0',
 ]
 
 extras_require = {
